@@ -4,7 +4,13 @@ const L_MAIN = $L("main");
 
 const U_HERO = 61;
 
-const c_hero = PVariable();
+const ORDER_HOLD = 107;
+const ORDER_PATROL = 152;
+
+const p_cunit = PVariable();
+const p_pos_x_old = PVariable();
+const p_pos_y_old = PVariable();
+
 
 function CreateCUnit(unitType, playerID, location) : CUnit {
 	const newUnit = CUnit.from_read(EPD(0x628438));
@@ -18,10 +24,7 @@ function onPluginStart() {
         if (Command(PID, AtLeast, 1, U_HERO)) {
             MoveLocation(L_MAIN, U_HERO, PID, L_ANYWHERE);
             RemoveUnit(U_HERO, PID);
-            c_hero[PID] = CreateCUnit(U_HERO, PID, L_MAIN);
-            // setup
-            const unit = CUnit(c_hero[PID]);
-            //unit.topSpeed = 8000;
+            p_cunit[PID] = CreateCUnit(U_HERO, PID, L_MAIN);
             CenterView(L_MAIN);
         }
     EUDEndPlayerLoop();
@@ -34,8 +37,33 @@ function beforeTriggerExec() {
 function afterTriggerExec() {
     EUDPlayerLoop()();
         const PID = getcurpl();
-        const unit = CUnit(c_hero[PID]);
-        unit.topSpeed = 2000;
+        const unit = CUnit(p_cunit[PID]);
+        var order_input = 0;
+        var unit_is_moving = 0;
+        if (unit.orderID == ORDER_HOLD || unit.orderID == ORDER_PATROL) {
+            order_input = unit.orderID;
+            unit.orderID = 3;
+        }
+
+        if (unit.posX == p_pos_x_old[PID] && unit.posY == p_pos_y_old[PID]) {
+            unit_is_moving = 0;
+        } else {
+            p_pos_x_old[PID] = unit.posX;
+            p_pos_y_old[PID] = unit.posY;
+            unit_is_moving = 1;
+        }
+        // movement stuck fix
+        if (!unit_is_moving && unit.currentSpeed1 > 0) {
+            unit.currentSpeed1 = 0;
+            unit.currentSpeed2 = 0;
+        }
+
+        if (order_input == ORDER_HOLD) {
+            unit.topSpeed -= 80;
+        } 
+        else if (order_input == ORDER_PATROL) {
+            unit.topSpeed += 80;
+        }
         eprintf("{}", unit.topSpeed);
     EUDEndPlayerLoop();
 }
