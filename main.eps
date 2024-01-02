@@ -3,6 +3,8 @@ const L_ANYWHERE = $L("Anywhere");
 const L_MAIN = $L("main");
 
 const U_HERO = 61;
+const U_CHIMERA = 37;
+const U_ANY = 229;
 
 const ORDER_HOLD = 107;
 const ORDER_PATROL = 152;
@@ -10,7 +12,84 @@ const ORDER_PATROL = 152;
 const p_cunit = PVariable();
 const p_pos_x_old = PVariable();
 const p_pos_y_old = PVariable();
+const p_chunk_x_old = PVariable();
+const p_chunk_y_old = PVariable();
 
+const monster_spawn_type = EUDArray(1000);
+const monster_spawn_x = EUDArray(1000);
+const monster_spawn_y = EUDArray(1000);
+const chunk_spawns = EUDArray(256);
+
+
+function GetVision(playerID) {
+    if (playerID == 0) RunAIScript("+Vi0");
+    else if (playerID == 1) RunAIScript("+Vi1");
+    else if (playerID == 2) RunAIScript("+Vi2");
+    else if (playerID == 3) RunAIScript("+Vi3");
+    else if (playerID == 4) RunAIScript("+Vi4");
+    else if (playerID == 5) RunAIScript("+Vi5");
+    else if (playerID == 6) RunAIScript("+Vi6");
+    else if (playerID == 7) RunAIScript("+Vi7");
+}
+
+function LoseVision(playerID) {
+    if (playerID == 0) RunAIScript("-Vi0");
+    else if (playerID == 1) RunAIScript("-Vi1");
+    else if (playerID == 2) RunAIScript("-Vi2");
+    else if (playerID == 3) RunAIScript("-Vi3");
+    else if (playerID == 4) RunAIScript("-Vi4");
+    else if (playerID == 5) RunAIScript("-Vi5");
+    else if (playerID == 6) RunAIScript("-Vi6");
+    else if (playerID == 7) RunAIScript("-Vi7");
+}
+
+function GetLocationPoint(location) {
+	const locTable = EPD(0x58DC4C);
+	return dwread_epd(locTable + location * 5), dwread_epd(locTable + location * 5 + 1);
+}
+
+function StoreSpawnPositions() {
+    var i = 0;
+    foreach(unit : EUDLoopCUnit()) {
+        if (unit.playerID == $P9) {
+            monster_spawn_type[i] = unit.unitType;
+            monster_spawn_x[i] = unit.posX;
+            monster_spawn_y[i] = unit.posY;
+            unit.remove();
+            i++;
+        }
+    }
+}
+
+function GetChunkID(chunkX, chunkY) {
+    return ((chunkX + 1) * (chunkY + 1)) - 1;
+}
+
+function SpawnUnitAtChunk(chunkX, chunkY) {
+    const limit_left = (chunkX * 16) * 32;
+    const limit_right = limit_left + 512;
+    const limit_top = (chunkY * 16) * 32;
+    const limit_bottom = limit_top + 512;
+    for (var i = 0; i < 1000; i++) {
+        if (monster_spawn_x[i] >= limit_left && monster_spawn_x[i] < limit_right && monster_spawn_y[i] >= limit_top && monster_spawn_y[i] < limit_bottom) {
+            setloc(L_MAIN, monster_spawn_x[i], monster_spawn_y[i]);
+            CreateUnit(1, monster_spawn_type[i], L_MAIN, $P7);
+        }
+    }
+    chunk_spawns[GetChunkID(chunkX, chunkY)] += 1;
+}
+
+function JustEnteredChunk(chunkX, chunkY) {
+    if (chunk_spawns[GetChunkID(chunkX, chunkY)] == 0) {
+        SpawnUnitAtChunk(chunkX, chunkY);
+    }
+}
+
+function GetChunkAtPos(positionX, positionY) {
+    var chunk_pos_x = (positionX / 32) / 16;
+    var chunk_pos_y = (positionY / 32) / 16;
+    return chunk_pos_x, chunk_pos_y;
+}
 
 function CreateCUnit(unitType, playerID, location) : CUnit {
 	const newUnit = CUnit.from_read(EPD(0x628438));
@@ -18,9 +97,12 @@ function CreateCUnit(unitType, playerID, location) : CUnit {
 	return newUnit;
 }
 
+// GAME LOGIC
 function onPluginStart() {
+    StoreSpawnPositions();
     EUDPlayerLoop()();
         const PID = getcurpl();
+        GetVision($P7);
         if (Command(PID, AtLeast, 1, U_HERO)) {
             MoveLocation(L_MAIN, U_HERO, PID, L_ANYWHERE);
             RemoveUnit(U_HERO, PID);
@@ -28,10 +110,6 @@ function onPluginStart() {
             CenterView(L_MAIN);
         }
     EUDEndPlayerLoop();
-}
-
-function beforeTriggerExec() {
-    
 }
 
 function afterTriggerExec() {
@@ -58,6 +136,16 @@ function afterTriggerExec() {
             unit.currentSpeed2 = 0;
         }
 
+        if (unit_is_moving) {
+            const x, y = GetChunkAtPos(unit.posX, unit.posY);
+            if (p_chunk_x_old[PID] != x || p_chunk_y_old[PID] != y) {
+                p_chunk_x_old[PID] = x;
+                p_chunk_y_old[PID] = y;
+                JustEnteredChunk(x, y);
+            }
+        }
+
+        // test
         if (order_input == ORDER_HOLD) {
             unit.topSpeed -= 80;
         } 
