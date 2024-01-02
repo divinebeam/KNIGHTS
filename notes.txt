@@ -1,0 +1,18 @@
+
+IDEAS
+	use kingdom of heaven music
+	maybe players can pledge themselves to a god
+		you can change your pledge but will have to suffer the wrath of your old god
+
+GAMEPLAY
+	players should choose loadout at the beginning of the match
+	
+	LOADOUT
+		1. WEAPON (PASSIVE)
+			Can be a sword, bow, or magic tome
+		2. ABILITY (ACTIVE)
+			Unique items
+		3. AURA (SWITCHED ON OR OFF)
+			Some sort of magic
+		4. ARMOR
+			Light class, medium class, heavy class.
