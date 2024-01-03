@@ -9,6 +9,7 @@ IDEAS
 		you can change your pledge but will have to suffer the wrath of your old god
 	names:
 		mythos
+	blood moon
 
 GAMEPLAY
 	players should choose loadout at the beginning of the match
