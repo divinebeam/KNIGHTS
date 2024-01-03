@@ -1,20 +1,34 @@
 
 IDEAS
 	use kingdom of heaven music
-		burning the past
-		crusaders
-		the king
-		the battle of kerak
+		spotify
+			burning the past
+			crusaders
+			the king
+			the battle of kerak
+		complete
+			france 1184
+			crusaders
+			burning the past
+			i am your father
+			after godfrey
+			the king
+			terms
 	maybe players can pledge themselves to a god
 		you can change your pledge but will have to suffer the wrath of your old god
 	names:
 		mythos
 	blood moon
+	dialogue:
+		God wills it
+		all death is certain
 
 GAMEPLAY
 	players should choose loadout at the beginning of the match
 	
 	LOADOUT
+		0. KNIGHT SWORD
+			the unit attack.
 		1. WEAPON (PASSIVE)
 			Can be a sword, bow, or magic tome
 		2. ABILITY (ACTIVE)
