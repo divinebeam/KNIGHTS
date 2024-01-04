@@ -27,6 +27,17 @@ const monster_spawn_y = EUDArray(1000);
 const chunk_spawns = EUDArray(256);
 const chunk_buffer = EUDArray(8);
 
+var time = 0;
+var test_delay = 0;
+
+object Vector2 {
+    var x, y;
+    function constructor(x, y) {
+        this.x = x;
+        this.y = y;
+    }
+};
+
 
 function CenterLoc(location, x, y) {
     setloc(L_MAIN, x, y);
@@ -177,6 +188,77 @@ function DamageUnit(unit:CUnit, damage) {
 	else unit.hp -= damage * 256;
 }
 
+function GetDirectionVector(point0 : Vector2, point1 : Vector2) : Vector2 {
+    // returns direction (vector + 10000) for negative numbers.
+    const direction = Vector2(((point1.x - point0.x) + 10000), ((point1.y - point0.y) + 10000));
+    return direction;
+}
+
+function MoveVectorDirection(point : Vector2, direction : Vector2, distance) : Vector2 {
+    // returns a vector transformed by the direction and distance.
+    const sign = Vector2(0, 0);
+    const new_point = Vector2(point.x, point.y);
+    const new_direction = Vector2(direction.x, direction.y);
+
+    if (new_direction.x < 10000) {
+        new_direction.x = ((10000 - new_direction.x));
+    } else {
+        new_direction.x = ((new_direction.x - 10000));
+        sign.x = 1;
+    }
+    if (new_direction.y < 10000) {
+        new_direction.y = ((10000 - new_direction.y));
+    } else {
+        new_direction.y = ((new_direction.y - 10000));
+        sign.y = 1;
+    }
+    
+    // NORMALIZING THE VECTOR
+    // const nomalizedXY = lengthdir(/*some fixed length*/, direction)
+    if (new_direction.x > new_direction.y) {
+        new_direction.x = (new_direction.x * 10000) / (new_direction.y * 10000);
+        new_direction.y = 10000;
+    } else {
+        new_direction.y = (new_direction.y * 10000) / (new_direction.x * 10000);
+        new_direction.x = 10000;
+    }
+    eprintf("{} {}", new_direction.x, new_direction.y);
+    // const length = sqrt(new_direction.x * new_direction.x + new_direction.y * new_direction.y);
+    // eprintf("{} {} {}", new_direction.x, new_direction.y, length);
+    // // f_printAll("{} {} {}", new_direction.x, new_direction.y, length);
+    // new_direction.x = (new_direction.x * 1000) / length;
+    // new_direction.y = (new_direction.y * 1000) / length;
+    // new_direction.x /= length;
+    // new_direction.y /= length;
+    
+    // SETTING UP THE DIRECTION TO BE ADDED TO THE OLD POSITION
+    new_direction.x *= distance;
+    new_direction.y *= distance;
+    new_direction.x /= 1000;
+    new_direction.y /= 1000;
+
+    if (sign.x == 0) new_point.x = point.x - (new_direction.x * distance);
+    else new_point.x = point.x + (new_direction.x * distance);
+    if (sign.y == 0) new_point.y = point.y - (new_direction.y * distance);
+    else new_point.y = point.y + (new_direction.y * distance);
+    return new_point;
+}
+
+function GetAngle(origin : Vector2, destination: Vector2) {
+    const angle = atan2(destination.y - origin.y, destination.x - origin.x);
+    return angle;
+}
+
+function MoveVectorTowards(vector0: Vector2, vector1: Vector2, distance) : Vector2 {
+    const angle = GetAngle(vector0, vector1);
+    const direction = Vector2(0, 0);
+    const new_vector = Vector2(vector0.x, vector0.y);
+    direction.x, direction.y = lengthdir(distance, angle);
+    new_vector.x += direction.x;
+    new_vector.y += direction.y;
+    return new_vector;
+}
+
 // GAME LOGIC
 function onPluginStart() {
     StoreSpawnPositions();
@@ -189,78 +271,100 @@ function onPluginStart() {
             MoveLocation(L_MAIN, U_HERO, PID, L_ANYWHERE);
             RemoveUnit(U_HERO, PID);
             p_cunit[PID] = CreateCUnit(U_HERO, PID, L_MAIN);
-            CenterView(L_MAIN);
+            // CenterView(L_MAIN);
         }
     EUDEndPlayerLoop();
 }
 
+var scalar = 10;
 function afterTriggerExec() {
+    time += 1;
     EUDPlayerLoop()();
         const PID = getcurpl();
-        const unit = CUnit(p_cunit[PID]);
-        var order_input = 0;
-        var unit_is_moving = 0;
-        var unit_just_attacked = 0;
-        if (unit.orderID == ORDER_HOLD || unit.orderID == ORDER_PATROL) {
-            order_input = unit.orderID;
-            unit.orderID = 3;
-        }
-        if (unit.posX == p_pos_x_old[PID] && unit.posY == p_pos_y_old[PID]) {
-            unit_is_moving = 0;
-        } else {
-            p_pos_x_old[PID] = unit.posX;
-            p_pos_y_old[PID] = unit.posY;
-            unit_is_moving = 1;
-        }
-        // movement stuck fix
-        if (!unit_is_moving && unit.currentSpeed1 > 0) {
-            unit.currentSpeed1 = 0;
-            unit.currentSpeed2 = 0;
-        }
-        if (unit_is_moving) {
-            const x, y = GetChunkAtPos(unit.posX, unit.posY);
-            if (p_chunk_x_old[PID] != x || p_chunk_y_old[PID] != y) {
-                p_chunk_x_old[PID] = x;
-                p_chunk_y_old[PID] = y;
-                JustEnteredChunk(x, y);
+        if (PID >= 0 && PID < 6) {
+            const unit = CUnit(p_cunit[PID]);
+            var order_input = 0;
+            var unit_is_moving = 0;
+            var unit_just_attacked = 0;
+            if (unit.orderID == ORDER_HOLD || unit.orderID == ORDER_PATROL) {
+                order_input = unit.orderID;
+                unit.orderID = 3;
             }
-        }
-
-        // ARMOR
-        if (Is_Alive(PID)) {
-            CenterLocHero(L_16x16, PID);
-            CenterLocHero(L_3X3, PID);
-            if (p_armor_max[PID] > 0 && EnemiesAtLoc(L_16x16)) {
-                if (EnemiesAtLoc(L_3X3) && p_armor_recover[PID] == 0) p_armor_recover[PID] = 1;
+            if (unit.posX == p_pos_x_old[PID] && unit.posY == p_pos_y_old[PID]) {
+                unit_is_moving = 0;
             } else {
-                if (unit.shield < p_armor_max[PID]) unit.shield += 10 * 256;
-                if (unit.shield > p_armor_max[PID]) unit.shield = p_armor_max[PID];
+                p_pos_x_old[PID] = unit.posX;
+                p_pos_y_old[PID] = unit.posY;
+                unit_is_moving = 1;
             }
-            if (!EnemiesAtLoc(L_3X3) && p_armor_recover[PID] > 0) {
-                p_armor_recover[PID] = 0;
-                unit.shield = p_armor_max[PID];
-                CreateImageSpriteAtLocation(377, L_3X3);
-                PlayWAV("staredit/wav/dodge.ogg");
+            // movement stuck fix
+            if (!unit_is_moving && unit.currentSpeed1 > 0) {
+                unit.currentSpeed1 = 0;
+                unit.currentSpeed2 = 0;
             }
-        }
-
-        // UNIT ATTACK
-        if (Is_Alive(PID)) {
-            if (unit.groundWeaponCooldown == 26) {
-                unit.groundWeaponCooldown -= p_attackspeed[PID];
-                DamageUnit(unit.orderTargetUnit, p_damage[PID]);
-                unit_just_attacked = 1;
+            if (unit_is_moving) {
+                const x, y = GetChunkAtPos(unit.posX, unit.posY);
+                if (p_chunk_x_old[PID] != x || p_chunk_y_old[PID] != y) {
+                    p_chunk_x_old[PID] = x;
+                    p_chunk_y_old[PID] = y;
+                    JustEnteredChunk(x, y);
+                }
             }
-        }
 
+            // ARMOR
+            if (Is_Alive(PID)) {
+                CenterLocHero(L_16x16, PID);
+                CenterLocHero(L_3X3, PID);
+                if (p_armor_max[PID] > 0 && EnemiesAtLoc(L_16x16)) {
+                    if (EnemiesAtLoc(L_3X3) && p_armor_recover[PID] == 0) p_armor_recover[PID] = 1;
+                } else {
+                    if (unit.shield < p_armor_max[PID]) unit.shield += 10 * 256;
+                    if (unit.shield > p_armor_max[PID]) unit.shield = p_armor_max[PID];
+                }
+                if (!EnemiesAtLoc(L_3X3) && p_armor_recover[PID] > 0) {
+                    p_armor_recover[PID] = 0;
+                    unit.shield = p_armor_max[PID];
+                    CreateImageSpriteAtLocation(377, L_3X3);
+                    PlayWAV("staredit/wav/dodge.ogg");
+                }
+            }
 
-        // test
-        if (order_input == ORDER_HOLD) {
-            p_damage[PID] -= 5;
-        } 
-        else if (order_input == ORDER_PATROL) {
-            p_damage[PID] += 5;
+            // UNIT ATTACK
+            if (Is_Alive(PID)) {
+                if (unit.groundWeaponCooldown == 26) {
+                    unit.groundWeaponCooldown -= p_attackspeed[PID];
+                    DamageUnit(unit.orderTargetUnit, p_damage[PID]);
+                    unit_just_attacked = 1;
+                }
+            }
+
+            if (unit_just_attacked) {
+                DisplayText("attacked.");
+            }
+
+            const vec1 = Vector2(unit.posX, unit.posY);
+            const vec2 = Vector2(unit.orderTargetX, unit.orderTargetY);
+            const vec3 = MoveVectorTowards(vec1, vec2, scalar);
+            eprintf("scalar:{} | {} {}", scalar, vec3.x, vec3.y);
+            setloc(L_MAIN, vec3.x, vec3.y);
+            if (test_delay == 0) {
+                test_delay = 1;
+                CreateUnitDeathAtLocation($U("Zerg Scourge"), L_MAIN);
+                MinimapPing(L_MAIN);
+            } else if (test_delay > 0) test_delay--;
+            scalar += 10;
+            if (scalar >= 6000) scalar = 0;
+            
+
+            // test
+            // if (order_input == ORDER_HOLD) {
+            //     scalar -= 1;
+            // } 
+            // else if (order_input == ORDER_PATROL) {
+            //     scalar += 1;
+            // }
+            // direction.x = direction.x / 1000;
+            // direction.y = direction.y / 1000;
         }
-        eprintf("{}", p_damage[PID]);
     EUDEndPlayerLoop();
 }
