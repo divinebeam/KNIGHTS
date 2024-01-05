@@ -177,9 +177,9 @@ function CreateImageSpriteAtLocation(imageID, location) {
 	SetMemoryX(0x00666458, SetTo, 546, 0x0000ffff);
 }
 
-function CreateUnitDeathAtLocation(Unit, location) {
-    CreateUnit(1, Unit, location, $P8);
-    KillUnit(Unit, $P8);
+function CreateUnitDeathAtLocation(Unit, playerID, location) {
+    CreateUnit(1, Unit, location, playerID);
+    KillUnit(Unit, playerID);
 }
 
 function DamageUnit(unit:CUnit, damage) {
@@ -188,75 +188,95 @@ function DamageUnit(unit:CUnit, damage) {
 	else unit.hp -= damage * 256;
 }
 
-function GetDirectionVector(point0 : Vector2, point1 : Vector2) : Vector2 {
-    // returns direction (vector + 10000) for negative numbers.
-    const direction = Vector2(((point1.x - point0.x) + 10000), ((point1.y - point0.y) + 10000));
-    return direction;
-}
-
-function MoveVectorDirection(point : Vector2, direction : Vector2, distance) : Vector2 {
-    // returns a vector transformed by the direction and distance.
-    const sign = Vector2(0, 0);
-    const new_point = Vector2(point.x, point.y);
-    const new_direction = Vector2(direction.x, direction.y);
-
-    if (new_direction.x < 10000) {
-        new_direction.x = ((10000 - new_direction.x));
-    } else {
-        new_direction.x = ((new_direction.x - 10000));
-        sign.x = 1;
-    }
-    if (new_direction.y < 10000) {
-        new_direction.y = ((10000 - new_direction.y));
-    } else {
-        new_direction.y = ((new_direction.y - 10000));
-        sign.y = 1;
-    }
-    
-    // NORMALIZING THE VECTOR
-    // const nomalizedXY = lengthdir(/*some fixed length*/, direction)
-    if (new_direction.x > new_direction.y) {
-        new_direction.x = (new_direction.x * 10000) / (new_direction.y * 10000);
-        new_direction.y = 10000;
-    } else {
-        new_direction.y = (new_direction.y * 10000) / (new_direction.x * 10000);
-        new_direction.x = 10000;
-    }
-    eprintf("{} {}", new_direction.x, new_direction.y);
-    // const length = sqrt(new_direction.x * new_direction.x + new_direction.y * new_direction.y);
-    // eprintf("{} {} {}", new_direction.x, new_direction.y, length);
-    // // f_printAll("{} {} {}", new_direction.x, new_direction.y, length);
-    // new_direction.x = (new_direction.x * 1000) / length;
-    // new_direction.y = (new_direction.y * 1000) / length;
-    // new_direction.x /= length;
-    // new_direction.y /= length;
-    
-    // SETTING UP THE DIRECTION TO BE ADDED TO THE OLD POSITION
-    new_direction.x *= distance;
-    new_direction.y *= distance;
-    new_direction.x /= 1000;
-    new_direction.y /= 1000;
-
-    if (sign.x == 0) new_point.x = point.x - (new_direction.x * distance);
-    else new_point.x = point.x + (new_direction.x * distance);
-    if (sign.y == 0) new_point.y = point.y - (new_direction.y * distance);
-    else new_point.y = point.y + (new_direction.y * distance);
-    return new_point;
-}
-
 function GetAngle(origin : Vector2, destination: Vector2) {
     const angle = atan2(destination.y - origin.y, destination.x - origin.x);
     return angle;
 }
 
-function MoveVectorTowards(vector0: Vector2, vector1: Vector2, distance) : Vector2 {
-    const angle = GetAngle(vector0, vector1);
+function AddAngles(angle0, angle1) {
+    var new_angle = angle0 + angle1;
+    if (new_angle > 4000000000) new_angle += 359;
+    else if (new_angle > 359) new_angle -= 359;
+    return new_angle;
+}
+
+function MoveVectorTowards(vector: Vector2, angle, distance) : Vector2 {
     const direction = Vector2(0, 0);
-    const new_vector = Vector2(vector0.x, vector0.y);
+    const new_vector = Vector2(vector.x, vector.y);
     direction.x, direction.y = lengthdir(distance, angle);
     new_vector.x += direction.x;
     new_vector.y += direction.y;
     return new_vector;
+}
+
+function Random(min, max) {
+   return min + dwrand() / (4294967295 / (max - min + 1) + 1);
+}
+
+const PROJECTILE_POOL = 192;
+const pro_posx = EUDArray(PROJECTILE_POOL);
+const pro_posy = EUDArray(PROJECTILE_POOL);
+const pro_time = EUDArray(PROJECTILE_POOL);
+const pro_maxtime = EUDArray(PROJECTILE_POOL);
+const pro_angle = EUDArray(PROJECTILE_POOL);
+const pro_velocity = EUDArray(PROJECTILE_POOL);
+const pro_angular_velocity = EUDArray(PROJECTILE_POOL);
+const pro_orbit = EUDArray(PROJECTILE_POOL);
+const pro_orbit_velocity = EUDArray(PROJECTILE_POOL);
+const pro_orbit_dist = EUDArray(PROJECTILE_POOL);
+
+function ResetProjectile(i) {
+    pro_time[i] = 0;
+    pro_maxtime[i] = 0;
+    pro_posx[i] = 0;
+    pro_posy[i] = 0;
+    pro_angle[i] = 0;
+    pro_velocity[i] = 0;
+    pro_angular_velocity[i] = 0;
+    pro_orbit[i] = 0;
+    pro_orbit_velocity[i] = 0;
+    pro_orbit_dist[i] = 0;
+}
+
+function CreateProjectile(Origin : Vector2, Angle, MaxTime, Velocity, AngularVelocity, OrbitVelocity, OrbitDist) {
+    for (var i = 0; i < PROJECTILE_POOL; i++) {
+        if (pro_time[i] == 0) {
+            pro_time[i] = 1;
+            pro_maxtime[i] = MaxTime;
+            pro_posx[i] = Origin.x;
+            pro_posy[i] = Origin.y;
+            pro_angle[i] = Angle;
+            pro_velocity[i] = Velocity;
+            pro_angular_velocity[i] = AngularVelocity;
+            pro_orbit[i] = Angle;
+            pro_orbit_velocity[i] = OrbitVelocity;
+            pro_orbit_dist[i] = OrbitDist;
+            break;
+        }
+    }
+}
+
+function UpdateProjectiles() {
+    for (var i = 0; i < PROJECTILE_POOL; i++) {
+        if (pro_time[i] > 0) {
+            pro_time[i] += 1;
+            pro_angle[i] = AddAngles(pro_angle[i], pro_angular_velocity[i]);
+            const new_vector = MoveVectorTowards(Vector2(pro_posx[i], pro_posy[i]), pro_angle[i], pro_velocity[i]);
+            pro_posx[i] = new_vector.x;
+            pro_posy[i] = new_vector.y;
+
+            pro_orbit[i] = AddAngles(pro_orbit[i], pro_orbit_velocity[i]);
+            // eprintf("{}", pro_orbit[i]);
+            const offset_vector = MoveVectorTowards(new_vector, pro_orbit[i], pro_orbit_dist[i]);
+            setloc(L_MAIN, offset_vector.x, offset_vector.y);
+            CreateUnitDeathAtLocation($U("Zerg Scourge"), $P1, L_MAIN);
+            setloc(L_MAIN, pro_posx[i], pro_posy[i]);
+            // CenterView(L_MAIN);
+            if (pro_time[i] >= pro_maxtime[i]) {
+                ResetProjectile(i);
+            }
+        }
+    }
 }
 
 // GAME LOGIC
@@ -266,19 +286,19 @@ function onPluginStart() {
         const PID = getcurpl();
         p_armor_max[PID] = 1000 * 256;
         p_damage[PID] = 20;
-        // GetVision($P7);
         if (Command(PID, AtLeast, 1, U_HERO)) {
             MoveLocation(L_MAIN, U_HERO, PID, L_ANYWHERE);
             RemoveUnit(U_HERO, PID);
             p_cunit[PID] = CreateCUnit(U_HERO, PID, L_MAIN);
-            // CenterView(L_MAIN);
+            CenterView(L_MAIN);
         }
     EUDEndPlayerLoop();
 }
-
-var scalar = 10;
+var test_value = 0;
+var test_value0 = 0;
 function afterTriggerExec() {
     time += 1;
+    UpdateProjectiles();
     EUDPlayerLoop()();
         const PID = getcurpl();
         if (PID >= 0 && PID < 6) {
@@ -297,9 +317,8 @@ function afterTriggerExec() {
                 p_pos_y_old[PID] = unit.posY;
                 unit_is_moving = 1;
             }
-            // movement stuck fix
             if (!unit_is_moving && unit.currentSpeed1 > 0) {
-                unit.currentSpeed1 = 0;
+                unit.currentSpeed1 = 0; // Unit stuck because of flingy movement fix.
                 unit.currentSpeed2 = 0;
             }
             if (unit_is_moving) {
@@ -342,29 +361,21 @@ function afterTriggerExec() {
                 DisplayText("attacked.");
             }
 
-            const vec1 = Vector2(unit.posX, unit.posY);
-            const vec2 = Vector2(unit.orderTargetX, unit.orderTargetY);
-            const vec3 = MoveVectorTowards(vec1, vec2, scalar);
-            eprintf("scalar:{} | {} {}", scalar, vec3.x, vec3.y);
-            setloc(L_MAIN, vec3.x, vec3.y);
             if (test_delay == 0) {
-                test_delay = 1;
-                CreateUnitDeathAtLocation($U("Zerg Scourge"), L_MAIN);
-                MinimapPing(L_MAIN);
-            } else if (test_delay > 0) test_delay--;
-            scalar += 10;
-            if (scalar >= 6000) scalar = 0;
-            
+                test_delay = 2;
+                const angle = Random(0, 359);
+                const velocity = Random(10, 50);
+                CreateProjectile(Vector2(unit.posX, unit.posY), angle, 48, velocity, test_value, 0, 0);
+            }
+            test_delay -= 1;
 
-            // test
-            // if (order_input == ORDER_HOLD) {
-            //     scalar -= 1;
-            // } 
-            // else if (order_input == ORDER_PATROL) {
-            //     scalar += 1;
-            // }
-            // direction.x = direction.x / 1000;
-            // direction.y = direction.y / 1000;
+            if (order_input == ORDER_HOLD) {
+                test_value -= 2;
+            } 
+            else if (order_input == ORDER_PATROL) {
+                test_value += 2;
+            }
+            eprintf("{} {}", test_value, test_value0);
         }
     EUDEndPlayerLoop();
 }
