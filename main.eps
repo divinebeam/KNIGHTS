@@ -11,6 +11,10 @@ const U_ANY = 229;
 const ORDER_HOLD = 107;
 const ORDER_PATROL = 152;
 
+const FULL_DAY_LENGTH = 4320;
+const BRIGHTNESS_DEFAULT = 31;
+const BRIGHTNESS_NIGHT = 25;
+
 const p_cunit = PVariable();
 const p_pos_x_old = PVariable();
 const p_pos_y_old = PVariable();
@@ -20,6 +24,7 @@ const p_armor_max = PVariable();
 const p_armor_recover = PVariable();
 const p_attackspeed = PVariable();
 const p_damage = PVariable();
+const p_brightness = PVariable();
 
 const monster_spawn_type = EUDArray(1000);
 const monster_spawn_x = EUDArray(1000);
@@ -29,6 +34,9 @@ const chunk_buffer = EUDArray(8);
 const screen = StringBuffer(256);
 
 var time = 0;
+var time_state = 0;
+var time_state_changed = 0;
+var days_elapsed = 0;
 var test_delay = 0;
 
 object Vector2 {
@@ -355,7 +363,29 @@ function UpdateProjectiles() {
     }
 }
 
-// GAME LOGIC
+function UpdateTime() {
+    time_state_changed = 0;
+    time += 1;
+    if (time > FULL_DAY_LENGTH) {
+        time = 0; 
+        time_state = 0;
+        time_state_changed = 1;
+        days_elapsed += 1;
+    } else if (time_state == 0 && time >= FULL_DAY_LENGTH/2) {
+        time_state = 1;
+        time_state_changed = 1;
+    }
+}
+
+function UpdateBrightness(playerID) {
+    var target_brightness = BRIGHTNESS_DEFAULT;
+    if (time_state == 1) target_brightness = BRIGHTNESS_NIGHT;
+    if (p_brightness[playerID] < target_brightness) p_brightness[playerID] += 1;
+    else if (p_brightness[playerID] > target_brightness) p_brightness[playerID] -= 1;
+    if (IsUserCP()) SetMemoryEPD(EPD(0x657A9C), SetTo, p_brightness[playerID]);
+}
+
+
 function onPluginStart() {
     StoreSpawnPositions();
     EUDPlayerLoop()();
@@ -374,11 +404,12 @@ function onPluginStart() {
 var test_value = 0;
 var test_value0 = 0;
 function afterTriggerExec() {
-    time += 1;
+    UpdateTime();
     UpdateProjectiles();
     EUDPlayerLoop()();
         const PID = getcurpl();
         if (PID >= 0 && PID < 6) {
+            UpdateBrightness(PID);
             const unit = CUnit(p_cunit[PID]);
             var order_input = 0;
             var unit_is_moving = 0;
@@ -438,19 +469,25 @@ function afterTriggerExec() {
                 DisplayText("attacked.");
             }
 
+            //TIME
+            if (time_state_changed) {
+                if (time_state == 0) DisplayText("DAY TIME!!!!!");
+                else if (time_state == 1) DisplayText("NIGHT TIME!!!!!");
+            }
+
             // if (test_delay == 0) {
-            //     test_delay = 48;
+            //     test_delay = 2;
             //     queue_pro_angle = Random(0, 359);
             //     queue_pro_velocity = Random(10, 50);
             //     queue_pro_posx, queue_pro_posy = unit.posX, unit.posY;
-            //     queue_pro_maxtime = 48;
+            //     queue_pro_maxtime = 144;
             //     queue_pro_angular_velocity = test_value;
             //     queue_pro_image0 = 443;
             //     queue_pro_image0_start = 0;
             //     queue_pro_image1 = 523;
             //     queue_pro_image1_start = 24;
             //     queue_pro_image2 = 427;
-            //     queue_pro_image2_start = 48;
+            //     queue_pro_image2_start = queue_pro_maxtime;
             //     CreateProjectile();
             // }
             // test_delay -= 1;
@@ -461,7 +498,7 @@ function afterTriggerExec() {
             else if (order_input == ORDER_PATROL) {
                 test_value += 2;
             }
-            eprintf("{} {}", test_value, test_value0);
+            eprintf("{}", time);
         }
     EUDEndPlayerLoop();
 }
