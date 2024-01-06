@@ -26,6 +26,7 @@ const monster_spawn_x = EUDArray(1000);
 const monster_spawn_y = EUDArray(1000);
 const chunk_spawns = EUDArray(256);
 const chunk_buffer = EUDArray(8);
+const screen = StringBuffer(256);
 
 var time = 0;
 var test_delay = 0;
@@ -78,6 +79,11 @@ function LoseVision(playerID) {
 function GetLocationPoint(location) {
 	const locTable = EPD(0x58DC4C);
 	return dwread_epd(locTable + location * 5), dwread_epd(locTable + location * 5 + 1);
+}
+
+function CreateUnitDeathAtLocation(Unit, playerID, location) {
+    CreateUnit(1, Unit, location, playerID);
+    KillUnit(Unit, playerID);
 }
 
 function StoreSpawnPositions() {
@@ -141,22 +147,27 @@ function SpawnUnitsAtChunk(chunkX, chunkY) {
 }
 
 function JustEnteredChunk(chunkX, chunkY) {
-    // const id = GetChunkID(chunkX, chunkY);
-    // const x, y = GetChunkCoords(id);
-    // eprintf("original coords: {} {} | id: {} | converted coords: {} {}", chunkX, chunkY, id, x, y);
+    // screen.printfAt(8, "{} | {} | {}", chunk_buffer[7], chunk_buffer[0], chunk_buffer[1]);
+    // screen.printfAt(9, "{} | -- | {}", chunk_buffer[6], chunk_buffer[2]);
+    // screen.printfAt(10, "{} | {} | {}", chunk_buffer[5], chunk_buffer[4], chunk_buffer[3]);
     FillChunkBuffer(chunkX, chunkY);
     for (var i = 0; i < 8; i++) {
         if (chunk_buffer[i] > 0 && chunk_spawns[chunk_buffer[i]] == 0) {
             const x, y = GetChunkCoords(chunk_buffer[i]);
             SpawnUnitsAtChunk(x, y);
         }
+        // if (chunk_buffer[i] > 0) {
+        //     setloc(L_MAIN, (x * 512) - 256, (y * 512) - 256);
+        //     CreateUnitDeathAtLocation($U("Zerg Scourge"), $P1, L_MAIN);
+        //     MinimapPing(L_MAIN);
+        // }
     }
 }
 
-function GetChunkAtPos(positionX, positionY) {
-    var chunk_pos_x = (positionX / 32) / 16;
-    var chunk_pos_y = (positionY / 32) / 16;
-    return chunk_pos_x, chunk_pos_y;
+function GetChunkAtPos(positionx, positiony) {
+    var chunk_pos_x = (positionx / 32) / 16;
+    var chunk_pos_y = (positiony / 32) / 16;
+    return chunk_pos_x + 1, chunk_pos_y + 1;
 }
 
 function CreateCUnit(unitType, playerID, location) : CUnit {
@@ -179,11 +190,6 @@ function CreateImageSpriteAtLocation(imageID, location) {
 	RemoveUnit(33, AllPlayers);
 	SetMemoryX(0x00666458, SetTo, 546, 0x0000ffff);
     dwwrite(0x666778 + 34000 + imageID * 4, prev_script);
-}
-
-function CreateUnitDeathAtLocation(Unit, playerID, location) {
-    CreateUnit(1, Unit, location, playerID);
-    KillUnit(Unit, playerID);
 }
 
 function DamageUnit(unit:CUnit, damage) {
@@ -213,6 +219,11 @@ function MoveVectorTowards(positionx, positiony, angle, distance) {
 
 function Random(min, max) {
    return min + dwrand() / (4294967295 / (max - min + 1) + 1);
+}
+
+function PosIsOnMap(positionx, positiony) {
+    if (positionx >= 0 && positionx <= 8191 && positiony >= 0 && positiony <= 8191) return 1;
+    return 0;
 }
 
 const PROJECTILE_POOL = 192;
@@ -325,17 +336,18 @@ function UpdateProjectiles() {
             const offsetx, offsety = MoveVectorTowards(new_posx, new_posy, pro_orbit[i], pro_orbit_dist[i]);
             setloc(L_MAIN, offsetx, offsety);
             //IMAGES
-            if (pro_time[i] >= pro_image0_start[i] && pro_time[i] < pro_image1_start[i]) {
-                // time for image 0
-                CreateImageSpriteAtLocation(pro_image0[i], L_MAIN);
-            } else if (pro_time[i] >= pro_image1_start[i] && pro_time[i] < pro_image2_start[i]) {
-                // time for image 1
-                CreateImageSpriteAtLocation(pro_image1[i], L_MAIN);
-            } else if (pro_time[i] >= pro_image2_start[i]) {
-                // time for image 2
-                CreateImageSpriteAtLocation(pro_image2[i], L_MAIN);
+            if (PosIsOnMap(offsetx, offsety) ) {
+                if (pro_time[i] >= pro_image0_start[i] && pro_time[i] < pro_image1_start[i]) {
+                    // time for image 0
+                    CreateImageSpriteAtLocation(pro_image0[i], L_MAIN);
+                } else if (pro_time[i] >= pro_image1_start[i] && pro_time[i] < pro_image2_start[i]) {
+                    // time for image 1
+                    CreateImageSpriteAtLocation(pro_image1[i], L_MAIN);
+                } else if (pro_time[i] >= pro_image2_start[i]) {
+                    // time for image 2
+                    CreateImageSpriteAtLocation(pro_image2[i], L_MAIN);
+                }
             }
-
             if (pro_time[i] >= pro_maxtime[i]) {
                 ResetProjectile(i);
             }
@@ -426,22 +438,22 @@ function afterTriggerExec() {
                 DisplayText("attacked.");
             }
 
-            if (test_delay == 0) {
-                test_delay = 2;
-                queue_pro_angle = Random(0, 359);
-                queue_pro_velocity = Random(10, 50);
-                queue_pro_posx, queue_pro_posy = unit.posX, unit.posY;
-                queue_pro_maxtime = 48;
-                queue_pro_angular_velocity = test_value;
-                queue_pro_image0 = 443;
-                queue_pro_image0_start = 0;
-                queue_pro_image1 = 523;
-                queue_pro_image1_start = 24;
-                queue_pro_image2 = 427;
-                queue_pro_image2_start = 36;
-                CreateProjectile();
-            }
-            test_delay -= 1;
+            // if (test_delay == 0) {
+            //     test_delay = 48;
+            //     queue_pro_angle = Random(0, 359);
+            //     queue_pro_velocity = Random(10, 50);
+            //     queue_pro_posx, queue_pro_posy = unit.posX, unit.posY;
+            //     queue_pro_maxtime = 48;
+            //     queue_pro_angular_velocity = test_value;
+            //     queue_pro_image0 = 443;
+            //     queue_pro_image0_start = 0;
+            //     queue_pro_image1 = 523;
+            //     queue_pro_image1_start = 24;
+            //     queue_pro_image2 = 427;
+            //     queue_pro_image2_start = 48;
+            //     CreateProjectile();
+            // }
+            // test_delay -= 1;
 
             if (order_input == ORDER_HOLD) {
                 test_value -= 2;
