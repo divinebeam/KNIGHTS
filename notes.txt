@@ -23,6 +23,10 @@ IDEAS
 		God wills it
 		all death is certain
 
+REMBEMBER
+	for orbiting projectiles to look good will need opposing orbit of different graphic
+	maybe should be able to choose the image for the orbit and the "true" projectile separate, can choose to hide the center image.
+
 GAMEPLAY
 	players should choose loadout at the beginning of the match
 	

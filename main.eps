@@ -171,10 +171,14 @@ function Is_Alive(playerID) {
 }
 
 function CreateImageSpriteAtLocation(imageID, location) {
+    const new_script = 281;
+    const prev_script = dwread(0x666778 + 34000 + imageID * 4);
+    dwwrite(0x666778 + 34000 + imageID * 4, new_script);
 	SetMemoryX(0x00666458, SetTo, imageID, 0x0000ffff);
 	CreateUnit(1, 33, location, $P8);
 	RemoveUnit(33, AllPlayers);
 	SetMemoryX(0x00666458, SetTo, 546, 0x0000ffff);
+    dwwrite(0x666778 + 34000 + imageID * 4, prev_script);
 }
 
 function CreateUnitDeathAtLocation(Unit, playerID, location) {
@@ -188,8 +192,8 @@ function DamageUnit(unit:CUnit, damage) {
 	else unit.hp -= damage * 256;
 }
 
-function GetAngle(origin : Vector2, destination: Vector2) {
-    const angle = atan2(destination.y - origin.y, destination.x - origin.x);
+function GetAngle(originx, originy, destinationx, destinationy) {
+    const angle = atan2(destinationy - originy, destinationx - originx);
     return angle;
 }
 
@@ -200,13 +204,11 @@ function AddAngles(angle0, angle1) {
     return new_angle;
 }
 
-function MoveVectorTowards(vector: Vector2, angle, distance) : Vector2 {
-    const direction = Vector2(0, 0);
-    const new_vector = Vector2(vector.x, vector.y);
-    direction.x, direction.y = lengthdir(distance, angle);
-    new_vector.x += direction.x;
-    new_vector.y += direction.y;
-    return new_vector;
+function MoveVectorTowards(positionx, positiony, angle, distance) {
+    const directionx, directiony = lengthdir(distance, angle);
+    const new_positionx = positionx + directionx;
+    const new_positiony = positiony + directiony;
+    return new_positionx, new_positiony;
 }
 
 function Random(min, max) {
@@ -224,6 +226,12 @@ const pro_angular_velocity = EUDArray(PROJECTILE_POOL);
 const pro_orbit = EUDArray(PROJECTILE_POOL);
 const pro_orbit_velocity = EUDArray(PROJECTILE_POOL);
 const pro_orbit_dist = EUDArray(PROJECTILE_POOL);
+const pro_image0 = EUDArray(PROJECTILE_POOL);
+const pro_image0_start = EUDArray(PROJECTILE_POOL);
+const pro_image1 = EUDArray(PROJECTILE_POOL);
+const pro_image1_start = EUDArray(PROJECTILE_POOL);
+const pro_image2 = EUDArray(PROJECTILE_POOL);
+const pro_image2_start = EUDArray(PROJECTILE_POOL);
 
 function ResetProjectile(i) {
     pro_time[i] = 0;
@@ -236,21 +244,69 @@ function ResetProjectile(i) {
     pro_orbit[i] = 0;
     pro_orbit_velocity[i] = 0;
     pro_orbit_dist[i] = 0;
+    pro_image0[i] = 0;
+    pro_image0_start[i] = 0;
+    pro_image1[i] = 0;
+    pro_image1_start[i] = 0;
+    pro_image2[i] = 0;
+    pro_image2_start[i] = 0;
 }
 
-function CreateProjectile(Origin : Vector2, Angle, MaxTime, Velocity, AngularVelocity, OrbitVelocity, OrbitDist) {
+var queue_pro_posx = 0;
+var queue_pro_posy = 0;
+var queue_pro_time = 0;
+var queue_pro_maxtime = 0;
+var queue_pro_angle = 0;
+var queue_pro_velocity = 0;
+var queue_pro_angular_velocity = 0;
+var queue_pro_orbit = 0;
+var queue_pro_orbit_velocity = 0;
+var queue_pro_orbit_dist = 0;
+var queue_pro_image0 = 0;
+var queue_pro_image0_start = 0;
+var queue_pro_image1 = 0;
+var queue_pro_image1_start = 0;
+var queue_pro_image2 = 0;
+var queue_pro_image2_start = 0;
+function ResetProjectileQueue() {
+    queue_pro_posx = 0;
+    queue_pro_posy = 0;
+    queue_pro_time = 0;
+    queue_pro_maxtime = 0;
+    queue_pro_angle = 0;
+    queue_pro_velocity = 0;
+    queue_pro_angular_velocity = 0;
+    queue_pro_orbit = 0;
+    queue_pro_orbit_velocity = 0;
+    queue_pro_orbit_dist = 0;
+    queue_pro_image0 = 0;
+    queue_pro_image0_start = 0;
+    queue_pro_image1 = 0;
+    queue_pro_image1_start = 0;
+    queue_pro_image2 = 0;
+    queue_pro_image2_start = 0;
+}
+
+function CreateProjectile() {
     for (var i = 0; i < PROJECTILE_POOL; i++) {
         if (pro_time[i] == 0) {
             pro_time[i] = 1;
-            pro_maxtime[i] = MaxTime;
-            pro_posx[i] = Origin.x;
-            pro_posy[i] = Origin.y;
-            pro_angle[i] = Angle;
-            pro_velocity[i] = Velocity;
-            pro_angular_velocity[i] = AngularVelocity;
-            pro_orbit[i] = Angle;
-            pro_orbit_velocity[i] = OrbitVelocity;
-            pro_orbit_dist[i] = OrbitDist;
+            pro_maxtime[i] = queue_pro_maxtime;
+            pro_posx[i] = queue_pro_posx;
+            pro_posy[i] = queue_pro_posy;
+            pro_angle[i] = queue_pro_angle;
+            pro_velocity[i] = queue_pro_velocity;
+            pro_angular_velocity[i] = queue_pro_angular_velocity;
+            pro_orbit[i] = queue_pro_angle;
+            pro_orbit_velocity[i] = queue_pro_orbit_velocity;
+            pro_orbit_dist[i] = queue_pro_orbit_dist;
+            pro_image0[i] = queue_pro_image0;
+            pro_image0_start[i] = queue_pro_image0_start;
+            pro_image1[i] = queue_pro_image1;
+            pro_image1_start[i] = queue_pro_image1_start;
+            pro_image2[i] = queue_pro_image2;
+            pro_image2_start[i] = queue_pro_image2_start;
+            ResetProjectileQueue();
             break;
         }
     }
@@ -261,17 +317,25 @@ function UpdateProjectiles() {
         if (pro_time[i] > 0) {
             pro_time[i] += 1;
             pro_angle[i] = AddAngles(pro_angle[i], pro_angular_velocity[i]);
-            const new_vector = MoveVectorTowards(Vector2(pro_posx[i], pro_posy[i]), pro_angle[i], pro_velocity[i]);
-            pro_posx[i] = new_vector.x;
-            pro_posy[i] = new_vector.y;
+            const new_posx, new_posy = MoveVectorTowards(pro_posx[i], pro_posy[i], pro_angle[i], pro_velocity[i]);
+            pro_posx[i] = new_posx;
+            pro_posy[i] = new_posy;
 
             pro_orbit[i] = AddAngles(pro_orbit[i], pro_orbit_velocity[i]);
-            // eprintf("{}", pro_orbit[i]);
-            const offset_vector = MoveVectorTowards(new_vector, pro_orbit[i], pro_orbit_dist[i]);
-            setloc(L_MAIN, offset_vector.x, offset_vector.y);
-            CreateUnitDeathAtLocation($U("Zerg Scourge"), $P1, L_MAIN);
-            setloc(L_MAIN, pro_posx[i], pro_posy[i]);
-            // CenterView(L_MAIN);
+            const offsetx, offsety = MoveVectorTowards(new_posx, new_posy, pro_orbit[i], pro_orbit_dist[i]);
+            setloc(L_MAIN, offsetx, offsety);
+            //IMAGES
+            if (pro_time[i] >= pro_image0_start[i] && pro_time[i] < pro_image1_start[i]) {
+                // time for image 0
+                CreateImageSpriteAtLocation(pro_image0[i], L_MAIN);
+            } else if (pro_time[i] >= pro_image1_start[i] && pro_time[i] < pro_image2_start[i]) {
+                // time for image 1
+                CreateImageSpriteAtLocation(pro_image1[i], L_MAIN);
+            } else if (pro_time[i] >= pro_image2_start[i]) {
+                // time for image 2
+                CreateImageSpriteAtLocation(pro_image2[i], L_MAIN);
+            }
+
             if (pro_time[i] >= pro_maxtime[i]) {
                 ResetProjectile(i);
             }
@@ -286,6 +350,7 @@ function onPluginStart() {
         const PID = getcurpl();
         p_armor_max[PID] = 1000 * 256;
         p_damage[PID] = 20;
+        GetVision($P8);
         if (Command(PID, AtLeast, 1, U_HERO)) {
             MoveLocation(L_MAIN, U_HERO, PID, L_ANYWHERE);
             RemoveUnit(U_HERO, PID);
@@ -363,9 +428,18 @@ function afterTriggerExec() {
 
             if (test_delay == 0) {
                 test_delay = 2;
-                const angle = Random(0, 359);
-                const velocity = Random(10, 50);
-                CreateProjectile(Vector2(unit.posX, unit.posY), angle, 48, velocity, test_value, 0, 0);
+                queue_pro_angle = Random(0, 359);
+                queue_pro_velocity = Random(10, 50);
+                queue_pro_posx, queue_pro_posy = unit.posX, unit.posY;
+                queue_pro_maxtime = 48;
+                queue_pro_angular_velocity = test_value;
+                queue_pro_image0 = 443;
+                queue_pro_image0_start = 0;
+                queue_pro_image1 = 523;
+                queue_pro_image1_start = 24;
+                queue_pro_image2 = 427;
+                queue_pro_image2_start = 36;
+                CreateProjectile();
             }
             test_delay -= 1;
 
