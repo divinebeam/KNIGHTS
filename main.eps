@@ -4,7 +4,7 @@ const L_MAIN = $L("main");
 const L_3X3 = $L("3x3");
 const L_16x16 = $L("16x16");
 
-const U_HERO = 61;
+const U_HERO = [61, 62, 64, 69, 60, 86];
 const U_CHIMERA = 37;
 const U_ANY = 229;
 
@@ -14,6 +14,8 @@ const ORDER_PATROL = 152;
 const FULL_DAY_LENGTH = 8640;
 const BRIGHTNESS_DEFAULT = 31;
 const BRIGHTNESS_NIGHT = 25;
+
+const PLAYER_DEFAULT_HP = 100;
 
 const p_cunit = PVariable();
 const p_pos_x_old = PVariable();
@@ -25,6 +27,7 @@ const p_armor_recover = PVariable();
 const p_attackspeed = PVariable();
 const p_damage = PVariable();
 const p_brightness = PVariable();
+const p_health_max = PVariable();
 
 const monster_spawn_type = EUDArray(1000);
 const monster_spawn_x = EUDArray(1000);
@@ -33,19 +36,13 @@ const chunk_spawns = EUDArray(256);
 const chunk_buffer = EUDArray(8);
 const screen = StringBuffer(256);
 
+var debug_enabled = 1;
+const debug_values = EUDArray(8);
 var time = 0;
 var time_state = 0;
 var time_state_changed = 0;
 var days_elapsed = 0;
 var test_delay = 0;
-
-object Vector2 {
-    var x, y;
-    function constructor(x, y) {
-        this.x = x;
-        this.y = y;
-    }
-};
 
 
 function CenterLoc(location, x, y) {
@@ -54,7 +51,7 @@ function CenterLoc(location, x, y) {
 }
 
 function CenterLocHero(location, playerID) {
-    MoveLocation(location, U_HERO, playerID, L_ANYWHERE);
+    MoveLocation(location, U_HERO[playerID], playerID, L_ANYWHERE);
 }
 
 function EnemiesAtLoc(location) {
@@ -186,7 +183,7 @@ function CreateCUnit(unitType, playerID, location) : CUnit {
 }
 
 function Is_Alive(playerID) {
-    if (Command(playerID, AtLeast, 1, U_HERO)) return true;
+    if (Command(playerID, AtLeast, 1, U_HERO[playerID])) return true;
     return false;
 }
 
@@ -234,6 +231,24 @@ function PosIsOnMap(positionx, positiony) {
     if (positionx >= 0 && positionx <= 8191 && positiony >= 0 && positiony <= 8191) return 1;
     return 0;
 }
+
+function SpawnHero(playerID, location) {
+    if (Is_Alive(playerID)) RemoveUnit(U_HERO[playerID], playerID);
+    p_cunit[playerID] = CreateCUnit(U_HERO[playerID], playerID, location);
+}
+
+function SetMaxHP(playerID, value) {
+    p_health_max[playerID] = value;
+    dwwrite(0x65FD00 + 9808 + U_HERO[playerID] * 4, value * 256);
+    CenterLocHero(L_MAIN, playerID);
+    SpawnHero(playerID, L_MAIN);
+}
+
+function SetHeroDefaults(playerID) {
+    p_armor_max[playerID] = 50 * 256;
+    p_damage[playerID] = 5;
+}
+
 
 const PROJECTILE_POOL = 192;
 const pro_posx = EUDArray(PROJECTILE_POOL);
@@ -389,21 +404,28 @@ function UpdateBrightness(playerID) {
 
 function onPluginStart() {
     StoreSpawnPositions();
+    SetMaxHP(0, 100);
+    SetMaxHP(1, 101);
+    SetMaxHP(2, 102);
+    SetMaxHP(3, 103);
+    SetMaxHP(4, 104);
+    SetMaxHP(5, 105);
     EUDPlayerLoop()();
         const PID = getcurpl();
-        p_armor_max[PID] = 1000 * 256;
-        p_damage[PID] = 20;
-        GetVision($P8);
-        if (Command(PID, AtLeast, 1, U_HERO)) {
-            MoveLocation(L_MAIN, U_HERO, PID, L_ANYWHERE);
-            RemoveUnit(U_HERO, PID);
-            p_cunit[PID] = CreateCUnit(U_HERO, PID, L_MAIN);
-            CenterView(L_MAIN);
+        if (PID >= 0 && PID < 6) {
+            for (var i = 0; i < 6; i++) SetAllianceStatus(i, Ally);
+            SetHeroDefaults(PID);
+            if (Command(PID, AtLeast, 1, U_HERO[0])) {
+                MoveLocation(L_MAIN, U_HERO[0], PID, L_ANYWHERE);
+                RemoveUnit(U_HERO[0], PID);
+                p_cunit[PID] = CreateCUnit(U_HERO[PID], PID, L_MAIN);
+                CenterView(L_MAIN);
+            }
+            GetVision($P8);
         }
     EUDEndPlayerLoop();
 }
-var test_value = 0;
-var test_value0 = 0;
+
 function afterTriggerExec() {
     UpdateTime();
     UpdateProjectiles();
@@ -450,6 +472,11 @@ function afterTriggerExec() {
                 }
             }
 
+            // HEALTH
+            if (Is_Alive(PID)) {
+
+            }
+
             // ARMOR
             if (Is_Alive(PID)) {
                 CenterLocHero(L_16x16, PID);
@@ -458,7 +485,6 @@ function afterTriggerExec() {
                     if (EnemiesAtLoc(L_3X3) && p_armor_recover[PID] == 0) p_armor_recover[PID] = 1;
                 } else {
                     if (unit.shield < p_armor_max[PID]) unit.shield += 10 * 256;
-                    if (unit.shield > p_armor_max[PID]) unit.shield = p_armor_max[PID];
                 }
                 if (!EnemiesAtLoc(L_3X3) && p_armor_recover[PID] > 0) {
                     p_armor_recover[PID] = 0;
@@ -466,6 +492,7 @@ function afterTriggerExec() {
                     CreateImageSpriteAtLocation(377, L_3X3);
                     PlayWAV("staredit/wav/dodge.ogg");
                 }
+                if (unit.shield > p_armor_max[PID]) unit.shield = p_armor_max[PID];
             }
 
             // UNIT ATTACK
@@ -483,8 +510,13 @@ function afterTriggerExec() {
 
             //TIME
             if (time_state_changed) {
-                if (time_state == 0) DisplayText("DAY TIME!!!!!");
-                else if (time_state == 1) DisplayText("NIGHT TIME!!!!!");
+                if (time_state == 0) {
+                    DisplayText("DAY TIME!!!!!");
+                }
+                else if (time_state == 1) {
+                    DisplayText("NIGHT TIME!!!!!");
+                    PlayWAV("staredit/wav/night_ambience.ogg");
+                }
             }
 
             // if (test_delay == 0) {
@@ -504,16 +536,19 @@ function afterTriggerExec() {
             // }
             // test_delay -= 1;
 
-            if (order_input == ORDER_HOLD) {
-                test_value -= 2;
-            } 
-            else if (order_input == ORDER_PATROL) {
-                test_value += 2;
+            if (debug_enabled) {
+                // unit.hp = debug_values[0];
+                if (order_input == ORDER_HOLD) {
+                    SetMaxHP(PID, p_health_max[PID] - 10);
+                    debug_values[0] = p_health_max[PID];
+                } 
+                else if (order_input == ORDER_PATROL) {
+                    SetMaxHP(PID, p_health_max[PID] + 10);
+                    debug_values[0] = p_health_max[PID];
+                }
+                eprintf("{} | {} | {} | {} | {} | {} | {} | {}", debug_values[0], debug_values[1], debug_values[2], debug_values[3], debug_values[4], debug_values[5], debug_values[6], debug_values[7]);
             }
-            const x, y = GetChunkAtPos(unit.posX, unit.posY);
-            const id = GetChunkID(x, y);
-            const chunkx, chunky = GetChunkCoords(id);
-            eprintf("{} | spawns {}", id, chunk_spawns[id - 1]);
+
         }
     EUDEndPlayerLoop();
 }

@@ -3,6 +3,7 @@ TODO
 	implement drawcircle function
 	for orbiting projectiles to look good will need opposing orbit of different graphic
 	maybe should be able to choose the image for the orbit and the "true" projectile separate, can choose to hide the center image.
+	separate unit ids for each player
 
 
 
