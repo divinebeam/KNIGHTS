@@ -11,7 +11,7 @@ const U_ANY = 229;
 const ORDER_HOLD = 107;
 const ORDER_PATROL = 152;
 
-const FULL_DAY_LENGTH = 4320;
+const FULL_DAY_LENGTH = 8640;
 const BRIGHTNESS_DEFAULT = 31;
 const BRIGHTNESS_NIGHT = 25;
 
@@ -108,25 +108,31 @@ function StoreSpawnPositions() {
 }
 
 function GetChunkID(chunkX, chunkY) {
-    if (chunkX >= 0 && chunkX < 256 && chunkY >= 0 && chunkY < 256) {
-        return (chunkX + (chunkY * 256)) + 1;
+    // returns a value 1 -> 256, from coordinates 1 -> 256
+    if (chunkX > 0 && chunkX <= 16 && chunkY > 0 && chunkY <= 16) {
+        return (chunkY - 1) * 16 + chunkX;
     }
     // printAll("ERROR: INVALID CHUNK COORDINATES!");
     return 0;
 }
 
 function GetChunkCoords(chunkID) {
-    var chunkY, chunkX = div(chunkID - 1, 256);
-    if (chunkX >= 0 && chunkX < 256 && chunkY >= 0 && chunkY < 256) {
-        return chunkX, chunkY;
+    // returns coordinates 1 -> 256 from an id 1 -> 256
+    var chunkx, chunky = 0, 0;
+    if (chunkID > 16 && chunkID <= 256) {
+        chunkx = ((chunkID - 1) % 16) + 1;
+        chunky = ((chunkID - 1) / 16) + 1;
+    } else if (chunkID > 0 && chunkID <= 16) {
+        chunkx = chunkID;
+        chunky = 1;
     }
     // printAll("ERROR: INVALID CHUNK COORDINATES FROM ID!");
-    return 1000, 1000;
+    return chunkx, chunky;
 }
 
 function FillChunkBuffer(chunkX, chunkY) {
-    // returns an array of ids of the 8 surrounding chunks, ids are zero if not valid like at the edge of the map
-    // starts top and goes clockwise. Fills global chunk buffer.
+    // fills chunk buffer array with ids of the 8 surrounding chunks, ids are zero if not valid like at the edge of the map
+    // starts top and goes clockwise.
     for (var i = 0; i < 8; i++) chunk_buffer[i] = 0;
     chunk_buffer[0] = GetChunkID(chunkX, chunkY - 1);
     chunk_buffer[1] = GetChunkID(chunkX + 1, chunkY - 1);
@@ -139,9 +145,9 @@ function FillChunkBuffer(chunkX, chunkY) {
 }
 
 function SpawnUnitsAtChunk(chunkX, chunkY) {
-    const limit_left = (chunkX * 16) * 32;
+    const limit_left = ((chunkX - 1) * 16) * 32;
     const limit_right = limit_left + 512;
-    const limit_top = (chunkY * 16) * 32;
+    const limit_top = ((chunkY - 1) * 16) * 32;
     const limit_bottom = limit_top + 512;
     for (var i = 0; i < 1000; i++) {
         if (monster_spawn_x[i] >= limit_left && monster_spawn_x[i] < limit_right && monster_spawn_y[i] >= limit_top && monster_spawn_y[i] < limit_bottom) {
@@ -151,24 +157,19 @@ function SpawnUnitsAtChunk(chunkX, chunkY) {
             }
         }
     }
-    chunk_spawns[GetChunkID(chunkX, chunkY)] += 1;
+    chunk_spawns[GetChunkID(chunkX, chunkY) - 1] += 1;
 }
 
 function JustEnteredChunk(chunkX, chunkY) {
-    // screen.printfAt(8, "{} | {} | {}", chunk_buffer[7], chunk_buffer[0], chunk_buffer[1]);
-    // screen.printfAt(9, "{} | -- | {}", chunk_buffer[6], chunk_buffer[2]);
-    // screen.printfAt(10, "{} | {} | {}", chunk_buffer[5], chunk_buffer[4], chunk_buffer[3]);
     FillChunkBuffer(chunkX, chunkY);
+    screen.printfAt(8, "{} | {} | {}", chunk_buffer[7], chunk_buffer[0], chunk_buffer[1]);
+    screen.printfAt(9, "{} | -- | {}", chunk_buffer[6], chunk_buffer[2]);
+    screen.printfAt(10, "{} | {} | {}", chunk_buffer[5], chunk_buffer[4], chunk_buffer[3]);
     for (var i = 0; i < 8; i++) {
-        if (chunk_buffer[i] > 0 && chunk_spawns[chunk_buffer[i]] == 0) {
+        if (chunk_buffer[i] > 0 && chunk_spawns[chunk_buffer[i] - 1] == 0) {
             const x, y = GetChunkCoords(chunk_buffer[i]);
             SpawnUnitsAtChunk(x, y);
         }
-        // if (chunk_buffer[i] > 0) {
-        //     setloc(L_MAIN, (x * 512) - 256, (y * 512) - 256);
-        //     CreateUnitDeathAtLocation($U("Zerg Scourge"), $P1, L_MAIN);
-        //     MinimapPing(L_MAIN);
-        // }
     }
 }
 
@@ -406,6 +407,17 @@ var test_value0 = 0;
 function afterTriggerExec() {
     UpdateTime();
     UpdateProjectiles();
+    //reset chunk spawn amount
+    if (time_state_changed && time_state == 0) {
+        var reset_count = 0;
+        for (var i = 0; i < 256; i++) {
+            if (chunk_spawns[i] > 0) {
+                chunk_spawns[i] = 0;
+                reset_count += 1;
+            }
+        }
+        screen.printf("reset spawns for {} chunks", reset_count);
+    }
     EUDPlayerLoop()();
         const PID = getcurpl();
         if (PID >= 0 && PID < 6) {
@@ -498,7 +510,10 @@ function afterTriggerExec() {
             else if (order_input == ORDER_PATROL) {
                 test_value += 2;
             }
-            eprintf("{}", time);
+            const x, y = GetChunkAtPos(unit.posX, unit.posY);
+            const id = GetChunkID(x, y);
+            const chunkx, chunky = GetChunkCoords(id);
+            eprintf("{} | spawns {}", id, chunk_spawns[id - 1]);
         }
     EUDEndPlayerLoop();
 }
