@@ -14,8 +14,11 @@ const ORDER_PATROL = 152;
 const FULL_DAY_LENGTH = 8640;
 const BRIGHTNESS_DEFAULT = 31;
 const BRIGHTNESS_NIGHT = 25;
+const ELEVATION_DEFAULT = 4;
 
 const PLAYER_DEFAULT_HP = 100;
+
+const CHIMERA_EXP = 30;
 
 const p_cunit = PVariable();
 const p_pos_x_old = PVariable();
@@ -24,10 +27,16 @@ const p_chunk_x_old = PVariable();
 const p_chunk_y_old = PVariable();
 const p_armor_max = PVariable();
 const p_armor_recover = PVariable();
+const p_armor_old = PVariable();
 const p_attackspeed = PVariable();
 const p_damage = PVariable();
 const p_brightness = PVariable();
 const p_health_max = PVariable();
+const p_exp_current = PVariable();
+const p_weapon_id = PVariable();
+const p_weapon_cooldown = PVariable();
+const p_homepos_x = PVariable();
+const p_homepos_y = PVariable();
 
 const monster_spawn_type = EUDArray(1000);
 const monster_spawn_x = EUDArray(1000);
@@ -159,9 +168,9 @@ function SpawnUnitsAtChunk(chunkX, chunkY) {
 
 function JustEnteredChunk(chunkX, chunkY) {
     FillChunkBuffer(chunkX, chunkY);
-    screen.printfAt(8, "{} | {} | {}", chunk_buffer[7], chunk_buffer[0], chunk_buffer[1]);
-    screen.printfAt(9, "{} | -- | {}", chunk_buffer[6], chunk_buffer[2]);
-    screen.printfAt(10, "{} | {} | {}", chunk_buffer[5], chunk_buffer[4], chunk_buffer[3]);
+    // screen.printfAt(8, "{} | {} | {}", chunk_buffer[7], chunk_buffer[0], chunk_buffer[1]);
+    // screen.printfAt(9, "{} | -- | {}", chunk_buffer[6], chunk_buffer[2]);
+    // screen.printfAt(10, "{} | {} | {}", chunk_buffer[5], chunk_buffer[4], chunk_buffer[3]);
     for (var i = 0; i < 8; i++) {
         if (chunk_buffer[i] > 0 && chunk_spawns[chunk_buffer[i] - 1] == 0) {
             const x, y = GetChunkCoords(chunk_buffer[i]);
@@ -187,21 +196,32 @@ function Is_Alive(playerID) {
     return false;
 }
 
-function CreateImageSpriteAtLocation(imageID, location) {
+function CreateImageSpriteAtLocation(playerID, location, imageID, drawFunc, elevation) {
     const new_script = 281;
     const prev_script = dwread(0x666778 + 34000 + imageID * 4);
-    dwwrite(0x666778 + 34000 + imageID * 4, new_script);
-	SetMemoryX(0x00666458, SetTo, imageID, 0x0000ffff);
-	CreateUnit(1, 33, location, $P8);
-	RemoveUnit(33, AllPlayers);
-	SetMemoryX(0x00666458, SetTo, 546, 0x0000ffff);
-    dwwrite(0x666778 + 34000 + imageID * 4, prev_script);
+    const prev_drawfunc = dwread(0x666778 + 14000 + imageID * 1);
+    dwwrite(0x666778 + 34000 + imageID * 4, new_script); // change image iscript
+    dwwrite(0x666778 + 14000 + imageID * 1, drawFunc); // change image drawfunc
+	SetMemoryX(0x00666458, SetTo, imageID, 0x0000ffff); // change scanner to input image
+    const unit = CreateCUnit(33, playerID, location);
+	RemoveUnit(33, playerID);
+	SetMemoryX(0x00666458, SetTo, 546, 0x0000ffff); // revert scanner image
+    dwwrite(0x666778 + 34000 + imageID * 4, prev_script); // revert image iscript
+    dwwrite(0x666778 + 14000 + imageID * 1, prev_drawfunc); // revert image drawfunc
+    unit.elevation = elevation;
+
 }
 
 function DamageUnit(unit:CUnit, damage) {
 	if (unit.hp < damage * 256) unit.hp = 0;
-	if (unit.hp == 0) unit.die();
-	else unit.hp -= damage * 256;
+	if (unit.hp == 0) {
+        unit.die();
+        return 0;
+    } else {
+        unit.hp -= damage * 256;
+        return 1;
+    }
+    
 }
 
 function GetAngle(originx, originy, destinationx, destinationy) {
@@ -235,18 +255,27 @@ function PosIsOnMap(positionx, positiony) {
 function SpawnHero(playerID, location) {
     if (Is_Alive(playerID)) RemoveUnit(U_HERO[playerID], playerID);
     p_cunit[playerID] = CreateCUnit(U_HERO[playerID], playerID, location);
+    if (p_homepos_x[playerID] == 0) p_homepos_x[playerID], p_homepos_y[playerID] = GetLocationPoint(L_MAIN);
 }
 
 function SetMaxHP(playerID, value) {
     p_health_max[playerID] = value;
     dwwrite(0x65FD00 + 9808 + U_HERO[playerID] * 4, value * 256);
-    CenterLocHero(L_MAIN, playerID);
-    SpawnHero(playerID, L_MAIN);
+    ModifyUnitHitPoints(1, U_HERO[playerID], playerID, L_ANYWHERE, 100);
+    // CenterLocHero(L_MAIN, playerID);
+    // SpawnHero(playerID, L_MAIN);
 }
 
 function SetHeroDefaults(playerID) {
-    p_armor_max[playerID] = 50 * 256;
-    p_damage[playerID] = 5;
+    p_armor_max[playerID] = 100 * 256;
+    p_damage[playerID] = 20;
+    SetMaxHP(playerID, 100);
+}
+
+function RedeemUnitExp(playerID, Unit) {
+    if (Unit == U_CHIMERA) {
+        p_exp_current[playerID] += CHIMERA_EXP;
+    }
 }
 
 
@@ -363,13 +392,13 @@ function UpdateProjectiles() {
             if (PosIsOnMap(offsetx, offsety) ) {
                 if (pro_time[i] >= pro_image0_start[i] && pro_time[i] < pro_image1_start[i]) {
                     // time for image 0
-                    CreateImageSpriteAtLocation(pro_image0[i], L_MAIN);
+                    CreateImageSpriteAtLocation($P8, L_MAIN, pro_image0[i], 0, ELEVATION_DEFAULT);
                 } else if (pro_time[i] >= pro_image1_start[i] && pro_time[i] < pro_image2_start[i]) {
                     // time for image 1
-                    CreateImageSpriteAtLocation(pro_image1[i], L_MAIN);
+                    CreateImageSpriteAtLocation($P8, L_MAIN, pro_image1[i], 0, ELEVATION_DEFAULT);
                 } else if (pro_time[i] >= pro_image2_start[i]) {
                     // time for image 2
-                    CreateImageSpriteAtLocation(pro_image2[i], L_MAIN);
+                    CreateImageSpriteAtLocation($P8, L_MAIN, pro_image2[i], 0, ELEVATION_DEFAULT);
                 }
             }
             if (pro_time[i] >= pro_maxtime[i]) {
@@ -404,12 +433,6 @@ function UpdateBrightness(playerID) {
 
 function onPluginStart() {
     StoreSpawnPositions();
-    SetMaxHP(0, 100);
-    SetMaxHP(1, 101);
-    SetMaxHP(2, 102);
-    SetMaxHP(3, 103);
-    SetMaxHP(4, 104);
-    SetMaxHP(5, 105);
     EUDPlayerLoop()();
         const PID = getcurpl();
         if (PID >= 0 && PID < 6) {
@@ -418,7 +441,7 @@ function onPluginStart() {
             if (Command(PID, AtLeast, 1, U_HERO[0])) {
                 MoveLocation(L_MAIN, U_HERO[0], PID, L_ANYWHERE);
                 RemoveUnit(U_HERO[0], PID);
-                p_cunit[PID] = CreateCUnit(U_HERO[PID], PID, L_MAIN);
+                SpawnHero(PID, L_MAIN);
                 CenterView(L_MAIN);
             }
             GetVision($P8);
@@ -489,18 +512,31 @@ function afterTriggerExec() {
                 if (!EnemiesAtLoc(L_3X3) && p_armor_recover[PID] > 0) {
                     p_armor_recover[PID] = 0;
                     unit.shield = p_armor_max[PID];
-                    CreateImageSpriteAtLocation(377, L_3X3);
+                    CreateImageSpriteAtLocation($P8, L_3X3, 377, 0, ELEVATION_DEFAULT);
                     PlayWAV("staredit/wav/dodge.ogg");
                 }
                 if (unit.shield > p_armor_max[PID]) unit.shield = p_armor_max[PID];
+                if (unit.shield >= 256) p_armor_old[PID] = unit.shield;
+                if (unit.shield < 256 && p_armor_old[PID] > 256) {
+                    p_armor_old[PID] = 0;
+                    // armor broken
+                    DisplayText("ARMOR BROKEN");
+                    PlayWAV("staredit/wav/shields_broke.ogg");
+                    setloc(L_MAIN, unit.posX, unit.posY);
+                    CreateImageSpriteAtLocation($P8, L_MAIN, 107, 16, 0);
+                }
             }
 
             // UNIT ATTACK
             if (Is_Alive(PID)) {
                 if (unit.groundWeaponCooldown == 26) {
-                    unit.groundWeaponCooldown -= p_attackspeed[PID];
-                    DamageUnit(unit.orderTargetUnit, p_damage[PID]);
                     unit_just_attacked = 1;
+                    unit.groundWeaponCooldown -= p_attackspeed[PID];
+                    const target = unit.orderTargetUnit;
+                    const target_state = DamageUnit(target, p_damage[PID]);
+                    if (target_state == 0) {
+                        RedeemUnitExp(PID, target.unitType);
+                    }
                 }
             }
 
@@ -537,14 +573,18 @@ function afterTriggerExec() {
             // test_delay -= 1;
 
             if (debug_enabled) {
-                // unit.hp = debug_values[0];
+                if (!Is_Alive(PID)) {
+                    setloc(L_MAIN, p_homepos_x[PID], p_homepos_y[PID]);
+                    SpawnHero(PID, L_MAIN);
+                    CenterView(L_MAIN);
+                }
+                debug_values[0] = unit.shield;
+                debug_values[1] = p_exp_current[PID];
                 if (order_input == ORDER_HOLD) {
                     SetMaxHP(PID, p_health_max[PID] - 10);
-                    debug_values[0] = p_health_max[PID];
                 } 
                 else if (order_input == ORDER_PATROL) {
                     SetMaxHP(PID, p_health_max[PID] + 10);
-                    debug_values[0] = p_health_max[PID];
                 }
                 eprintf("{} | {} | {} | {} | {} | {} | {} | {}", debug_values[0], debug_values[1], debug_values[2], debug_values[3], debug_values[4], debug_values[5], debug_values[6], debug_values[7]);
             }

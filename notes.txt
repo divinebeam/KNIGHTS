@@ -3,7 +3,7 @@ TODO
 	implement drawcircle function
 	for orbiting projectiles to look good will need opposing orbit of different graphic
 	maybe should be able to choose the image for the orbit and the "true" projectile separate, can choose to hide the center image.
-	separate unit ids for each player
+	
 
 
 
@@ -31,6 +31,13 @@ IDEAS
 	dialogue:
 		God wills it
 		all death is certain
+	
+	attributes that can be changed
+		health
+		health regen
+		movement speed
+		ability cost
+		knight sword damage
 
 GAMEPLAY
 	players should choose loadout at the beginning of the match
