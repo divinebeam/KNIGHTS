@@ -17,6 +17,7 @@ const BRIGHTNESS_NIGHT = 25;
 const ELEVATION_DEFAULT = 4;
 
 const PLAYER_DEFAULT_HP = 100;
+const PLAYER_DEFAULT_SIGHT = 8;
 
 const CHIMERA_EXP = 30;
 
@@ -33,10 +34,13 @@ const p_damage = PVariable();
 const p_brightness = PVariable();
 const p_health_max = PVariable();
 const p_exp_current = PVariable();
+const p_exp_goal = PVariable();
+const p_level_current = PVariable();
 const p_weapon_id = PVariable();
 const p_weapon_cooldown = PVariable();
 const p_homepos_x = PVariable();
 const p_homepos_y = PVariable();
+const p_indoors = PVariable();
 
 const monster_spawn_type = EUDArray(1000);
 const monster_spawn_x = EUDArray(1000);
@@ -191,25 +195,31 @@ function CreateCUnit(unitType, playerID, location) : CUnit {
 	return newUnit;
 }
 
-function Is_Alive(playerID) {
+function IsPosWithinRect(positionx, positiony, left, right, top, bottom) {
+    if (positionx >= left && positionx <= right && positiony >= top && positiony <= bottom) return 1;
+    return 0;
+}
+
+function IsAlive(playerID) {
     if (Command(playerID, AtLeast, 1, U_HERO[playerID])) return true;
     return false;
 }
 
-function CreateImageSpriteAtLocation(playerID, location, imageID, drawFunc, elevation) {
+function IsPosIndoors(positionx, positiony) {
+    if (IsPosWithinRect(positionx, positiony, 3840, 4390, 1630, 2340)) return 1;
+    return 0;
+}
+
+function CreateImageSpriteAtLocation(playerID, location, imageID, drawFunc) {
     const new_script = 281;
     const prev_script = dwread(0x666778 + 34000 + imageID * 4);
-    const prev_drawfunc = dwread(0x666778 + 14000 + imageID * 1);
     dwwrite(0x666778 + 34000 + imageID * 4, new_script); // change image iscript
     dwwrite(0x666778 + 14000 + imageID * 1, drawFunc); // change image drawfunc
-	SetMemoryX(0x00666458, SetTo, imageID, 0x0000ffff); // change scanner to input image
-    const unit = CreateCUnit(33, playerID, location);
+	SetMemoryX(0x00666458, SetTo, imageID, 0x0000ffff); // change scanner image to input image
+    CreateUnit(1, 33, location, playerID);
 	RemoveUnit(33, playerID);
 	SetMemoryX(0x00666458, SetTo, 546, 0x0000ffff); // revert scanner image
     dwwrite(0x666778 + 34000 + imageID * 4, prev_script); // revert image iscript
-    dwwrite(0x666778 + 14000 + imageID * 1, prev_drawfunc); // revert image drawfunc
-    unit.elevation = elevation;
-
 }
 
 function DamageUnit(unit:CUnit, damage) {
@@ -236,7 +246,7 @@ function AddAngles(angle0, angle1) {
     return new_angle;
 }
 
-function MoveVectorTowards(positionx, positiony, angle, distance) {
+function MovePosTowards(positionx, positiony, angle, distance) {
     const directionx, directiony = lengthdir(distance, angle);
     const new_positionx = positionx + directionx;
     const new_positiony = positiony + directiony;
@@ -253,7 +263,7 @@ function PosIsOnMap(positionx, positiony) {
 }
 
 function SpawnHero(playerID, location) {
-    if (Is_Alive(playerID)) RemoveUnit(U_HERO[playerID], playerID);
+    if (IsAlive(playerID)) RemoveUnit(U_HERO[playerID], playerID);
     p_cunit[playerID] = CreateCUnit(U_HERO[playerID], playerID, location);
     if (p_homepos_x[playerID] == 0) p_homepos_x[playerID], p_homepos_y[playerID] = GetLocationPoint(L_MAIN);
 }
@@ -267,17 +277,11 @@ function SetMaxHP(playerID, value) {
 }
 
 function SetHeroDefaults(playerID) {
+    p_exp_goal[playerID] = 100;
     p_armor_max[playerID] = 100 * 256;
     p_damage[playerID] = 20;
     SetMaxHP(playerID, 100);
 }
-
-function RedeemUnitExp(playerID, Unit) {
-    if (Unit == U_CHIMERA) {
-        p_exp_current[playerID] += CHIMERA_EXP;
-    }
-}
-
 
 const PROJECTILE_POOL = 192;
 const pro_posx = EUDArray(PROJECTILE_POOL);
@@ -290,12 +294,15 @@ const pro_angular_velocity = EUDArray(PROJECTILE_POOL);
 const pro_orbit = EUDArray(PROJECTILE_POOL);
 const pro_orbit_velocity = EUDArray(PROJECTILE_POOL);
 const pro_orbit_dist = EUDArray(PROJECTILE_POOL);
-const pro_image0 = EUDArray(PROJECTILE_POOL);
-const pro_image0_start = EUDArray(PROJECTILE_POOL);
-const pro_image1 = EUDArray(PROJECTILE_POOL);
-const pro_image1_start = EUDArray(PROJECTILE_POOL);
-const pro_image2 = EUDArray(PROJECTILE_POOL);
-const pro_image2_start = EUDArray(PROJECTILE_POOL);
+const pro_effect0_type = EUDArray(PROJECTILE_POOL); //whether the effect is an image or a unit death
+const pro_effect0 = EUDArray(PROJECTILE_POOL);
+const pro_effect0_start = EUDArray(PROJECTILE_POOL);
+const pro_effect1_type = EUDArray(PROJECTILE_POOL);
+const pro_effect1 = EUDArray(PROJECTILE_POOL);
+const pro_effect1_start = EUDArray(PROJECTILE_POOL);
+const pro_effect2_type = EUDArray(PROJECTILE_POOL);
+const pro_effect2 = EUDArray(PROJECTILE_POOL);
+const pro_effect2_start = EUDArray(PROJECTILE_POOL);
 
 function ResetProjectile(i) {
     pro_time[i] = 0;
@@ -308,12 +315,15 @@ function ResetProjectile(i) {
     pro_orbit[i] = 0;
     pro_orbit_velocity[i] = 0;
     pro_orbit_dist[i] = 0;
-    pro_image0[i] = 0;
-    pro_image0_start[i] = 0;
-    pro_image1[i] = 0;
-    pro_image1_start[i] = 0;
-    pro_image2[i] = 0;
-    pro_image2_start[i] = 0;
+    pro_effect0_type[i] = 0;
+    pro_effect0[i] = 0;
+    pro_effect0_start[i] = 0;
+    pro_effect1_type[i] = 0;
+    pro_effect1[i] = 0;
+    pro_effect1_start[i] = 0;
+    pro_effect2_type[i] = 0;
+    pro_effect2[i] = 0;
+    pro_effect2_start[i] = 0;
 }
 
 var queue_pro_posx = 0;
@@ -326,12 +336,15 @@ var queue_pro_angular_velocity = 0;
 var queue_pro_orbit = 0;
 var queue_pro_orbit_velocity = 0;
 var queue_pro_orbit_dist = 0;
-var queue_pro_image0 = 0;
-var queue_pro_image0_start = 0;
-var queue_pro_image1 = 0;
-var queue_pro_image1_start = 0;
-var queue_pro_image2 = 0;
-var queue_pro_image2_start = 0;
+var queue_pro_effect0_type = 0;
+var queue_pro_effect0 = 0;
+var queue_pro_effect0_start = 0;
+var queue_pro_effect1_type = 0;
+var queue_pro_effect1 = 0;
+var queue_pro_effect1_start = 0;
+var queue_pro_effect2_type = 0;
+var queue_pro_effect2 = 0;
+var queue_pro_effect2_start = 0;
 function ResetProjectileQueue() {
     queue_pro_posx = 0;
     queue_pro_posy = 0;
@@ -343,12 +356,15 @@ function ResetProjectileQueue() {
     queue_pro_orbit = 0;
     queue_pro_orbit_velocity = 0;
     queue_pro_orbit_dist = 0;
-    queue_pro_image0 = 0;
-    queue_pro_image0_start = 0;
-    queue_pro_image1 = 0;
-    queue_pro_image1_start = 0;
-    queue_pro_image2 = 0;
-    queue_pro_image2_start = 0;
+    queue_pro_effect0_type = 0;
+    queue_pro_effect0 = 0;
+    queue_pro_effect0_start = 0;
+    queue_pro_effect1_type = 0;
+    queue_pro_effect1 = 0;
+    queue_pro_effect1_start = 0;
+    queue_pro_effect2_type = 0;
+    queue_pro_effect2 = 0;
+    queue_pro_effect2_start = 0;
 }
 
 function CreateProjectile() {
@@ -364,12 +380,15 @@ function CreateProjectile() {
             pro_orbit[i] = queue_pro_angle;
             pro_orbit_velocity[i] = queue_pro_orbit_velocity;
             pro_orbit_dist[i] = queue_pro_orbit_dist;
-            pro_image0[i] = queue_pro_image0;
-            pro_image0_start[i] = queue_pro_image0_start;
-            pro_image1[i] = queue_pro_image1;
-            pro_image1_start[i] = queue_pro_image1_start;
-            pro_image2[i] = queue_pro_image2;
-            pro_image2_start[i] = queue_pro_image2_start;
+            pro_effect0_type[i] = queue_pro_effect0_type;
+            pro_effect0[i] = queue_pro_effect0;
+            pro_effect0_start[i] = queue_pro_effect0_start;
+            pro_effect1_type[i] = queue_pro_effect1_type;
+            pro_effect1[i] = queue_pro_effect1;
+            pro_effect1_start[i] = queue_pro_effect1_start;
+            pro_effect2_type[i] = queue_pro_effect2_type;
+            pro_effect2[i] = queue_pro_effect2;
+            pro_effect2_start[i] = queue_pro_effect2_start;
             ResetProjectileQueue();
             break;
         }
@@ -381,24 +400,27 @@ function UpdateProjectiles() {
         if (pro_time[i] > 0) {
             pro_time[i] += 1;
             pro_angle[i] = AddAngles(pro_angle[i], pro_angular_velocity[i]);
-            const new_posx, new_posy = MoveVectorTowards(pro_posx[i], pro_posy[i], pro_angle[i], pro_velocity[i]);
+            const new_posx, new_posy = MovePosTowards(pro_posx[i], pro_posy[i], pro_angle[i], pro_velocity[i]);
             pro_posx[i] = new_posx;
             pro_posy[i] = new_posy;
 
             pro_orbit[i] = AddAngles(pro_orbit[i], pro_orbit_velocity[i]);
-            const offsetx, offsety = MoveVectorTowards(new_posx, new_posy, pro_orbit[i], pro_orbit_dist[i]);
+            const offsetx, offsety = MovePosTowards(new_posx, new_posy, pro_orbit[i], pro_orbit_dist[i]);
             setloc(L_MAIN, offsetx, offsety);
             //IMAGES
             if (PosIsOnMap(offsetx, offsety) ) {
-                if (pro_time[i] >= pro_image0_start[i] && pro_time[i] < pro_image1_start[i]) {
-                    // time for image 0
-                    CreateImageSpriteAtLocation($P8, L_MAIN, pro_image0[i], 0, ELEVATION_DEFAULT);
-                } else if (pro_time[i] >= pro_image1_start[i] && pro_time[i] < pro_image2_start[i]) {
-                    // time for image 1
-                    CreateImageSpriteAtLocation($P8, L_MAIN, pro_image1[i], 0, ELEVATION_DEFAULT);
-                } else if (pro_time[i] >= pro_image2_start[i]) {
-                    // time for image 2
-                    CreateImageSpriteAtLocation($P8, L_MAIN, pro_image2[i], 0, ELEVATION_DEFAULT);
+                if (pro_time[i] >= pro_effect0_start[i] && pro_time[i] < pro_effect1_start[i]) {
+                    // time for effect 0
+                    if (pro_effect0_type[i] == 0) CreateImageSpriteAtLocation($P8, L_MAIN, pro_effect0[i], 0);
+                    else CreateUnitDeathAtLocation(pro_effect0[i], $P8, L_MAIN);
+                } else if (pro_time[i] >= pro_effect1_start[i] && pro_time[i] < pro_effect2_start[i]) {
+                    // time for effect 1
+                    if (pro_effect1_type[i] == 0) CreateImageSpriteAtLocation($P8, L_MAIN, pro_effect1[i], 0);
+                    else CreateUnitDeathAtLocation(pro_effect1[i], $P8, L_MAIN);
+                } else if (pro_time[i] >= pro_effect2_start[i]) {
+                    // time for effect 2
+                    if (pro_effect2_type[i] == 0) CreateImageSpriteAtLocation($P8, L_MAIN, pro_effect2[i], 0);
+                    else CreateUnitDeathAtLocation(pro_effect2[i], $P8, L_MAIN);
                 }
             }
             if (pro_time[i] >= pro_maxtime[i]) {
@@ -422,29 +444,79 @@ function UpdateTime() {
     }
 }
 
+var fow_state;
+function UpdateFOW() {
+    if (fow_state == 0) {
+        fow_state = 1;
+        SetMemory(0x0051CE98, SetTo, 0);
+    } else {
+        fow_state = 0;
+        SetMemory(0x0051CE98, SetTo, 1);
+    }
+}
+
 function UpdateBrightness(playerID) {
     var target_brightness = BRIGHTNESS_DEFAULT;
     if (time_state == 1) target_brightness = BRIGHTNESS_NIGHT;
+    if (p_indoors[playerID]) target_brightness -= 6;
     if (p_brightness[playerID] < target_brightness) p_brightness[playerID] += 1;
     else if (p_brightness[playerID] > target_brightness) p_brightness[playerID] -= 1;
     if (IsUserCP()) SetMemoryEPD(EPD(0x657A9C), SetTo, p_brightness[playerID]);
+}
+
+function UpdateSightRange(playerID) {
+    var target_value = PLAYER_DEFAULT_SIGHT;
+    if (time_state == 1) target_value = PLAYER_DEFAULT_SIGHT - 4;
+    if (p_indoors[playerID] && time_state == 0) target_value = 2;
+    else if (p_indoors[playerID]) target_value = 1;
+    bwrite(0x65FD00 + 13624 + U_HERO[playerID] * 1, target_value);
+}
+
+function LevelUp(playerID) {
+    p_level_current[playerID] += 1;
+    p_exp_current[playerID] = 0;
+    p_exp_goal[playerID] = 300 + 150 * p_level_current[playerID];
+    screen.printf("LEVEL UP - Level {}", p_level_current[playerID]);
+    PlayWAV("staredit/wav/levelup.ogg");
+    const unit = CUnit(p_cunit[playerID]);
+    setloc(L_MAIN, unit.posX, unit.posY);
+    CreateUnitDeathAtLocation($U("Protoss Observer"), playerID, L_MAIN);
+    for (var i = 0; i < 8; i++) {
+        queue_pro_posx = unit.posX;
+        queue_pro_posy = unit.posY;
+        queue_pro_maxtime = 8;
+        queue_pro_angle = (i + 1) * 45;
+        queue_pro_velocity = 40;
+        queue_pro_angular_velocity = Random(-5, 5);
+        queue_pro_effect0 = 524;
+        queue_pro_effect1 = 213;
+        queue_pro_effect1_start = queue_pro_maxtime - 1;
+        queue_pro_effect2 = 427;
+        queue_pro_effect2_start = queue_pro_maxtime;
+        CreateProjectile();
+    }
+}
+
+function RedeemUnitExp(playerID, Unit) {
+    if (Unit == U_CHIMERA) {
+        p_exp_current[playerID] += CHIMERA_EXP;
+    }
 }
 
 
 function onPluginStart() {
     StoreSpawnPositions();
     EUDPlayerLoop()();
-        const PID = getcurpl();
-        if (PID >= 0 && PID < 6) {
+        const playerID = getcurpl();
+        if (playerID >= 0 && playerID < 6) {
             for (var i = 0; i < 6; i++) SetAllianceStatus(i, Ally);
-            SetHeroDefaults(PID);
-            if (Command(PID, AtLeast, 1, U_HERO[0])) {
-                MoveLocation(L_MAIN, U_HERO[0], PID, L_ANYWHERE);
-                RemoveUnit(U_HERO[0], PID);
-                SpawnHero(PID, L_MAIN);
+            SetHeroDefaults(playerID);
+            if (Command(playerID, AtLeast, 1, U_HERO[0])) {
+                MoveLocation(L_MAIN, U_HERO[0], playerID, L_ANYWHERE);
+                RemoveUnit(U_HERO[0], playerID);
+                SpawnHero(playerID, L_MAIN);
                 CenterView(L_MAIN);
             }
-            GetVision($P8);
         }
     EUDEndPlayerLoop();
 }
@@ -452,6 +524,7 @@ function onPluginStart() {
 function afterTriggerExec() {
     UpdateTime();
     UpdateProjectiles();
+    // UpdateFOW();
     //reset chunk spawn amount
     if (time_state_changed && time_state == 0) {
         var reset_count = 0;
@@ -464,22 +537,22 @@ function afterTriggerExec() {
         screen.printf("reset spawns for {} chunks", reset_count);
     }
     EUDPlayerLoop()();
-        const PID = getcurpl();
-        if (PID >= 0 && PID < 6) {
-            UpdateBrightness(PID);
-            const unit = CUnit(p_cunit[PID]);
+        const playerID = getcurpl();
+        if (playerID >= 0 && playerID < 6) {
+            const unit = CUnit(p_cunit[playerID]);
             var order_input = 0;
             var unit_is_moving = 0;
             var unit_just_attacked = 0;
+            var unit_is_indoors = 0;
             if (unit.orderID == ORDER_HOLD || unit.orderID == ORDER_PATROL) {
                 order_input = unit.orderID;
                 unit.orderID = 3;
             }
-            if (unit.posX == p_pos_x_old[PID] && unit.posY == p_pos_y_old[PID]) {
+            if (unit.posX == p_pos_x_old[playerID] && unit.posY == p_pos_y_old[playerID]) {
                 unit_is_moving = 0;
             } else {
-                p_pos_x_old[PID] = unit.posX;
-                p_pos_y_old[PID] = unit.posY;
+                p_pos_x_old[playerID] = unit.posX;
+                p_pos_y_old[playerID] = unit.posY;
                 unit_is_moving = 1;
             }
             if (!unit_is_moving && unit.currentSpeed1 > 0) {
@@ -488,54 +561,57 @@ function afterTriggerExec() {
             }
             if (unit_is_moving) {
                 const x, y = GetChunkAtPos(unit.posX, unit.posY);
-                if (p_chunk_x_old[PID] != x || p_chunk_y_old[PID] != y) {
-                    p_chunk_x_old[PID] = x;
-                    p_chunk_y_old[PID] = y;
+                if (p_chunk_x_old[playerID] != x || p_chunk_y_old[playerID] != y) {
+                    p_chunk_x_old[playerID] = x;
+                    p_chunk_y_old[playerID] = y;
                     JustEnteredChunk(x, y);
                 }
+                p_indoors[playerID] = IsPosIndoors(unit.posX, unit.posY);
             }
+            UpdateBrightness(playerID);
+            UpdateSightRange(playerID);
 
             // HEALTH
-            if (Is_Alive(PID)) {
+            if (IsAlive(playerID)) {
 
             }
 
             // ARMOR
-            if (Is_Alive(PID)) {
-                CenterLocHero(L_16x16, PID);
-                CenterLocHero(L_3X3, PID);
-                if (p_armor_max[PID] > 0 && EnemiesAtLoc(L_16x16)) {
-                    if (EnemiesAtLoc(L_3X3) && p_armor_recover[PID] == 0) p_armor_recover[PID] = 1;
+            if (IsAlive(playerID)) {
+                CenterLocHero(L_16x16, playerID);
+                CenterLocHero(L_3X3, playerID);
+                if (p_armor_max[playerID] > 0 && EnemiesAtLoc(L_16x16)) {
+                    if (EnemiesAtLoc(L_3X3) && p_armor_recover[playerID] == 0) p_armor_recover[playerID] = 1;
                 } else {
-                    if (unit.shield < p_armor_max[PID]) unit.shield += 10 * 256;
+                    if (unit.shield < p_armor_max[playerID]) unit.shield += 10 * 256;
                 }
-                if (!EnemiesAtLoc(L_3X3) && p_armor_recover[PID] > 0) {
-                    p_armor_recover[PID] = 0;
-                    unit.shield = p_armor_max[PID];
-                    CreateImageSpriteAtLocation($P8, L_3X3, 377, 0, ELEVATION_DEFAULT);
+                if (!EnemiesAtLoc(L_3X3) && p_armor_recover[playerID] > 0) {
+                    p_armor_recover[playerID] = 0;
+                    unit.shield = p_armor_max[playerID];
+                    CreateImageSpriteAtLocation($P8, L_3X3, 377, 0);
                     PlayWAV("staredit/wav/dodge.ogg");
                 }
-                if (unit.shield > p_armor_max[PID]) unit.shield = p_armor_max[PID];
-                if (unit.shield >= 256) p_armor_old[PID] = unit.shield;
-                if (unit.shield < 256 && p_armor_old[PID] > 256) {
-                    p_armor_old[PID] = 0;
+                if (unit.shield > p_armor_max[playerID]) unit.shield = p_armor_max[playerID];
+                if (unit.shield >= 256) p_armor_old[playerID] = unit.shield;
+                if (unit.shield < 256 && p_armor_old[playerID] > 256) {
+                    p_armor_old[playerID] = 0;
                     // armor broken
                     DisplayText("ARMOR BROKEN");
                     PlayWAV("staredit/wav/shields_broke.ogg");
                     setloc(L_MAIN, unit.posX, unit.posY);
-                    CreateImageSpriteAtLocation($P8, L_MAIN, 107, 16, 0);
+                    CreateImageSpriteAtLocation($P8, L_MAIN, 107, 16);
                 }
             }
 
             // UNIT ATTACK
-            if (Is_Alive(PID)) {
+            if (IsAlive(playerID)) {
                 if (unit.groundWeaponCooldown == 26) {
                     unit_just_attacked = 1;
-                    unit.groundWeaponCooldown -= p_attackspeed[PID];
+                    unit.groundWeaponCooldown -= p_attackspeed[playerID];
                     const target = unit.orderTargetUnit;
-                    const target_state = DamageUnit(target, p_damage[PID]);
+                    const target_state = DamageUnit(target, p_damage[playerID]);
                     if (target_state == 0) {
-                        RedeemUnitExp(PID, target.unitType);
+                        RedeemUnitExp(playerID, target.unitType);
                     }
                 }
             }
@@ -544,7 +620,12 @@ function afterTriggerExec() {
                 DisplayText("attacked.");
             }
 
-            //TIME
+            // EXP
+            if (p_exp_current[playerID] >= p_exp_goal[playerID]) {
+                LevelUp(playerID);
+            }
+
+            // TIME
             if (time_state_changed) {
                 if (time_state == 0) {
                     DisplayText("DAY TIME!!!!!");
@@ -562,33 +643,33 @@ function afterTriggerExec() {
             //     queue_pro_posx, queue_pro_posy = unit.posX, unit.posY;
             //     queue_pro_maxtime = 144;
             //     queue_pro_angular_velocity = test_value;
-            //     queue_pro_image0 = 443;
-            //     queue_pro_image0_start = 0;
-            //     queue_pro_image1 = 523;
-            //     queue_pro_image1_start = 24;
-            //     queue_pro_image2 = 427;
-            //     queue_pro_image2_start = queue_pro_maxtime;
+            //     queue_pro_effect0 = 443;
+            //     queue_pro_effect0_start = 0;
+            //     queue_pro_effect1 = 523;
+            //     queue_pro_effect1_start = 24;
+            //     queue_pro_effect2 = 427;
+            //     queue_pro_effect2_start = queue_pro_maxtime;
             //     CreateProjectile();
             // }
             // test_delay -= 1;
 
             if (debug_enabled) {
-                if (!Is_Alive(PID)) {
-                    setloc(L_MAIN, p_homepos_x[PID], p_homepos_y[PID]);
-                    SpawnHero(PID, L_MAIN);
+                if (!IsAlive(playerID)) {
+                    setloc(L_MAIN, p_homepos_x[playerID], p_homepos_y[playerID]);
+                    SpawnHero(playerID, L_MAIN);
                     CenterView(L_MAIN);
                 }
                 debug_values[0] = unit.shield;
-                debug_values[1] = p_exp_current[PID];
+                debug_values[1] = p_exp_current[playerID];
+                debug_values[2] = p_exp_goal[playerID];
                 if (order_input == ORDER_HOLD) {
-                    SetMaxHP(PID, p_health_max[PID] - 10);
+                    SetMaxHP(playerID, p_health_max[playerID] - 10);
                 } 
                 else if (order_input == ORDER_PATROL) {
-                    SetMaxHP(PID, p_health_max[PID] + 10);
+                    SetMaxHP(playerID, p_health_max[playerID] + 10);
                 }
                 eprintf("{} | {} | {} | {} | {} | {} | {} | {}", debug_values[0], debug_values[1], debug_values[2], debug_values[3], debug_values[4], debug_values[5], debug_values[6], debug_values[7]);
             }
-
         }
     EUDEndPlayerLoop();
 }
