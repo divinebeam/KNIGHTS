@@ -7,6 +7,7 @@ const L_16x16 = $L("16x16");
 const U_HERO = [61, 62, 64, 69, 60, 86];
 const U_CHIMERA = 37;
 const U_ANY = 229;
+const U_KAKARU = 94;
 
 const ORDER_HOLD = 107;
 const ORDER_PATROL = 152;
@@ -277,7 +278,7 @@ function SetMaxHP(playerID, value) {
 }
 
 function SetHeroDefaults(playerID) {
-    p_exp_goal[playerID] = 100;
+    p_exp_goal[playerID] = 30;
     p_armor_max[playerID] = 100 * 256;
     p_damage[playerID] = 20;
     SetMaxHP(playerID, 100);
@@ -430,6 +431,18 @@ function UpdateProjectiles() {
     }
 }
 
+var queue_col_posx = 0;
+var queue_col_posy = 0;
+var queue_col_enemies = 0;
+var queue_col_allies = 0;
+var queue_col_unpathable = 0; // check if the posx, posy is unpathable.
+var queue_col_shape = 0; // determines if the check will be for circle or square. Shape only works for units. 
+var queue_col_shape_size = 0; // half the width of the square, or radius of the circle.
+var queue_col_results = 0;
+function CheckCollisionPos() {
+    //should fill an array of units of some maximum that are inside the shape
+}
+
 function UpdateTime() {
     time_state_changed = 0;
     time += 1;
@@ -487,8 +500,9 @@ function LevelUp(playerID) {
         queue_pro_maxtime = 8;
         queue_pro_angle = (i + 1) * 45;
         queue_pro_velocity = 40;
-        queue_pro_angular_velocity = Random(-5, 5);
-        queue_pro_effect0 = 524;
+        queue_pro_angular_velocity = Random(-10, 10);
+        queue_pro_effect0 = U_KAKARU;
+        queue_pro_effect0_type = 1;
         queue_pro_effect1 = 213;
         queue_pro_effect1_start = queue_pro_maxtime - 1;
         queue_pro_effect2 = 427;
@@ -501,6 +515,10 @@ function RedeemUnitExp(playerID, Unit) {
     if (Unit == U_CHIMERA) {
         p_exp_current[playerID] += CHIMERA_EXP;
     }
+}
+
+function PlaySong(id) {
+    if (id == 0) PlayWAV("staredit/wav/song0.ogg");
 }
 
 
@@ -517,6 +535,7 @@ function onPluginStart() {
                 SpawnHero(playerID, L_MAIN);
                 CenterView(L_MAIN);
             }
+            PlaySong(0);
         }
     EUDEndPlayerLoop();
 }
@@ -629,6 +648,7 @@ function afterTriggerExec() {
             if (time_state_changed) {
                 if (time_state == 0) {
                     DisplayText("DAY TIME!!!!!");
+                    PlaySong(0);
                 }
                 else if (time_state == 1) {
                     DisplayText("NIGHT TIME!!!!!");
@@ -637,12 +657,12 @@ function afterTriggerExec() {
             }
 
             // if (test_delay == 0) {
-            //     test_delay = 2;
+            //     test_delay = 48;
             //     queue_pro_angle = Random(0, 359);
             //     queue_pro_velocity = Random(10, 50);
             //     queue_pro_posx, queue_pro_posy = unit.posX, unit.posY;
-            //     queue_pro_maxtime = 144;
-            //     queue_pro_angular_velocity = test_value;
+            //     queue_pro_maxtime = 48;
+            //     queue_pro_angular_velocity = Random(-30, 30);
             //     queue_pro_effect0 = 443;
             //     queue_pro_effect0_start = 0;
             //     queue_pro_effect1 = 523;
@@ -651,7 +671,7 @@ function afterTriggerExec() {
             //     queue_pro_effect2_start = queue_pro_maxtime;
             //     CreateProjectile();
             // }
-            // test_delay -= 1;
+            test_delay -= 1;
 
             if (debug_enabled) {
                 if (!IsAlive(playerID)) {
@@ -662,12 +682,12 @@ function afterTriggerExec() {
                 debug_values[0] = unit.shield;
                 debug_values[1] = p_exp_current[playerID];
                 debug_values[2] = p_exp_goal[playerID];
-                if (order_input == ORDER_HOLD) {
-                    SetMaxHP(playerID, p_health_max[playerID] - 10);
-                } 
-                else if (order_input == ORDER_PATROL) {
-                    SetMaxHP(playerID, p_health_max[playerID] + 10);
-                }
+                // if (order_input == ORDER_HOLD) {
+                //     SetMaxHP(playerID, p_health_max[playerID] - 10);
+                // } 
+                // else if (order_input == ORDER_PATROL) {
+                //     SetMaxHP(playerID, p_health_max[playerID] + 10);
+                // }
                 eprintf("{} | {} | {} | {} | {} | {} | {} | {}", debug_values[0], debug_values[1], debug_values[2], debug_values[3], debug_values[4], debug_values[5], debug_values[6], debug_values[7]);
             }
         }

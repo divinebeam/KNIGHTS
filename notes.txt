@@ -1,6 +1,6 @@
 
 CURRENTLY
-	testing image elevation change for CreateImage
+	implementing collision checks at positions 
 
 TODO
 	implement drawline function
