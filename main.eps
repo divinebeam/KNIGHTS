@@ -16,6 +16,8 @@ const FULL_DAY_LENGTH = 8640;
 const BRIGHTNESS_DEFAULT = 31;
 const BRIGHTNESS_NIGHT = 25;
 const ELEVATION_DEFAULT = 4;
+const ACTIVE_UNITS_MAX = 40;
+const ACTIVE_UNITS_RECT = 960;
 
 const PLAYER_DEFAULT_HP = 100;
 const PLAYER_DEFAULT_SIGHT = 8;
@@ -43,12 +45,14 @@ const p_homepos_x = PVariable();
 const p_homepos_y = PVariable();
 const p_indoors = PVariable();
 
+const screen = StringBuffer(256);
 const monster_spawn_type = EUDArray(1000);
 const monster_spawn_x = EUDArray(1000);
 const monster_spawn_y = EUDArray(1000);
 const chunk_spawns = EUDArray(256);
 const chunk_buffer = EUDArray(8);
-const screen = StringBuffer(256);
+const active_units = EUDArray(ACTIVE_UNITS_MAX * 6);
+var active_units_update = 0;
 
 var debug_enabled = 1;
 const debug_values = EUDArray(8);
@@ -114,6 +118,10 @@ function StoreSpawnPositions() {
             monster_spawn_y[i] = unit.posY;
             unit.remove();
             i++;
+            if (i > 1000) {
+                DisplayTextAll("NOTICE: MAXIMUM SPAWN POSITIONS REACHED!");
+                break;
+            }
         }
     }
 }
@@ -521,6 +529,40 @@ function PlaySong(id) {
     if (id == 0) PlayWAV("staredit/wav/song0.ogg");
 }
 
+function PosToSquare(positionx, positiony, width) {
+    const half_width = width/2;
+    var limit_left = 0;
+    if (positionx > half_width) limit_left = positionx - half_width;
+    const limit_right = positionx + half_width;
+    var limit_top = 0;
+    if (positiony > half_width) limit_top = positiony - half_width;
+    const limit_bottom = positiony + half_width;
+    return limit_left, limit_right, limit_top, limit_bottom;
+}
+
+function FillActiveNearbyUnits(playerID, positionx, positiony) {
+    var storage = playerID * ACTIVE_UNITS_MAX;
+    const storage_max = (playerID + 1) * ACTIVE_UNITS_MAX;
+    for (var i = storage; i < storage_max; i++) active_units[i] = 0;
+    const limit_left, limit_right, limit_top, limit_bottom = PosToSquare(positionx, positiony, ACTIVE_UNITS_RECT);
+    var i = 0;
+    foreach(unit : EUDLoopCUnit()) {
+        if (unit.playerID == $P7) {
+            // check if unit is within square, if it is add it to the active units array.
+            if (IsPosWithinRect(unit.posX, unit.posY, limit_left, limit_right, limit_top, limit_bottom)) {
+                active_units[storage] = unit;
+                storage++;
+                if (storage > storage_max) break;
+            }
+            i++;
+            if (i > 1000) {
+                DisplayTextAll("NOTICE: CHECKED MORE THAN 1000 P7 UNITS!"); // ya watch this btw
+                break;
+            }
+        }
+    }
+}
+
 
 function onPluginStart() {
     StoreSpawnPositions();
@@ -536,6 +578,7 @@ function onPluginStart() {
                 CenterView(L_MAIN);
             }
             PlaySong(0);
+            GetVision($P7);
         }
     EUDEndPlayerLoop();
 }
@@ -555,6 +598,7 @@ function afterTriggerExec() {
         }
         screen.printf("reset spawns for {} chunks", reset_count);
     }
+    if (test_delay > 0) test_delay -= 1;
     EUDPlayerLoop()();
         const playerID = getcurpl();
         if (playerID >= 0 && playerID < 6) {
@@ -563,6 +607,9 @@ function afterTriggerExec() {
             var unit_is_moving = 0;
             var unit_just_attacked = 0;
             var unit_is_indoors = 0;
+
+            if (active_units_update == 0) FillActiveNearbyUnits(playerID, unit.posX, unit.posY);
+
             if (unit.orderID == ORDER_HOLD || unit.orderID == ORDER_PATROL) {
                 order_input = unit.orderID;
                 unit.orderID = 3;
@@ -656,22 +703,28 @@ function afterTriggerExec() {
                 }
             }
 
-            // if (test_delay == 0) {
+            // if (test_delay == 0 && playerID == 0) {
             //     test_delay = 48;
-            //     queue_pro_angle = Random(0, 359);
-            //     queue_pro_velocity = Random(10, 50);
-            //     queue_pro_posx, queue_pro_posy = unit.posX, unit.posY;
-            //     queue_pro_maxtime = 48;
-            //     queue_pro_angular_velocity = Random(-30, 30);
-            //     queue_pro_effect0 = 443;
-            //     queue_pro_effect0_start = 0;
-            //     queue_pro_effect1 = 523;
-            //     queue_pro_effect1_start = 24;
-            //     queue_pro_effect2 = 427;
-            //     queue_pro_effect2_start = queue_pro_maxtime;
-            //     CreateProjectile();
+            //     for (var u = playerID * ACTIVE_UNITS_MAX; u < playerID + 1 * ACTIVE_UNITS_MAX; u++) {
+            //         if (active_units[u] > 0) {
+            //             const enemy_unit = CUnit(active_units[u]);
+            //             // setloc(L_MAIN, enemy_unit.posX, enemy_unit.posY);
+            //             // CreateUnitDeathAtLocation(U_KAKARU, playerID, L_MAIN);
+            //             queue_pro_angle = Random(0, 359);
+            //             queue_pro_velocity = Random(10, 50);
+            //             queue_pro_posx, queue_pro_posy = enemy_unit.posX, enemy_unit.posY;
+            //             queue_pro_maxtime = 24;
+            //             // queue_pro_angular_velocity = Random(-30, 30);
+            //             queue_pro_effect0 = 443;
+            //             queue_pro_effect0_start = 0;
+            //             queue_pro_effect1 = 523;
+            //             queue_pro_effect1_start = 24;
+            //             queue_pro_effect2 = 427;
+            //             queue_pro_effect2_start = queue_pro_maxtime;
+            //             CreateProjectile();
+            //         }
+            //     }
             // }
-            test_delay -= 1;
 
             if (debug_enabled) {
                 if (!IsAlive(playerID)) {
@@ -692,4 +745,6 @@ function afterTriggerExec() {
             }
         }
     EUDEndPlayerLoop();
+    if (active_units_update == 0) active_units_update = 24;
+    active_units_update -= 1;
 }
