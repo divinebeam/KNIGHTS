@@ -8,6 +8,7 @@ const U_HERO = [61, 62, 64, 69, 60, 86];
 const U_CHIMERA = 37;
 const U_ANY = 229;
 const U_KAKARU = 94;
+const U_SCOURGE = 47;
 
 const ORDER_HOLD = 107;
 const ORDER_PATROL = 152;
@@ -231,9 +232,10 @@ function CreateImageSpriteAtLocation(playerID, location, imageID, drawFunc) {
     dwwrite(0x666778 + 34000 + imageID * 4, prev_script); // revert image iscript
 }
 
-function DamageUnit(unit:CUnit, damage) {
+function DamageUnit(unit:CUnit, damage, index) {
 	if (unit.hp < damage * 256) unit.hp = 0;
 	if (unit.hp == 0) {
+        if (unit.playerID == $P7 && index <= ACTIVE_UNITS_MAX) active_units[index] = 0;
         unit.die();
         return 0;
     } else {
@@ -269,6 +271,17 @@ function Random(min, max) {
 function PosIsOnMap(positionx, positiony) {
     if (positionx >= 0 && positionx <= 8191 && positiony >= 0 && positiony <= 8191) return 1;
     return 0;
+}
+
+function PosToSquare(positionx, positiony, width) {
+    const half_width = width/2;
+    var limit_left = 0;
+    if (positionx > half_width) limit_left = positionx - half_width;
+    const limit_right = positionx + half_width;
+    var limit_top = 0;
+    if (positiony > half_width) limit_top = positiony - half_width;
+    const limit_bottom = positiony + half_width;
+    return limit_left, limit_right, limit_top, limit_bottom;
 }
 
 function SpawnHero(playerID, location) {
@@ -312,7 +325,6 @@ const pro_effect1_start = EUDArray(PROJECTILE_POOL);
 const pro_effect2_type = EUDArray(PROJECTILE_POOL);
 const pro_effect2 = EUDArray(PROJECTILE_POOL);
 const pro_effect2_start = EUDArray(PROJECTILE_POOL);
-
 function ResetProjectile(i) {
     pro_time[i] = 0;
     pro_maxtime[i] = 0;
@@ -451,6 +463,86 @@ function CheckCollisionPos() {
     //should fill an array of units of some maximum that are inside the shape
 }
 
+const EVENT_POOL = 192;
+const event_posx = EUDArray(EVENT_POOL);
+const event_posy = EUDArray(EVENT_POOL);
+const event_time = EUDArray(EVENT_POOL);
+const event_maxtime = EUDArray(EVENT_POOL);
+const event_size = EUDArray(EVENT_POOL);
+const event_heal = EUDArray(EVENT_POOL);
+const event_damage = EUDArray(EVENT_POOL);
+const event_owner = EUDArray(EVENT_POOL);
+function ResetEvent(i) {
+    event_posx[i] = 0;
+    event_posy[i] = 0;
+    event_time[i] = 0;
+    event_maxtime[i] = 0;
+    event_size[i] = 0;
+    event_heal[i] = 0;
+    event_damage[i] = 0;
+    event_owner[i] = 0;
+}
+
+var queue_event_posx = 0;
+var queue_event_posy = 0;
+var queue_event_time = 0;
+var queue_event_maxtime = 0;
+var queue_event_size = 0;
+var queue_event_heal = 0;
+var queue_event_damage = 0;
+var queue_event_owner = 0;
+function ResetEventQueue() {
+    queue_event_posx = 0;
+    queue_event_posy = 0;
+    queue_event_time = 0;
+    queue_event_maxtime = 0;
+    queue_event_size = 0;
+    queue_event_heal = 0;
+    queue_event_damage = 0;
+    queue_event_owner = 0;
+}
+
+function CreateEvent() {
+    for (var i = 0; i < EVENT_POOL; i++) {
+        if (event_time[i] == 0) {
+            event_time[i] = 1;
+            event_posx[i] = queue_event_posx;
+            event_posy[i] = queue_event_posy;
+            event_maxtime[i] = queue_event_maxtime;
+            event_size[i] = queue_event_size;
+            event_heal[i] = queue_event_heal;
+            event_damage[i] = queue_event_damage;
+            event_owner[i] = queue_event_owner;
+            ResetEventQueue();
+            break;
+        }
+    }
+}
+
+function UpdateEvents() {
+    for (var i = 0; i < EVENT_POOL; i++) {
+        if (event_time[i] > 0) {
+            const playerID = event_owner[i];
+            for (var u = playerID * ACTIVE_UNITS_MAX; u < playerID + 1 * ACTIVE_UNITS_MAX; u++) {
+                if (active_units[u] > 0) {
+                    const enemy_unit = CUnit(active_units[u]);
+                    const l, r, t, b = PosToSquare(event_posx[i], event_posy[i], event_size[i]);
+                    if (IsPosWithinRect(enemy_unit.posX, enemy_unit.posY, l, r, t, b)) {
+                        setloc(L_MAIN, enemy_unit.posX, enemy_unit.posY);
+                        CreateUnitDeathAtLocation(U_SCOURGE, playerID, L_MAIN);
+                        DamageUnit(enemy_unit, event_damage[i], u);
+                        ResetEvent(i);
+                    }
+                }
+            }
+            event_time[i]++;
+            if (event_time[i] >= event_maxtime[i]) {
+                ResetEvent(i);
+            }
+        }
+    }
+}
+
 function UpdateTime() {
     time_state_changed = 0;
     time += 1;
@@ -529,17 +621,6 @@ function PlaySong(id) {
     if (id == 0) PlayWAV("staredit/wav/song0.ogg");
 }
 
-function PosToSquare(positionx, positiony, width) {
-    const half_width = width/2;
-    var limit_left = 0;
-    if (positionx > half_width) limit_left = positionx - half_width;
-    const limit_right = positionx + half_width;
-    var limit_top = 0;
-    if (positiony > half_width) limit_top = positiony - half_width;
-    const limit_bottom = positiony + half_width;
-    return limit_left, limit_right, limit_top, limit_bottom;
-}
-
 function FillActiveNearbyUnits(playerID, positionx, positiony) {
     var storage = playerID * ACTIVE_UNITS_MAX;
     const storage_max = (playerID + 1) * ACTIVE_UNITS_MAX;
@@ -547,7 +628,7 @@ function FillActiveNearbyUnits(playerID, positionx, positiony) {
     const limit_left, limit_right, limit_top, limit_bottom = PosToSquare(positionx, positiony, ACTIVE_UNITS_RECT);
     var i = 0;
     foreach(unit : EUDLoopCUnit()) {
-        if (unit.playerID == $P7) {
+        if (unit.playerID == $P7 && unit.hp > 0) {
             // check if unit is within square, if it is add it to the active units array.
             if (IsPosWithinRect(unit.posX, unit.posY, limit_left, limit_right, limit_top, limit_bottom)) {
                 active_units[storage] = unit;
@@ -586,6 +667,7 @@ function onPluginStart() {
 function afterTriggerExec() {
     UpdateTime();
     UpdateProjectiles();
+    UpdateEvents();
     // UpdateFOW();
     //reset chunk spawn amount
     if (time_state_changed && time_state == 0) {
@@ -675,7 +757,7 @@ function afterTriggerExec() {
                     unit_just_attacked = 1;
                     unit.groundWeaponCooldown -= p_attackspeed[playerID];
                     const target = unit.orderTargetUnit;
-                    const target_state = DamageUnit(target, p_damage[playerID]);
+                    const target_state = DamageUnit(target, p_damage[playerID], ACTIVE_UNITS_MAX + 1);
                     if (target_state == 0) {
                         RedeemUnitExp(playerID, target.unitType);
                     }
@@ -703,28 +785,36 @@ function afterTriggerExec() {
                 }
             }
 
-            // if (test_delay == 0 && playerID == 0) {
-            //     test_delay = 48;
-            //     for (var u = playerID * ACTIVE_UNITS_MAX; u < playerID + 1 * ACTIVE_UNITS_MAX; u++) {
-            //         if (active_units[u] > 0) {
-            //             const enemy_unit = CUnit(active_units[u]);
-            //             // setloc(L_MAIN, enemy_unit.posX, enemy_unit.posY);
-            //             // CreateUnitDeathAtLocation(U_KAKARU, playerID, L_MAIN);
-            //             queue_pro_angle = Random(0, 359);
-            //             queue_pro_velocity = Random(10, 50);
-            //             queue_pro_posx, queue_pro_posy = enemy_unit.posX, enemy_unit.posY;
-            //             queue_pro_maxtime = 24;
-            //             // queue_pro_angular_velocity = Random(-30, 30);
-            //             queue_pro_effect0 = 443;
-            //             queue_pro_effect0_start = 0;
-            //             queue_pro_effect1 = 523;
-            //             queue_pro_effect1_start = 24;
-            //             queue_pro_effect2 = 427;
-            //             queue_pro_effect2_start = queue_pro_maxtime;
-            //             CreateProjectile();
-            //         }
-            //     }
-            // }
+            if (test_delay == 0 && playerID == 0) {
+                test_delay = 12;
+                queue_event_owner = playerID;
+                queue_event_posx = unit.posX;
+                queue_event_posy = unit.posY;
+                queue_event_size = 128;
+                queue_event_damage = 11;
+                queue_event_maxtime = 1;
+                CreateEvent();
+                DisplayText("create event");
+                // for (var u = playerID * ACTIVE_UNITS_MAX; u < playerID + 1 * ACTIVE_UNITS_MAX; u++) {
+                //     if (active_units[u] > 0) {
+                //         const enemy_unit = CUnit(active_units[u]);
+                //         // setloc(L_MAIN, enemy_unit.posX, enemy_unit.posY);
+                //         // CreateUnitDeathAtLocation(U_KAKARU, playerID, L_MAIN);
+                //         queue_pro_angle = Random(0, 359);
+                //         queue_pro_velocity = Random(10, 50);
+                //         queue_pro_posx, queue_pro_posy = enemy_unit.posX, enemy_unit.posY;
+                //         queue_pro_maxtime = 24;
+                //         // queue_pro_angular_velocity = Random(-30, 30);
+                //         queue_pro_effect0 = 443;
+                //         queue_pro_effect0_start = 0;
+                //         queue_pro_effect1 = 523;
+                //         queue_pro_effect1_start = 24;
+                //         queue_pro_effect2 = 427;
+                //         queue_pro_effect2_start = queue_pro_maxtime;
+                //         CreateProjectile();
+                //     }
+                // }
+            }
 
             if (debug_enabled) {
                 if (!IsAlive(playerID)) {
