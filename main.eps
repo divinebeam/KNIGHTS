@@ -22,6 +22,8 @@ const ACTIVE_UNITS_RECT = 960;
 
 const PLAYER_DEFAULT_HP = 100;
 const PLAYER_DEFAULT_SIGHT = 8;
+const PLAYER_DEFAULT_ARMOR = 1000;
+const PLAYER_DEFAULT_DAMAGE = 6;
 
 const CHIMERA_EXP = 30;
 
@@ -300,9 +302,15 @@ function SetMaxHP(playerID, value) {
 
 function SetHeroDefaults(playerID) {
     p_exp_goal[playerID] = 30;
-    p_armor_max[playerID] = 100 * 256;
-    p_damage[playerID] = 20;
-    SetMaxHP(playerID, 100);
+    p_armor_max[playerID] = PLAYER_DEFAULT_ARMOR * 256;
+    p_damage[playerID] = PLAYER_DEFAULT_DAMAGE;
+    SetMaxHP(playerID, PLAYER_DEFAULT_HP);
+}
+
+function RedeemUnitExp(playerID, Unit) {
+    if (Unit == U_CHIMERA) {
+        p_exp_current[playerID] += CHIMERA_EXP;
+    }
 }
 
 const PROJECTILE_POOL = 192;
@@ -451,16 +459,65 @@ function UpdateProjectiles() {
     }
 }
 
-var queue_col_posx = 0;
-var queue_col_posy = 0;
-var queue_col_enemies = 0;
-var queue_col_allies = 0;
-var queue_col_unpathable = 0; // check if the posx, posy is unpathable.
-var queue_col_shape = 0; // determines if the check will be for circle or square. Shape only works for units. 
-var queue_col_shape_size = 0; // half the width of the square, or radius of the circle.
-var queue_col_results = 0;
-function CheckCollisionPos() {
-    //should fill an array of units of some maximum that are inside the shape
+var col_posx = 0;
+var col_posy = 0;
+var col_enemies = 0;
+var col_allies = 0;
+var col_terrain = 0; // check if the posx, posy is unpathable.
+var col_shape = 0; // determines if the check will be for circle or square. Shape only works for units. 
+var col_shape_size = 0; // width of the square, or diameter of the circle.
+var col_max_results = 0;
+const col_results_unit = EUDArray(8);
+const col_results_unit_activei = EUDArray(8); // index position of the unit in the active units array, this is for deleting it from the active units array if it dies.
+var col_results_unit_i = 0;
+var col_results_terrain = 0;
+function AddUnitToColResults(value, indexfromactive) {
+    if (col_results_unit_i < col_max_results) {
+        col_results_unit[col_results_unit_i] = value;
+        col_results_unit_activei[col_results_unit_i] = indexfromactive;
+        col_results_unit_i++;
+        return 0;
+    } else {
+        return 1;
+    } // returns 0 if results are not full, returns 1 if results are full
+}
+
+function ResetCheckCollision() {
+    col_posx = 0;
+    col_posy = 0;
+    col_enemies = 0;
+    col_allies = 0;
+    col_terrain = 0;
+    col_shape = 0;
+    col_shape_size = 0;
+    col_max_results = 0;
+    for (var i = 0; i < 8; i++) col_results_unit[i] = 0;
+    for (var i = 0; i < 8; i++) col_results_unit_activei[i] = 0;
+    col_results_unit_i = 0;
+    col_results_terrain = 0;
+}
+
+function CheckCollision(playerID) {
+    // checks for things according to the configuration of the above vars. use results vars for the results of the check.
+    var result_exists = 0;
+    if (col_enemies) {
+        if (col_shape == 0) {
+            const l, r, t, b = PosToSquare(col_posx, col_posy, col_shape_size);
+            for (var u = playerID * ACTIVE_UNITS_MAX; u < playerID + 1 * ACTIVE_UNITS_MAX; u++) {
+                if (active_units[u] > 0) {
+                    const unit = CUnit(active_units[u]);
+                    if (IsPosWithinRect(unit.posX, unit.posY, l, r, t, b)) {
+                        result_exists = 1;
+                        const full = AddUnitToColResults(active_units[u], u);
+                        if (full) break;
+                    }
+                }
+            }
+        } else if (col_shape == 1) {
+
+        }
+    }
+    return result_exists;
 }
 
 const EVENT_POOL = 192;
@@ -523,18 +580,24 @@ function UpdateEvents() {
     for (var i = 0; i < EVENT_POOL; i++) {
         if (event_time[i] > 0) {
             const playerID = event_owner[i];
-            for (var u = playerID * ACTIVE_UNITS_MAX; u < playerID + 1 * ACTIVE_UNITS_MAX; u++) {
-                if (active_units[u] > 0) {
-                    const enemy_unit = CUnit(active_units[u]);
-                    const l, r, t, b = PosToSquare(event_posx[i], event_posy[i], event_size[i]);
-                    if (IsPosWithinRect(enemy_unit.posX, enemy_unit.posY, l, r, t, b)) {
-                        setloc(L_MAIN, enemy_unit.posX, enemy_unit.posY);
-                        CreateUnitDeathAtLocation(U_SCOURGE, playerID, L_MAIN);
-                        DamageUnit(enemy_unit, event_damage[i], u);
-                        ResetEvent(i);
+            col_posx = event_posx[i];
+            col_posy = event_posy[i];
+            col_shape_size = event_size[i];
+            col_max_results = 8;
+            col_enemies = 1;
+            const result_exists = CheckCollision(playerID);
+            if (result_exists) {
+                for (var result_i = 0; result_i < col_max_results; result_i++) {
+                    const target = CUnit(col_results_unit[result_i]);
+                    const target_state = DamageUnit(target, event_damage[i], col_results_unit_activei[result_i]);
+                    if (target_state == 0) {
+                        RedeemUnitExp(playerID, target.unitType);
                     }
+                    setloc(L_MAIN, target.posX, target.posY);
+                    CreateUnitDeathAtLocation(U_SCOURGE, playerID, L_MAIN);
                 }
             }
+            ResetCheckCollision();
             event_time[i]++;
             if (event_time[i] >= event_maxtime[i]) {
                 ResetEvent(i);
@@ -611,12 +674,6 @@ function LevelUp(playerID) {
     }
 }
 
-function RedeemUnitExp(playerID, Unit) {
-    if (Unit == U_CHIMERA) {
-        p_exp_current[playerID] += CHIMERA_EXP;
-    }
-}
-
 function PlaySong(id) {
     if (id == 0) PlayWAV("staredit/wav/song0.ogg");
 }
@@ -637,7 +694,7 @@ function FillActiveNearbyUnits(playerID, positionx, positiony) {
             }
             i++;
             if (i > 1000) {
-                DisplayTextAll("NOTICE: CHECKED MORE THAN 1000 P7 UNITS!"); // ya watch this btw
+                DisplayTextAll("NOTICE: CHECKED MORE THAN 1000 P7 UNITS!");
                 break;
             }
         }
@@ -685,22 +742,23 @@ function afterTriggerExec() {
         const playerID = getcurpl();
         if (playerID >= 0 && playerID < 6) {
             const unit = CUnit(p_cunit[playerID]);
+            const unit_x, unit_y = unit.posX, unit.posY;
             var order_input = 0;
             var unit_is_moving = 0;
             var unit_just_attacked = 0;
             var unit_is_indoors = 0;
 
-            if (active_units_update == 0) FillActiveNearbyUnits(playerID, unit.posX, unit.posY);
+            if (active_units_update == 0) FillActiveNearbyUnits(playerID, unit_x, unit_y);
 
             if (unit.orderID == ORDER_HOLD || unit.orderID == ORDER_PATROL) {
                 order_input = unit.orderID;
                 unit.orderID = 3;
             }
-            if (unit.posX == p_pos_x_old[playerID] && unit.posY == p_pos_y_old[playerID]) {
+            if (unit_x == p_pos_x_old[playerID] && unit_y == p_pos_y_old[playerID]) {
                 unit_is_moving = 0;
             } else {
-                p_pos_x_old[playerID] = unit.posX;
-                p_pos_y_old[playerID] = unit.posY;
+                p_pos_x_old[playerID] = unit_x;
+                p_pos_y_old[playerID] = unit_y;
                 unit_is_moving = 1;
             }
             if (!unit_is_moving && unit.currentSpeed1 > 0) {
@@ -708,13 +766,13 @@ function afterTriggerExec() {
                 unit.currentSpeed2 = 0;
             }
             if (unit_is_moving) {
-                const x, y = GetChunkAtPos(unit.posX, unit.posY);
+                const x, y = GetChunkAtPos(unit_x, unit_y);
                 if (p_chunk_x_old[playerID] != x || p_chunk_y_old[playerID] != y) {
                     p_chunk_x_old[playerID] = x;
                     p_chunk_y_old[playerID] = y;
                     JustEnteredChunk(x, y);
                 }
-                p_indoors[playerID] = IsPosIndoors(unit.posX, unit.posY);
+                p_indoors[playerID] = IsPosIndoors(unit_x, unit_y);
             }
             UpdateBrightness(playerID);
             UpdateSightRange(playerID);
@@ -746,7 +804,7 @@ function afterTriggerExec() {
                     // armor broken
                     DisplayText("ARMOR BROKEN");
                     PlayWAV("staredit/wav/shields_broke.ogg");
-                    setloc(L_MAIN, unit.posX, unit.posY);
+                    setloc(L_MAIN, unit_x, unit_y);
                     CreateImageSpriteAtLocation($P8, L_MAIN, 107, 16);
                 }
             }
@@ -766,6 +824,13 @@ function afterTriggerExec() {
 
             if (unit_just_attacked) {
                 DisplayText("attacked.");
+                queue_event_owner = playerID;
+                queue_event_posx = unit_x;
+                queue_event_posy = unit_y;
+                queue_event_size = 128;
+                queue_event_damage = 12;
+                queue_event_maxtime = 1;
+                CreateEvent();
             }
 
             // EXP
@@ -785,38 +850,37 @@ function afterTriggerExec() {
                 }
             }
 
-            if (test_delay == 0 && playerID == 0) {
-                test_delay = 12;
-                queue_event_owner = playerID;
-                queue_event_posx = unit.posX;
-                queue_event_posy = unit.posY;
-                queue_event_size = 128;
-                queue_event_damage = 11;
-                queue_event_maxtime = 1;
-                CreateEvent();
-                DisplayText("create event");
-                // for (var u = playerID * ACTIVE_UNITS_MAX; u < playerID + 1 * ACTIVE_UNITS_MAX; u++) {
-                //     if (active_units[u] > 0) {
-                //         const enemy_unit = CUnit(active_units[u]);
-                //         // setloc(L_MAIN, enemy_unit.posX, enemy_unit.posY);
-                //         // CreateUnitDeathAtLocation(U_KAKARU, playerID, L_MAIN);
-                //         queue_pro_angle = Random(0, 359);
-                //         queue_pro_velocity = Random(10, 50);
-                //         queue_pro_posx, queue_pro_posy = enemy_unit.posX, enemy_unit.posY;
-                //         queue_pro_maxtime = 24;
-                //         // queue_pro_angular_velocity = Random(-30, 30);
-                //         queue_pro_effect0 = 443;
-                //         queue_pro_effect0_start = 0;
-                //         queue_pro_effect1 = 523;
-                //         queue_pro_effect1_start = 24;
-                //         queue_pro_effect2 = 427;
-                //         queue_pro_effect2_start = queue_pro_maxtime;
-                //         CreateProjectile();
+            if (debug_enabled) {
+                // if (test_delay == 0 && playerID == 0) {
+                //     test_delay = 12;
+                //     queue_event_owner = playerID;
+                //     queue_event_posx = unit_x;
+                //     queue_event_posy = unit_y;
+                //     queue_event_size = 640;
+                //     queue_event_damage = 5;
+                //     queue_event_maxtime = 1;
+                //     CreateEvent();
+                //     DisplayText("create event");
+                //     for (var u = playerID * ACTIVE_UNITS_MAX; u < playerID + 1 * ACTIVE_UNITS_MAX; u++) {
+                //         if (active_units[u] > 0) {
+                //             const enemy_unit = CUnit(active_units[u]);
+                //             // setloc(L_MAIN, enemy_unit_x, enemy_unit_y);
+                //             // CreateUnitDeathAtLocation(U_KAKARU, playerID, L_MAIN);
+                //             queue_pro_angle = Random(0, 359);
+                //             queue_pro_velocity = Random(10, 50);
+                //             queue_pro_posx, queue_pro_posy = enemy_unit_x, enemy_unit_y;
+                //             queue_pro_maxtime = 24;
+                //             // queue_pro_angular_velocity = Random(-30, 30);
+                //             queue_pro_effect0 = 443;
+                //             queue_pro_effect0_start = 0;
+                //             queue_pro_effect1 = 523;
+                //             queue_pro_effect1_start = 24;
+                //             queue_pro_effect2 = 427;
+                //             queue_pro_effect2_start = queue_pro_maxtime;
+                //             CreateProjectile();
+                //         }
                 //     }
                 // }
-            }
-
-            if (debug_enabled) {
                 if (!IsAlive(playerID)) {
                     setloc(L_MAIN, p_homepos_x[playerID], p_homepos_y[playerID]);
                     SpawnHero(playerID, L_MAIN);
