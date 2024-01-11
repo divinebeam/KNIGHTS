@@ -22,7 +22,7 @@ const ACTIVE_UNITS_RECT = 960;
 
 const PLAYER_DEFAULT_HP = 100;
 const PLAYER_DEFAULT_SIGHT = 8;
-const PLAYER_DEFAULT_ARMOR = 1000;
+const PLAYER_DEFAULT_ARMOR = 100;
 const PLAYER_DEFAULT_DAMAGE = 6;
 
 const CHIMERA_EXP = 30;
@@ -247,6 +247,12 @@ function DamageUnit(unit:CUnit, damage, index) {
     
 }
 
+function SCDirectionToDeg(direction) {
+    var angle = direction * 14063;
+    angle = (angle/10000) - 90; // could make this number readable in the future by keeping it in the range of 0 - 359
+    return angle;
+}
+
 function GetAngle(originx, originy, destinationx, destinationy) {
     const angle = atan2(destinationy - originy, destinationx - originx);
     return angle;
@@ -254,8 +260,8 @@ function GetAngle(originx, originy, destinationx, destinationy) {
 
 function AddAngles(angle0, angle1) {
     var new_angle = angle0 + angle1;
-    if (new_angle > 4000000000) new_angle += 359;
-    else if (new_angle > 359) new_angle -= 359;
+    if (new_angle > 4000000000) new_angle += 360;
+    else if (new_angle >= 360) new_angle -= 360;
     return new_angle;
 }
 
@@ -708,6 +714,7 @@ function onPluginStart() {
         const playerID = getcurpl();
         if (playerID >= 0 && playerID < 6) {
             for (var i = 0; i < 6; i++) SetAllianceStatus(i, Ally);
+            SetAllianceStatus($P7, Enemy);
             SetHeroDefaults(playerID);
             if (Command(playerID, AtLeast, 1, U_HERO[0])) {
                 MoveLocation(L_MAIN, U_HERO[0], playerID, L_ANYWHERE);
@@ -716,7 +723,7 @@ function onPluginStart() {
                 CenterView(L_MAIN);
             }
             PlaySong(0);
-            GetVision($P7);
+            // GetVision($P7);
         }
     EUDEndPlayerLoop();
 }
@@ -822,16 +829,16 @@ function afterTriggerExec() {
                 }
             }
 
-            if (unit_just_attacked) {
-                DisplayText("attacked.");
-                queue_event_owner = playerID;
-                queue_event_posx = unit_x;
-                queue_event_posy = unit_y;
-                queue_event_size = 128;
-                queue_event_damage = 12;
-                queue_event_maxtime = 1;
-                CreateEvent();
-            }
+            // if (unit_just_attacked) {
+            //     DisplayText("attacked.");
+            //     queue_event_owner = playerID;
+            //     queue_event_posx = unit_x;
+            //     queue_event_posy = unit_y;
+            //     queue_event_size = 128;
+            //     queue_event_damage = 12;
+            //     queue_event_maxtime = 1;
+            //     CreateEvent();
+            // }
 
             // EXP
             if (p_exp_current[playerID] >= p_exp_goal[playerID]) {
@@ -853,41 +860,45 @@ function afterTriggerExec() {
             if (debug_enabled) {
                 // if (test_delay == 0 && playerID == 0) {
                 //     test_delay = 12;
-                //     queue_event_owner = playerID;
-                //     queue_event_posx = unit_x;
-                //     queue_event_posy = unit_y;
-                //     queue_event_size = 640;
-                //     queue_event_damage = 5;
-                //     queue_event_maxtime = 1;
-                //     CreateEvent();
-                //     DisplayText("create event");
-                //     for (var u = playerID * ACTIVE_UNITS_MAX; u < playerID + 1 * ACTIVE_UNITS_MAX; u++) {
-                //         if (active_units[u] > 0) {
-                //             const enemy_unit = CUnit(active_units[u]);
-                //             // setloc(L_MAIN, enemy_unit_x, enemy_unit_y);
-                //             // CreateUnitDeathAtLocation(U_KAKARU, playerID, L_MAIN);
-                //             queue_pro_angle = Random(0, 359);
-                //             queue_pro_velocity = Random(10, 50);
-                //             queue_pro_posx, queue_pro_posy = enemy_unit_x, enemy_unit_y;
-                //             queue_pro_maxtime = 24;
-                //             // queue_pro_angular_velocity = Random(-30, 30);
-                //             queue_pro_effect0 = 443;
-                //             queue_pro_effect0_start = 0;
-                //             queue_pro_effect1 = 523;
-                //             queue_pro_effect1_start = 24;
-                //             queue_pro_effect2 = 427;
-                //             queue_pro_effect2_start = queue_pro_maxtime;
-                //             CreateProjectile();
-                //         }
-                //     }
+                //     queue_pro_angle = SCDirectionToDeg(unit.currentDirection1);
+                //     queue_pro_velocity = Random(10, 50);
+                //     queue_pro_posx, queue_pro_posy = unit_x, unit_y;
+                //     queue_pro_maxtime = 24;
+                //     // queue_pro_angular_velocity = Random(-30, 30);
+                //     queue_pro_effect0 = 443;
+                //     queue_pro_effect0_start = 0;
+                //     queue_pro_effect1 = 523;
+                //     queue_pro_effect1_start = 24;
+                //     queue_pro_effect2 = 427;
+                //     queue_pro_effect2_start = queue_pro_maxtime;
+                //     CreateProjectile();
+                //     // for (var u = playerID * ACTIVE_UNITS_MAX; u < playerID + 1 * ACTIVE_UNITS_MAX; u++) {
+                //     //     if (active_units[u] > 0) {
+                //     //         const enemy_unit = CUnit(active_units[u]);
+                //     //         // setloc(L_MAIN, enemy_unit_x, enemy_unit_y);
+                //     //         // CreateUnitDeathAtLocation(U_KAKARU, playerID, L_MAIN);
+                //     //         queue_pro_angle = Random(0, 359);
+                //     //         queue_pro_velocity = Random(10, 50);
+                //     //         queue_pro_posx, queue_pro_posy = enemy_unit_x, enemy_unit_y;
+                //     //         queue_pro_maxtime = 24;
+                //     //         // queue_pro_angular_velocity = Random(-30, 30);
+                //     //         queue_pro_effect0 = 443;
+                //     //         queue_pro_effect0_start = 0;
+                //     //         queue_pro_effect1 = 523;
+                //     //         queue_pro_effect1_start = 24;
+                //     //         queue_pro_effect2 = 427;
+                //     //         queue_pro_effect2_start = queue_pro_maxtime;
+                //     //         CreateProjectile();
+                //     //     }
+                //     // }
                 // }
                 if (!IsAlive(playerID)) {
                     setloc(L_MAIN, p_homepos_x[playerID], p_homepos_y[playerID]);
                     SpawnHero(playerID, L_MAIN);
                     CenterView(L_MAIN);
                 }
-                debug_values[0] = unit.shield;
-                debug_values[1] = p_exp_current[playerID];
+                debug_values[0] = unit.currentDirection1;
+                debug_values[1] = SCDirectionToDeg(unit.currentDirection1);
                 debug_values[2] = p_exp_goal[playerID];
                 // if (order_input == ORDER_HOLD) {
                 //     SetMaxHP(playerID, p_health_max[playerID] - 10);

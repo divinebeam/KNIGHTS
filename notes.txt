@@ -40,6 +40,10 @@ IDEAS
 		movement speed
 		ability cost
 		knight sword damage
+	angles
+	 	1.4063deg = 1 SC direction
+		11.25deg = 8 SC direction
+		22.5deg = 16 SC direction
 
 GAMEPLAY
 	players should choose loadout at the beginning of the match
