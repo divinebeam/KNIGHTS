@@ -60,28 +60,16 @@ GAMEPLAY
 		4. ARMOR
 			Light class, medium class, heavy class.
 
-				object Vector2D {
-					var x, y;
-					function constructor(x, y) {
-						this.x = x;
-						this.y = y;
-					}
-				};
+		STRENGTH
+			Sword Effectiveness
+			Life Regeneration
+		
+		DEXTERITY
+			Bow Effectiveness
+			Life Toughness
+			Attack Speed
 
-				function onPluginStart() {
-					const vec1 = Vector2D(3, 0);
-					const vec2 = Vector2D(-1, 3);
-
-					// vector arithmetic
-					const add = Vector2D(vec1.x + vec2.x, vec1.y + vec2.y);
-					const subtract = Vector2D(vec1.x - vec2.x, vec1.y - vec1.y);
-
-					// vector scaling
-					var scalar = 5;
-					const multiply = Vector2D(vec1.x * scalar, vec1.y * scalar);
-
-					// dot product
-					const scalarProduct = vec1.x * vec2.x + vec1.y * vec2.y;
-					
-					const length1 = sqrt(vec1.x * vec1.x + vec1.y * vec1.y);
-				}
+		RESILIENCE
+			Magic Effectiveness
+			Armor Toughness
+			Life Drain Recovery

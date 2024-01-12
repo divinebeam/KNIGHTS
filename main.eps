@@ -1,4 +1,3 @@
-
 const L_ANYWHERE = $L("Anywhere");
 const L_MAIN = $L("main");
 const L_3X3 = $L("3x3");
@@ -19,6 +18,9 @@ const BRIGHTNESS_NIGHT = 25;
 const ELEVATION_DEFAULT = 4;
 const ACTIVE_UNITS_MAX = 40;
 const ACTIVE_UNITS_RECT = 960;
+const MAX_MONSTER_SPAWNS = 1000;
+const MAX_SIGIL_SPAWNS = 10;
+const SIGIL_DIAMETER = 128;
 
 const PLAYER_DEFAULT_HP = 100;
 const PLAYER_DEFAULT_SIGHT = 8;
@@ -28,8 +30,10 @@ const PLAYER_DEFAULT_DAMAGE = 6;
 const CHIMERA_EXP = 30;
 
 const p_cunit = PVariable();
-const p_pos_x_old = PVariable();
-const p_pos_y_old = PVariable();
+const p_x = PVariable();
+const p_y = PVariable();
+const p_x_old = PVariable();
+const p_y_old = PVariable();
 const p_chunk_x_old = PVariable();
 const p_chunk_y_old = PVariable();
 const p_armor_max = PVariable();
@@ -47,11 +51,20 @@ const p_weapon_cooldown = PVariable();
 const p_homepos_x = PVariable();
 const p_homepos_y = PVariable();
 const p_indoors = PVariable();
+const p_strength = PVariable();
+const p_dexterity = PVariable();
+const p_resilience = PVariable();
+const p_attributepoints = PVariable();
+const p_on_sigil = PVariable();
+const p_current_sigil = PVariable();
 
 const screen = StringBuffer(256);
-const monster_spawn_type = EUDArray(1000);
-const monster_spawn_x = EUDArray(1000);
-const monster_spawn_y = EUDArray(1000);
+const monster_spawn_type = EUDArray(MAX_MONSTER_SPAWNS);
+const monster_spawn_x = EUDArray(MAX_MONSTER_SPAWNS);
+const monster_spawn_y = EUDArray(MAX_MONSTER_SPAWNS);
+const sigil_x = EUDArray(MAX_SIGIL_SPAWNS);
+const sigil_y = EUDArray(MAX_SIGIL_SPAWNS);
+const sigil_glow = EUDArray(MAX_SIGIL_SPAWNS);
 const chunk_spawns = EUDArray(256);
 const chunk_buffer = EUDArray(8);
 const active_units = EUDArray(ACTIVE_UNITS_MAX * 6);
@@ -65,6 +78,12 @@ var time_state_changed = 0;
 var days_elapsed = 0;
 var test_delay = 0;
 
+function GetDistance(originx, originy, destx, desty) {
+    const a = originx - destx;
+    const b = originy - desty;
+    const distance = sqrt( a*a + b*b );
+    return distance;
+}
 
 function CenterLoc(location, x, y) {
     setloc(L_MAIN, x, y);
@@ -78,6 +97,16 @@ function CenterLocHero(location, playerID) {
 function EnemiesAtLoc(location) {
     if (Bring(Foes, AtLeast, 1, U_ANY, location)) return 1;
     return 0;
+}
+
+function StandingOnSigil(positionx, positiony) {
+    for (var i = 0; i < MAX_SIGIL_SPAWNS; i++) {
+        if (sigil_x[i] > 0) {
+            const dist = GetDistance(positionx, positiony, sigil_x[i], sigil_y[i]);
+            if (dist <= 64) return i;
+        }
+    }
+    return MAX_SIGIL_SPAWNS + 1;
 }
 
 function GetVision(playerID) {
@@ -113,18 +142,28 @@ function CreateUnitDeathAtLocation(Unit, playerID, location) {
 }
 
 function StoreSpawnPositions() {
-    var i = 0;
+    var monster_i = 0;
+    var sigil_i = 0;
     foreach(unit : EUDLoopCUnit()) {
         if (unit.playerID == $P9) {
-            monster_spawn_type[i] = unit.unitType;
-            monster_spawn_x[i] = unit.posX;
-            monster_spawn_y[i] = unit.posY;
-            unit.remove();
-            i++;
-            if (i > 1000) {
-                DisplayTextAll("NOTICE: MAXIMUM SPAWN POSITIONS REACHED!");
-                break;
+            if (unit.unitType == 215 && sigil_i < MAX_SIGIL_SPAWNS) {
+                sigil_i++;
+                sigil_x[sigil_i] = unit.posX;
+                sigil_y[sigil_i] = unit.posY;
+                unit.remove();
+            } 
+            else if (monster_i < MAX_MONSTER_SPAWNS) {
+                monster_spawn_type[monster_i] = unit.unitType;
+                monster_spawn_x[monster_i] = unit.posX;
+                monster_spawn_y[monster_i] = unit.posY;
+                unit.remove();
+                monster_i++;
+                if (monster_i > MAX_MONSTER_SPAWNS) {
+                    DisplayTextAll("NOTICE: MAXIMUM SPAWN POSITIONS REACHED!");
+                    break;
+                }
             }
+
         }
     }
 }
@@ -134,7 +173,6 @@ function GetChunkID(chunkX, chunkY) {
     if (chunkX > 0 && chunkX <= 16 && chunkY > 0 && chunkY <= 16) {
         return (chunkY - 1) * 16 + chunkX;
     }
-    // printAll("ERROR: INVALID CHUNK COORDINATES!");
     return 0;
 }
 
@@ -148,7 +186,6 @@ function GetChunkCoords(chunkID) {
         chunkx = chunkID;
         chunky = 1;
     }
-    // printAll("ERROR: INVALID CHUNK COORDINATES FROM ID!");
     return chunkx, chunky;
 }
 
@@ -219,6 +256,7 @@ function IsAlive(playerID) {
 
 function IsPosIndoors(positionx, positiony) {
     if (IsPosWithinRect(positionx, positiony, 3840, 4390, 1630, 2340)) return 1;
+    if (IsPosWithinRect(positionx, positiony, 2870, 3580, 890, 1440)) return 1;
     return 0;
 }
 
@@ -302,8 +340,6 @@ function SetMaxHP(playerID, value) {
     p_health_max[playerID] = value;
     dwwrite(0x65FD00 + 9808 + U_HERO[playerID] * 4, value * 256);
     ModifyUnitHitPoints(1, U_HERO[playerID], playerID, L_ANYWHERE, 100);
-    // CenterLocHero(L_MAIN, playerID);
-    // SpawnHero(playerID, L_MAIN);
 }
 
 function SetHeroDefaults(playerID) {
@@ -316,6 +352,17 @@ function SetHeroDefaults(playerID) {
 function RedeemUnitExp(playerID, Unit) {
     if (Unit == U_CHIMERA) {
         p_exp_current[playerID] += CHIMERA_EXP;
+    }
+}
+
+function DrawCircle(positionx, positiony, diameter, dots, imageID) {
+    var angle_increment = (3600000 / dots) / 10000;
+    var angle = 0;
+    for (var i = 0; i < dots; i++) {
+        const x, y = MovePosTowards(positionx, positiony, angle, diameter / 2);
+        setloc(L_MAIN, x, y);
+        CreateImageSpriteAtLocation($P8, L_MAIN, imageID, 0);
+        angle += angle_increment;
     }
 }
 
@@ -637,6 +684,27 @@ function UpdateFOW() {
     }
 }
 
+function UpdateSigils() {
+    for (var i = 0; i < MAX_SIGIL_SPAWNS; i++) {
+        if (sigil_x[i] > 0) {
+            var player_on_sigil = 0;
+            for (var p = 0; p < 6; p++) {
+                if (p_current_sigil[p] == i && p_on_sigil[p] > 0) {
+                    player_on_sigil = 1;
+                    break;
+                }
+            }
+            if (player_on_sigil) {
+                sigil_glow[i]++;
+                if (sigil_glow[i] >= 24) {
+                    DrawCircle(sigil_x[i], sigil_y[i], SIGIL_DIAMETER, 24, 443);
+                    sigil_glow[i] = 0;
+                }
+            } else sigil_glow[i] = 0;
+        }
+    }
+}
+
 function UpdateBrightness(playerID) {
     var target_brightness = BRIGHTNESS_DEFAULT;
     if (time_state == 1) target_brightness = BRIGHTNESS_NIGHT;
@@ -656,6 +724,7 @@ function UpdateSightRange(playerID) {
 
 function LevelUp(playerID) {
     p_level_current[playerID] += 1;
+    p_attributepoints[playerID] += 1;
     p_exp_current[playerID] = 0;
     p_exp_goal[playerID] = 300 + 150 * p_level_current[playerID];
     screen.printf("LEVEL UP - Level {}", p_level_current[playerID]);
@@ -732,6 +801,7 @@ function afterTriggerExec() {
     UpdateTime();
     UpdateProjectiles();
     UpdateEvents();
+    UpdateSigils();
     // UpdateFOW();
     //reset chunk spawn amount
     if (time_state_changed && time_state == 0) {
@@ -749,23 +819,23 @@ function afterTriggerExec() {
         const playerID = getcurpl();
         if (playerID >= 0 && playerID < 6) {
             const unit = CUnit(p_cunit[playerID]);
-            const unit_x, unit_y = unit.posX, unit.posY;
+            p_x[playerID], p_y[playerID] = unit.posX, unit.posY;
             var order_input = 0;
             var unit_is_moving = 0;
             var unit_just_attacked = 0;
             var unit_is_indoors = 0;
 
-            if (active_units_update == 0) FillActiveNearbyUnits(playerID, unit_x, unit_y);
+            if (active_units_update == 0) FillActiveNearbyUnits(playerID, p_x[playerID], p_y[playerID]);
 
             if (unit.orderID == ORDER_HOLD || unit.orderID == ORDER_PATROL) {
                 order_input = unit.orderID;
                 unit.orderID = 3;
             }
-            if (unit_x == p_pos_x_old[playerID] && unit_y == p_pos_y_old[playerID]) {
+            if (p_x[playerID] == p_x_old[playerID] && p_y[playerID] == p_y_old[playerID]) {
                 unit_is_moving = 0;
             } else {
-                p_pos_x_old[playerID] = unit_x;
-                p_pos_y_old[playerID] = unit_y;
+                p_x_old[playerID] = p_x[playerID];
+                p_y_old[playerID] = p_y[playerID];
                 unit_is_moving = 1;
             }
             if (!unit_is_moving && unit.currentSpeed1 > 0) {
@@ -773,21 +843,34 @@ function afterTriggerExec() {
                 unit.currentSpeed2 = 0;
             }
             if (unit_is_moving) {
-                const x, y = GetChunkAtPos(unit_x, unit_y);
+                const x, y = GetChunkAtPos(p_x[playerID], p_y[playerID]);
                 if (p_chunk_x_old[playerID] != x || p_chunk_y_old[playerID] != y) {
                     p_chunk_x_old[playerID] = x;
                     p_chunk_y_old[playerID] = y;
                     JustEnteredChunk(x, y);
                 }
-                p_indoors[playerID] = IsPosIndoors(unit_x, unit_y);
+                p_indoors[playerID] = IsPosIndoors(p_x[playerID], p_x[playerID]);
+                var sigil = MAX_SIGIL_SPAWNS;
+                for (var i = 0; i < MAX_SIGIL_SPAWNS; i++) {
+                    if (sigil_x[i] > 0) {
+                        const dist = GetDistance(p_x[playerID], p_y[playerID], sigil_x[i], sigil_y[i]);
+                        if (dist <= SIGIL_DIAMETER / 2) {
+                            sigil = i;
+                            break;
+                        }
+                    }
+                }
+                if (sigil < MAX_SIGIL_SPAWNS && p_on_sigil[playerID] == 0) {
+                    p_on_sigil[playerID] = 1;
+                    p_current_sigil[playerID] = sigil;
+                    DrawCircle(sigil_x[sigil], sigil_y[sigil], SIGIL_DIAMETER, 24, 443);
+                } else if (sigil >= MAX_SIGIL_SPAWNS && p_on_sigil[playerID] > 0) {
+                    p_on_sigil[playerID] = 0;
+                }
+                
             }
             UpdateBrightness(playerID);
             UpdateSightRange(playerID);
-
-            // HEALTH
-            if (IsAlive(playerID)) {
-
-            }
 
             // ARMOR
             if (IsAlive(playerID)) {
@@ -811,7 +894,7 @@ function afterTriggerExec() {
                     // armor broken
                     DisplayText("ARMOR BROKEN");
                     PlayWAV("staredit/wav/shields_broke.ogg");
-                    setloc(L_MAIN, unit_x, unit_y);
+                    setloc(L_MAIN, p_x[playerID], p_y[playerID]);
                     CreateImageSpriteAtLocation($P8, L_MAIN, 107, 16);
                 }
             }
@@ -832,8 +915,8 @@ function afterTriggerExec() {
             // if (unit_just_attacked) {
             //     DisplayText("attacked.");
             //     queue_event_owner = playerID;
-            //     queue_event_posx = unit_x;
-            //     queue_event_posy = unit_y;
+            //     queue_event_posx = p_x[playerID];
+            //     queue_event_posy = p_y[playerID];
             //     queue_event_size = 128;
             //     queue_event_damage = 12;
             //     queue_event_maxtime = 1;
@@ -862,7 +945,7 @@ function afterTriggerExec() {
                 //     test_delay = 12;
                 //     queue_pro_angle = SCDirectionToDeg(unit.currentDirection1);
                 //     queue_pro_velocity = Random(10, 50);
-                //     queue_pro_posx, queue_pro_posy = unit_x, unit_y;
+                //     queue_pro_posx, queue_pro_posy = p_x[playerID], p_y[playerID];
                 //     queue_pro_maxtime = 24;
                 //     // queue_pro_angular_velocity = Random(-30, 30);
                 //     queue_pro_effect0 = 443;
@@ -875,11 +958,11 @@ function afterTriggerExec() {
                 //     // for (var u = playerID * ACTIVE_UNITS_MAX; u < playerID + 1 * ACTIVE_UNITS_MAX; u++) {
                 //     //     if (active_units[u] > 0) {
                 //     //         const enemy_unit = CUnit(active_units[u]);
-                //     //         // setloc(L_MAIN, enemy_unit_x, enemy_unit_y);
+                //     //         // setloc(L_MAIN, enemy_p_x[playerID], enemy_p_y[playerID]);
                 //     //         // CreateUnitDeathAtLocation(U_KAKARU, playerID, L_MAIN);
                 //     //         queue_pro_angle = Random(0, 359);
                 //     //         queue_pro_velocity = Random(10, 50);
-                //     //         queue_pro_posx, queue_pro_posy = enemy_unit_x, enemy_unit_y;
+                //     //         queue_pro_posx, queue_pro_posy = enemy_p_x[playerID], enemy_p_y[playerID];
                 //     //         queue_pro_maxtime = 24;
                 //     //         // queue_pro_angular_velocity = Random(-30, 30);
                 //     //         queue_pro_effect0 = 443;
@@ -897,8 +980,8 @@ function afterTriggerExec() {
                     SpawnHero(playerID, L_MAIN);
                     CenterView(L_MAIN);
                 }
-                debug_values[0] = unit.currentDirection1;
-                debug_values[1] = SCDirectionToDeg(unit.currentDirection1);
+                // debug_values[0] = p_on_sigil[playerID];
+                // debug_values[1] = SCDirectionToDeg(unit.currentDirection1);
                 debug_values[2] = p_exp_goal[playerID];
                 // if (order_input == ORDER_HOLD) {
                 //     SetMaxHP(playerID, p_health_max[playerID] - 10);
