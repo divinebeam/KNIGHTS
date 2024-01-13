@@ -22,12 +22,38 @@ const MAX_MONSTER_SPAWNS = 1000;
 const MAX_SIGIL_SPAWNS = 10;
 const SIGIL_DIAMETER = 128;
 
+const MENU_MAIN_SIGIL = 1;
+
 const PLAYER_DEFAULT_HP = 100;
 const PLAYER_DEFAULT_SIGHT = 8;
 const PLAYER_DEFAULT_ARMOR = 100;
 const PLAYER_DEFAULT_DAMAGE = 6;
+const PLAYER_DEFAULT_ATTRIBUTE = 10;
 
 const CHIMERA_EXP = 30;
+
+const keypress_1 = PVariable();
+const keypress_2 = PVariable();
+const keypress_3 = PVariable();
+const keypress_4 = PVariable();
+const keypress_5 = PVariable();
+const keypress_6 = PVariable();
+const keypress_7 = PVariable();
+const keypress_8 = PVariable();
+const keypress_9 = PVariable();
+const keypress_0 = PVariable();
+const keypress_f = PVariable();
+EUDRegisterObjectToNamespace("key_1", keypress_1);
+EUDRegisterObjectToNamespace("key_2", keypress_2);
+EUDRegisterObjectToNamespace("key_3", keypress_3);
+EUDRegisterObjectToNamespace("key_4", keypress_4);
+EUDRegisterObjectToNamespace("key_5", keypress_5);
+EUDRegisterObjectToNamespace("key_6", keypress_6);
+EUDRegisterObjectToNamespace("key_7", keypress_7);
+EUDRegisterObjectToNamespace("key_8", keypress_8);
+EUDRegisterObjectToNamespace("key_9", keypress_9);
+EUDRegisterObjectToNamespace("key_0", keypress_0);
+EUDRegisterObjectToNamespace("key_f", keypress_f);
 
 const p_cunit = PVariable();
 const p_x = PVariable();
@@ -57,6 +83,9 @@ const p_resilience = PVariable();
 const p_attributepoints = PVariable();
 const p_on_sigil = PVariable();
 const p_current_sigil = PVariable();
+
+const m_main = PVariable();
+const m_page = PVariable();
 
 const screen = StringBuffer(256);
 const monster_spawn_type = EUDArray(MAX_MONSTER_SPAWNS);
@@ -346,6 +375,7 @@ function SetHeroDefaults(playerID) {
     p_exp_goal[playerID] = 30;
     p_armor_max[playerID] = PLAYER_DEFAULT_ARMOR * 256;
     p_damage[playerID] = PLAYER_DEFAULT_DAMAGE;
+    p_attributepoints[playerID] = PLAYER_DEFAULT_ATTRIBUTE;
     SetMaxHP(playerID, PLAYER_DEFAULT_HP);
 }
 
@@ -363,6 +393,12 @@ function DrawCircle(positionx, positiony, diameter, dots, imageID) {
         setloc(L_MAIN, x, y);
         CreateImageSpriteAtLocation($P8, L_MAIN, imageID, 0);
         angle += angle_increment;
+    }
+}
+
+function ClearTextLines(from_line, to_line) {
+    for (var i = from_line; i < to_line; i++) {
+        DisplayTextAt(i, "\x0BNull");
     }
 }
 
@@ -722,6 +758,38 @@ function UpdateSightRange(playerID) {
     bwrite(0x65FD00 + 13624 + U_HERO[playerID] * 1, target_value);
 }
 
+function UpdateSigilMenu(playerID) {
+    if (keypress_1[playerID] && p_attributepoints[playerID] > 0) {
+        p_strength[playerID]++;
+        p_attributepoints[playerID]--;
+        p_damage[playerID] += 2;
+        DrawCircle(p_x[playerID], p_y[playerID], SIGIL_DIAMETER + 48, 24, 450);
+        PlayWAV("staredit/wav/increase_attribute.ogg");
+        PlayWAV("sound/Bullet/ZLrkHit2.wav");
+    }
+    if (keypress_2[playerID] && p_attributepoints[playerID] > 0) {
+        p_dexterity[playerID]++;
+        p_attributepoints[playerID]--;
+        DrawCircle(p_x[playerID], p_y[playerID], SIGIL_DIAMETER + 48, 24, 517);
+        PlayWAV("staredit/wav/increase_attribute.ogg");
+        PlayWAV("sound/Bullet/ZLrkHit2.wav");
+    }
+    if (keypress_3[playerID] && p_attributepoints[playerID] > 0) {
+        p_resilience[playerID]++;
+        p_attributepoints[playerID]--;
+        DrawCircle(p_x[playerID], p_y[playerID], SIGIL_DIAMETER + 48, 24, 466);
+        PlayWAV("staredit/wav/increase_attribute.ogg");
+        PlayWAV("sound/Bullet/ZLrkHit2.wav");
+    }
+    screen.printfAt(0, "\x09\x09\x09\x11.STRENGTH \x1F({})\x09\x09\x09\x09\x07.DEXTERITY \x1F({})\x09\x09\x09\x09\x1C.RESILIENCE \x1F({})", p_strength[playerID], p_dexterity[playerID], p_resilience[playerID]);
+    DisplayTextAt(1, "\x09\x09\x09\x03.Press -<1>- to Allocate\x09\x09\x03.Press -<2>- to Allocate\x09\x09\x03.Press -<3>- to Allocate");
+    DisplayTextAt(2, "\x09\x09\x09\x11|\x04Sword Effectiveness\x09\x09\x07|\x04Bow Effectiveness\x09\x09\x09\x1C|\x04Magic Effectiveness");
+    DisplayTextAt(3, "\x09\x09\x09\x11|\x04Life Regeneration\x09\x09\x09\x07|\x04Life Toughness\x09\x09\x09\x09\x1C|\x04Armor Toughness");
+    DisplayTextAt(4, "\x09\x09\x09\x11|\x04Something\x09\x09\x09\x09\x09\x07|\x04Attack Speed\x09\x09\x09\x09\x1C|\x04Life Drain Recovery");
+    DisplayTextAt(5, "\x0BNull");
+    screen.printfAt(6, "\x09\x09\x09\x04Available Attribute Points: \x1F{}", p_attributepoints[playerID]);
+}
+
 function LevelUp(playerID) {
     p_level_current[playerID] += 1;
     p_attributepoints[playerID] += 1;
@@ -849,7 +917,7 @@ function afterTriggerExec() {
                     p_chunk_y_old[playerID] = y;
                     JustEnteredChunk(x, y);
                 }
-                p_indoors[playerID] = IsPosIndoors(p_x[playerID], p_x[playerID]);
+                p_indoors[playerID] = IsPosIndoors(p_x[playerID], p_y[playerID]);
                 var sigil = MAX_SIGIL_SPAWNS;
                 for (var i = 0; i < MAX_SIGIL_SPAWNS; i++) {
                     if (sigil_x[i] > 0) {
@@ -864,6 +932,7 @@ function afterTriggerExec() {
                     p_on_sigil[playerID] = 1;
                     p_current_sigil[playerID] = sigil;
                     DrawCircle(sigil_x[sigil], sigil_y[sigil], SIGIL_DIAMETER, 24, 443);
+                    DisplayText("\x13\x04Press \x03-<F>- \x04to Interact.");
                 } else if (sigil >= MAX_SIGIL_SPAWNS && p_on_sigil[playerID] > 0) {
                     p_on_sigil[playerID] = 0;
                 }
@@ -871,6 +940,18 @@ function afterTriggerExec() {
             }
             UpdateBrightness(playerID);
             UpdateSightRange(playerID);
+
+            // SIGIL INTERACTION
+            if (p_on_sigil[playerID] && IsAlive(playerID)) {
+                if (m_main[playerID] == 0 && keypress_f[playerID] > 0) {
+                    m_main[playerID] = MENU_MAIN_SIGIL;
+                } else if (m_main[playerID] == MENU_MAIN_SIGIL) {
+                    UpdateSigilMenu(playerID);
+                }
+            } else if (p_on_sigil[playerID] == 0 && m_main[playerID] > 0) {
+                m_main[playerID] = 0;
+                ClearTextLines(0, 9);
+            }
 
             // ARMOR
             if (IsAlive(playerID)) {
@@ -980,9 +1061,9 @@ function afterTriggerExec() {
                     SpawnHero(playerID, L_MAIN);
                     CenterView(L_MAIN);
                 }
-                // debug_values[0] = p_on_sigil[playerID];
-                // debug_values[1] = SCDirectionToDeg(unit.currentDirection1);
-                debug_values[2] = p_exp_goal[playerID];
+                debug_values[0] = p_x[playerID];
+                debug_values[1] = p_y[playerID];
+                debug_values[2] = keypress_f[playerID];
                 // if (order_input == ORDER_HOLD) {
                 //     SetMaxHP(playerID, p_health_max[playerID] - 10);
                 // } 
