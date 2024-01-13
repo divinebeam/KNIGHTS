@@ -1,6 +1,6 @@
 
 CURRENTLY
-	implementing collision checks at positions 
+	implementing stats and attribute changes
 
 TODO
 	implement drawline function

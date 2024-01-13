@@ -83,6 +83,7 @@ const p_resilience = PVariable();
 const p_attributepoints = PVariable();
 const p_on_sigil = PVariable();
 const p_current_sigil = PVariable();
+const p_health_regen = PVariable(); // 2 per frame = 0.1875 per second
 
 const m_main = PVariable();
 const m_page = PVariable();
@@ -106,6 +107,14 @@ var time_state = 0;
 var time_state_changed = 0;
 var days_elapsed = 0;
 var test_delay = 0;
+
+function CalculateKnightSwordDamage(playerID) {
+    p_damage[playerID] = PLAYER_DEFAULT_DAMAGE + (p_strength[playerID] * 3);
+}
+
+function CalculateHealthRegen(playerID) {
+    p_health_regen[playerID] = 2 * (p_strength[playerID] / 2);
+}
 
 function GetDistance(originx, originy, destx, desty) {
     const a = originx - destx;
@@ -311,7 +320,18 @@ function DamageUnit(unit:CUnit, damage, index) {
         unit.hp -= damage * 256;
         return 1;
     }
-    
+}
+
+function HealUnit(unit:CUnit, amount) {
+    // if (unit.hp < damage * 256) unit.hp = 0;
+	// if (unit.hp == 0) {
+    //     if (unit.playerID == $P7 && index <= ACTIVE_UNITS_MAX) active_units[index] = 0;
+    //     unit.die();
+    //     return 0;
+    // } else {
+    //     unit.hp -= damage * 256;
+    //     return 1;
+    // }
 }
 
 function SCDirectionToDeg(direction) {
@@ -367,7 +387,7 @@ function SpawnHero(playerID, location) {
 
 function SetMaxHP(playerID, value) {
     p_health_max[playerID] = value;
-    dwwrite(0x65FD00 + 9808 + U_HERO[playerID] * 4, value * 256);
+    dwwrite(0x65FD00 + 9808 + U_HERO[playerID] * 4, value);
     ModifyUnitHitPoints(1, U_HERO[playerID], playerID, L_ANYWHERE, 100);
 }
 
@@ -376,7 +396,7 @@ function SetHeroDefaults(playerID) {
     p_armor_max[playerID] = PLAYER_DEFAULT_ARMOR * 256;
     p_damage[playerID] = PLAYER_DEFAULT_DAMAGE;
     p_attributepoints[playerID] = PLAYER_DEFAULT_ATTRIBUTE;
-    SetMaxHP(playerID, PLAYER_DEFAULT_HP);
+    SetMaxHP(playerID, PLAYER_DEFAULT_HP * 256);
 }
 
 function RedeemUnitExp(playerID, Unit) {
@@ -762,22 +782,47 @@ function UpdateSigilMenu(playerID) {
     if (keypress_1[playerID] && p_attributepoints[playerID] > 0) {
         p_strength[playerID]++;
         p_attributepoints[playerID]--;
-        p_damage[playerID] += 2;
-        DrawCircle(p_x[playerID], p_y[playerID], SIGIL_DIAMETER + 48, 24, 450);
+        CalculateKnightSwordDamage(playerID);
+        CalculateHealthRegen(playerID);
+        for (var i = 0; i < 8; i++) {
+            queue_pro_posx = p_x[playerID];
+            queue_pro_posy = p_y[playerID];
+            queue_pro_maxtime = 8;
+            queue_pro_angle = (i + 1) * 45;
+            queue_pro_velocity = 20;
+            queue_pro_effect2 = 450;
+            CreateProjectile();
+        }
         PlayWAV("staredit/wav/increase_attribute.ogg");
         PlayWAV("sound/Bullet/ZLrkHit2.wav");
     }
     if (keypress_2[playerID] && p_attributepoints[playerID] > 0) {
         p_dexterity[playerID]++;
         p_attributepoints[playerID]--;
-        DrawCircle(p_x[playerID], p_y[playerID], SIGIL_DIAMETER + 48, 24, 517);
+        for (var i = 0; i < 8; i++) {
+            queue_pro_posx = p_x[playerID];
+            queue_pro_posy = p_y[playerID];
+            queue_pro_maxtime = 8;
+            queue_pro_angle = (i + 1) * 45;
+            queue_pro_velocity = 20;
+            queue_pro_effect2 = 517;
+            CreateProjectile();
+        }
         PlayWAV("staredit/wav/increase_attribute.ogg");
         PlayWAV("sound/Bullet/ZLrkHit2.wav");
     }
     if (keypress_3[playerID] && p_attributepoints[playerID] > 0) {
         p_resilience[playerID]++;
         p_attributepoints[playerID]--;
-        DrawCircle(p_x[playerID], p_y[playerID], SIGIL_DIAMETER + 48, 24, 466);
+        for (var i = 0; i < 8; i++) {
+            queue_pro_posx = p_x[playerID];
+            queue_pro_posy = p_y[playerID];
+            queue_pro_maxtime = 8;
+            queue_pro_angle = (i + 1) * 45;
+            queue_pro_velocity = 20;
+            queue_pro_effect2 = 466;
+            CreateProjectile();
+        }
         PlayWAV("staredit/wav/increase_attribute.ogg");
         PlayWAV("sound/Bullet/ZLrkHit2.wav");
     }
@@ -797,12 +842,10 @@ function LevelUp(playerID) {
     p_exp_goal[playerID] = 300 + 150 * p_level_current[playerID];
     screen.printf("LEVEL UP - Level {}", p_level_current[playerID]);
     PlayWAV("staredit/wav/levelup.ogg");
-    const unit = CUnit(p_cunit[playerID]);
-    setloc(L_MAIN, unit.posX, unit.posY);
     CreateUnitDeathAtLocation($U("Protoss Observer"), playerID, L_MAIN);
     for (var i = 0; i < 8; i++) {
-        queue_pro_posx = unit.posX;
-        queue_pro_posy = unit.posY;
+        queue_pro_posx = p_x[playerID];
+        queue_pro_posy = p_y[playerID];
         queue_pro_maxtime = 8;
         queue_pro_angle = (i + 1) * 45;
         queue_pro_velocity = 40;
@@ -951,6 +994,14 @@ function afterTriggerExec() {
             } else if (p_on_sigil[playerID] == 0 && m_main[playerID] > 0) {
                 m_main[playerID] = 0;
                 ClearTextLines(0, 9);
+            }
+
+            // HEALTH
+            if (IsAlive(playerID)) {
+                if (unit.hp < p_health_max[playerID]) {
+                    unit.hp += p_health_regen[playerID];
+                    if (unit.hp > p_health_max[playerID]) unit.hp = p_health_max[playerID];
+                }
             }
 
             // ARMOR
