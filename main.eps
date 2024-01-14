@@ -8,6 +8,8 @@ const U_CHIMERA = 37;
 const U_ANY = 229;
 const U_KAKARU = 94;
 const U_SCOURGE = 47;
+const U_WEAPON = 129;
+const U_MARKER = 7;
 
 const ORDER_HOLD = 107;
 const ORDER_PATROL = 152;
@@ -29,6 +31,10 @@ const PLAYER_DEFAULT_SIGHT = 8;
 const PLAYER_DEFAULT_ARMOR = 100;
 const PLAYER_DEFAULT_DAMAGE = 6;
 const PLAYER_DEFAULT_ATTRIBUTE = 20;
+
+const WEAPON_SHORTSWORD = 1;
+const WEAPON_SHORTBOW = 2;
+const WEAPON_FIREBALL = 3;
 
 const CHIMERA_EXP = 30;
 
@@ -176,6 +182,12 @@ function StandingOnSigil(positionx, positiony) {
     return MAX_SIGIL_SPAWNS + 1;
 }
 
+function CreateCUnit(unitType, playerID, location) : CUnit {
+	const newUnit = CUnit.from_read(EPD(0x628438));
+	CreateUnit(1, unitType, location, playerID);
+	return newUnit;
+}
+
 function GetVision(playerID) {
     if (playerID == 0) RunAIScript("+Vi0");
     else if (playerID == 1) RunAIScript("+Vi1");
@@ -231,6 +243,21 @@ function StoreSpawnPositions() {
                 }
             }
 
+        }
+    }
+}
+
+function SpawnInitialWeaponUnits() {
+    foreach(unit : EUDLoopCUnit()) {
+        if (unit.playerID == $P10) {
+            if (unit.unitType == U_MARKER) {
+                const weapon_id = unit.hp / 256;
+                setloc(L_MAIN, unit.posX, unit.posY);
+                RemoveUnitAt(1, U_MARKER, L_MAIN, $P10);
+                CreateUnitDeathAtLocation(U_SCOURGE, $P1, L_MAIN);
+                const new_unit = CUnit(CreateCUnit(U_WEAPON, $P8, L_MAIN));
+                new_unit.energy = weapon_id;
+            }
         }
     }
 }
@@ -303,12 +330,6 @@ function GetChunkAtPos(positionx, positiony) {
     var chunk_pos_x = (positionx / 32) / 16;
     var chunk_pos_y = (positiony / 32) / 16;
     return chunk_pos_x + 1, chunk_pos_y + 1;
-}
-
-function CreateCUnit(unitType, playerID, location) : CUnit {
-	const newUnit = CUnit.from_read(EPD(0x628438));
-	CreateUnit(1, unitType, location, playerID);
-	return newUnit;
 }
 
 function IsPosWithinRect(positionx, positiony, left, right, top, bottom) {
@@ -928,11 +949,13 @@ function FillActiveNearbyUnits(playerID, positionx, positiony) {
 
 function onPluginStart() {
     StoreSpawnPositions();
+    SpawnInitialWeaponUnits();
     EUDPlayerLoop()();
         const playerID = getcurpl();
         if (playerID >= 0 && playerID < 6) {
             for (var i = 0; i < 6; i++) SetAllianceStatus(i, Ally);
             SetAllianceStatus($P7, Enemy);
+            SetAllianceStatus($P8, Ally);
             SetHeroDefaults(playerID);
             if (Command(playerID, AtLeast, 1, U_HERO[0])) {
                 MoveLocation(L_MAIN, U_HERO[0], playerID, L_ANYWHERE);
@@ -1095,6 +1118,9 @@ function afterTriggerExec() {
                     unit_just_attacked = 1;
                     unit.groundWeaponCooldown -= GetAttackSpeed(playerID);
                     const target = unit.orderTargetUnit;
+                    if (target.unitID == U_WEAPON) {
+                        screen.printf("id {}", target.energy);
+                    }
                     const target_state = DamageUnit(target, p_damage[playerID], 0, 0, ACTIVE_UNITS_MAX + 1);
                     if (target_state == 0) {
                         RedeemUnitExp(playerID, target.unitType);

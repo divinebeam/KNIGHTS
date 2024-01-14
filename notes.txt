@@ -76,11 +76,3 @@ GAMEPLAY
 			Armor Toughness
 			Life Drain Recovery
 
-
-
-
-
-
-4608 damage
-98 % damage dealt
-98 * 100 = 9800
