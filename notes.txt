@@ -9,6 +9,8 @@ TODO
 	maybe should be able to choose the image for the orbit and the "true" projectile separate, can choose to hide the center image.
 	implement acceleration for projectiles
 	create unit death function that only uses a single unit id and can have elevation changes
+	implement attribute increase functions so all calculations are done in one place
+	re-do armor and health toughness calculations because it seems messy and dont know if it actually works correctly.
 	
 IDEAS
 	use kingdom of heaven music
@@ -73,3 +75,12 @@ GAMEPLAY
 			Magic Effectiveness
 			Armor Toughness
 			Life Drain Recovery
+
+
+
+
+
+
+4608 damage
+98 % damage dealt
+98 * 100 = 9800
