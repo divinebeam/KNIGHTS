@@ -11,6 +11,7 @@ TODO
 	create unit death function that only uses a single unit id and can have elevation changes
 	implement attribute increase functions so all calculations are done in one place
 	re-do armor and health toughness calculations because it seems messy and dont know if it actually works correctly.
+	see if changing size of khalis crystal works now that theres no preplaced
 	
 IDEAS
 	use kingdom of heaven music
@@ -46,6 +47,11 @@ IDEAS
 	 	1.4063deg = 1 SC direction
 		11.25deg = 8 SC direction
 		22.5deg = 16 SC direction
+
+	NAME NAME
+		Description
+		-<1>- Equip/Take
+		-<2>- 
 
 GAMEPLAY
 	players should choose loadout at the beginning of the match

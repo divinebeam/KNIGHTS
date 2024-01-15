@@ -23,6 +23,7 @@ const ACTIVE_UNITS_RECT = 960;
 const MAX_MONSTER_SPAWNS = 1000;
 const MAX_SIGIL_SPAWNS = 10;
 const SIGIL_DIAMETER = 128;
+const CLOSE_LOOT_MENU_DISTANCE = 64;
 
 const MENU_MAIN_SIGIL = 1;
 
@@ -61,6 +62,12 @@ EUDRegisterObjectToNamespace("key_9", keypress_9);
 EUDRegisterObjectToNamespace("key_0", keypress_0);
 EUDRegisterObjectToNamespace("key_f", keypress_f);
 
+const WEAPON_ARRAY_SIZE = 10;
+const strings_weapons = EUDArray(WEAPON_ARRAY_SIZE);
+const strings_weapon_descriptions = EUDArray(WEAPON_ARRAY_SIZE);
+
+const strings_loot_interactions = EUDArray(10);
+
 const p_cunit = PVariable();
 const p_x = PVariable();
 const p_y = PVariable();
@@ -79,7 +86,7 @@ const p_brightness = PVariable();
 const p_exp_current = PVariable();
 const p_exp_goal = PVariable();
 const p_level_current = PVariable();
-const p_weapon_id = PVariable();
+const p_weapon = PVariable();
 const p_weapon_cooldown = PVariable();
 const p_homepos_x = PVariable();
 const p_homepos_y = PVariable();
@@ -90,6 +97,7 @@ const p_resilience = PVariable();
 const p_attributepoints = PVariable();
 const p_on_sigil = PVariable();
 const p_current_sigil = PVariable();
+const p_current_item_unit = PVariable();
 
 const m_main = PVariable();
 const m_page = PVariable();
@@ -113,6 +121,19 @@ var time_state = 0;
 var time_state_changed = 0;
 var days_elapsed = 0;
 var test_delay = 0;
+
+function SetupStringArrays() {
+    strings_weapons[WEAPON_SHORTSWORD] = Db("Short Sword");
+    strings_weapons[WEAPON_SHORTBOW] = Db("Short Bow");
+    strings_weapons[WEAPON_FIREBALL] = Db("Tome Of Fireball");
+
+    strings_weapon_descriptions[WEAPON_SHORTSWORD] = Db("Basic sword.");
+    strings_weapon_descriptions[WEAPON_SHORTBOW] = Db("Basic bow.");
+    strings_weapon_descriptions[WEAPON_FIREBALL] = Db("Classic magic spell :).");
+
+    strings_loot_interactions[0] = Db("\x03-<1>- \x04to Equip.");
+    strings_loot_interactions[1] = Db("\x03-<1>- \x04to Equip and swap with: ");
+}
 
 function GetWholeAndFraction(value) {
     // takes in a value * 10000 and returns the whole numbers + the fraction separately.
@@ -188,6 +209,11 @@ function CreateCUnit(unitType, playerID, location) : CUnit {
 	return newUnit;
 }
 
+function CreateItemUnit(unitType, item_id, location) {
+    const new_unit = CUnit(CreateCUnit(unitType, $P8, location));
+    new_unit.energy = item_id;
+}
+
 function GetVision(playerID) {
     if (playerID == 0) RunAIScript("+Vi0");
     else if (playerID == 1) RunAIScript("+Vi1");
@@ -254,7 +280,6 @@ function SpawnInitialWeaponUnits() {
                 const weapon_id = unit.hp / 256;
                 setloc(L_MAIN, unit.posX, unit.posY);
                 RemoveUnitAt(1, U_MARKER, L_MAIN, $P10);
-                CreateUnitDeathAtLocation(U_SCOURGE, $P1, L_MAIN);
                 const new_unit = CUnit(CreateCUnit(U_WEAPON, $P8, L_MAIN));
                 new_unit.energy = weapon_id;
             }
@@ -477,7 +502,7 @@ function DrawCircle(positionx, positiony, diameter, dots, imageID) {
 }
 
 function ClearTextLines(from_line, to_line) {
-    for (var i = from_line; i < to_line; i++) {
+    for (var i = from_line; i < to_line + 1; i++) {
         DisplayTextAt(i, "\x0BNull");
     }
 }
@@ -948,6 +973,7 @@ function FillActiveNearbyUnits(playerID, positionx, positiony) {
 
 
 function onPluginStart() {
+    SetupStringArrays();
     StoreSpawnPositions();
     SpawnInitialWeaponUnits();
     EUDPlayerLoop()();
@@ -1118,12 +1144,60 @@ function afterTriggerExec() {
                     unit_just_attacked = 1;
                     unit.groundWeaponCooldown -= GetAttackSpeed(playerID);
                     const target = unit.orderTargetUnit;
+                    var target_is_valid = 1;
                     if (target.unitID == U_WEAPON) {
-                        screen.printf("id {}", target.energy);
+                        unit.orderID = 3;
+                        CenterLocHero(L_16x16, playerID);
+                        ModifyUnitHitPoints(All, U_WEAPON, $P8, L_16x16, 100);
+                        target_is_valid = 0;
+                        p_current_item_unit[playerID] = target;
+                        PlayWAV("staredit/wav/check_item.ogg");
                     }
-                    const target_state = DamageUnit(target, p_damage[playerID], 0, 0, ACTIVE_UNITS_MAX + 1);
-                    if (target_state == 0) {
-                        RedeemUnitExp(playerID, target.unitType);
+                    if (target_is_valid) {
+                        const target_state = DamageUnit(target, p_damage[playerID], 0, 0, ACTIVE_UNITS_MAX + 1);
+                        if (target_state == 0) {
+                            RedeemUnitExp(playerID, target.unitType);
+                        }
+                    }
+                }
+            }
+
+            // LOOT MENU
+            if (p_current_item_unit[playerID] > 0) {
+                const item_unit = CUnit(p_current_item_unit[playerID]);
+                const item_id = item_unit.energy;
+                const item_unittype = item_unit.unitID;
+                const item_x, item_y = item_unit.posX, item_unit.posY;
+                if (GetDistance(p_x[playerID], p_y[playerID], item_x, item_y) > CLOSE_LOOT_MENU_DISTANCE) {
+                    ClearTextLines(0, 2);
+                    p_current_item_unit[playerID] = 0;
+                } else {
+                    if (item_unittype == U_WEAPON) {
+                        screen.printfAt(0, "\x09\x09\x09\x09\x09\x09\x09\x09\x09\x04--+ \x1F{:s}", strings_weapons[item_id]);
+                        screen.printfAt(1, "\x09\x09\x09\x09\x09\x09\x09\x09\x09\x09\x09\x02{:s}", strings_weapon_descriptions[item_id]);
+                        if (p_weapon[playerID] > 0) {
+                            screen.printfAt(2, "\x09\x09\x09\x09\x09\x09\x09\x09\x09\x09\x09\x02{:s}\x1F{:s}", strings_loot_interactions[1], strings_weapons[p_weapon[playerID]]);
+                        } else {
+                            screen.printfAt(2, "\x09\x09\x09\x09\x09\x09\x09\x09\x09\x09\x09\x02{:s}", strings_loot_interactions[0]);
+                        }
+
+                        if (keypress_1[playerID] && p_weapon[playerID] > 0) {
+                            setloc(L_MAIN, item_x, item_y);
+                            RemoveUnitAt(1, U_WEAPON, L_MAIN, $P8);
+                            setloc(L_MAIN, p_x[playerID], p_y[playerID]);
+                            CreateItemUnit(U_WEAPON, p_weapon[playerID], L_MAIN);
+                            p_weapon[playerID] = item_id;
+                            p_current_item_unit[playerID] = 0;
+                            ClearTextLines(0, 2);
+                            DisplayText("Swapped with current weapon.");
+                        } else if (keypress_1[playerID]) {
+                            setloc(L_MAIN, item_x, item_y);
+                            RemoveUnitAt(1, U_WEAPON, L_MAIN, $P8);
+                            p_weapon[playerID] = item_id;
+                            p_current_item_unit[playerID] = 0;
+                            ClearTextLines(0, 2);
+                            DisplayText("Equipped.");
+                        }
                     }
                 }
             }
