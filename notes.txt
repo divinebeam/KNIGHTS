@@ -12,6 +12,7 @@ TODO
 	implement attribute increase functions so all calculations are done in one place
 	re-do armor and health toughness calculations because it seems messy and dont know if it actually works correctly.
 	see if changing size of khalis crystal works now that theres no preplaced
+	in the future could replace string arrays with get functions item id as argument.
 	
 IDEAS
 	use kingdom of heaven music

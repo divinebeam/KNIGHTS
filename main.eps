@@ -73,6 +73,7 @@ const p_x = PVariable();
 const p_y = PVariable();
 const p_x_old = PVariable();
 const p_y_old = PVariable();
+const p_angle = PVariable();
 const p_chunk_x_old = PVariable();
 const p_chunk_y_old = PVariable();
 const p_health = PVariable();
@@ -87,7 +88,9 @@ const p_exp_current = PVariable();
 const p_exp_goal = PVariable();
 const p_level_current = PVariable();
 const p_weapon = PVariable();
+const p_weapon_state = PVariable();
 const p_weapon_cooldown = PVariable();
+const p_weapon_angle = PVariable();
 const p_homepos_x = PVariable();
 const p_homepos_y = PVariable();
 const p_indoors = PVariable();
@@ -170,6 +173,12 @@ function CalculateKnightSwordDamage(playerID) {
 
 function GetHealthRegen(playerID) {
     return 2 * (p_strength[playerID] / 2); // 2 per frame = 0.1875 per second
+}
+
+function GetWeaponCooldown(item_id) {
+    if (item_id == WEAPON_SHORTSWORD) return 24;
+    else if (item_id == WEAPON_SHORTBOW) return 24;
+    else if (item_id == WEAPON_FIREBALL) return 48;
 }
 
 function GetDistance(originx, originy, destx, desty) {
@@ -660,7 +669,7 @@ var col_allies = 0;
 var col_terrain = 0; // check if the posx, posy is unpathable.
 var col_shape = 0; // determines if the check will be for circle or square. Shape only works for units. 
 var col_shape_size = 0; // width of the square, or diameter of the circle.
-var col_max_results = 0;
+var col_max_results = 0; // should probably increase max results in the future and make it a constant
 const col_results_unit = EUDArray(8);
 const col_results_unit_activei = EUDArray(8); // index position of the unit in the active units array, this is for deleting it from the active units array if it dies.
 var col_results_unit_i = 0;
@@ -708,7 +717,16 @@ function CheckCollision(playerID) {
                 }
             }
         } else if (col_shape == 1) {
-
+            for (var u = playerID * ACTIVE_UNITS_MAX; u < playerID + 1 * ACTIVE_UNITS_MAX; u++) {
+                if (active_units[u] > 0) {
+                    const unit = CUnit(active_units[u]);
+                    if (GetDistance(unit.posX, unit.posY, col_posx, col_posy) <= col_shape_size) {
+                        result_exists = 1;
+                        const full = AddUnitToColResults(active_units[u], u);
+                        if (full) break;
+                    }
+                }
+            }
         }
     }
     return result_exists;
@@ -720,18 +738,22 @@ const event_posy = EUDArray(EVENT_POOL);
 const event_time = EUDArray(EVENT_POOL);
 const event_maxtime = EUDArray(EVENT_POOL);
 const event_size = EUDArray(EVENT_POOL);
+const event_shape = EUDArray(EVENT_POOL);
 const event_heal = EUDArray(EVENT_POOL);
 const event_damage = EUDArray(EVENT_POOL);
 const event_owner = EUDArray(EVENT_POOL);
+const event_maxtargets = EUDArray(EVENT_POOL);
 function ResetEvent(i) {
     event_posx[i] = 0;
     event_posy[i] = 0;
     event_time[i] = 0;
     event_maxtime[i] = 0;
     event_size[i] = 0;
+    event_shape[i] = 0;
     event_heal[i] = 0;
     event_damage[i] = 0;
     event_owner[i] = 0;
+    event_maxtargets[i] = 0;
 }
 
 var queue_event_posx = 0;
@@ -739,18 +761,22 @@ var queue_event_posy = 0;
 var queue_event_time = 0;
 var queue_event_maxtime = 0;
 var queue_event_size = 0;
+var queue_event_shape = 0;
 var queue_event_heal = 0;
 var queue_event_damage = 0;
 var queue_event_owner = 0;
+var queue_event_maxtargets = 0;
 function ResetEventQueue() {
     queue_event_posx = 0;
     queue_event_posy = 0;
     queue_event_time = 0;
     queue_event_maxtime = 0;
     queue_event_size = 0;
+    queue_event_shape = 0;
     queue_event_heal = 0;
     queue_event_damage = 0;
     queue_event_owner = 0;
+    queue_event_maxtargets = 0;
 }
 
 function CreateEvent() {
@@ -761,9 +787,11 @@ function CreateEvent() {
             event_posy[i] = queue_event_posy;
             event_maxtime[i] = queue_event_maxtime;
             event_size[i] = queue_event_size;
+            event_shape[i] = queue_event_shape;
             event_heal[i] = queue_event_heal;
             event_damage[i] = queue_event_damage;
             event_owner[i] = queue_event_owner;
+            event_maxtargets[i] = queue_event_maxtargets;
             ResetEventQueue();
             break;
         }
@@ -787,8 +815,8 @@ function UpdateEvents() {
                     if (target_state == 0) {
                         RedeemUnitExp(playerID, target.unitType);
                     }
-                    setloc(L_MAIN, target.posX, target.posY);
-                    CreateUnitDeathAtLocation(U_SCOURGE, playerID, L_MAIN);
+                    // setloc(L_MAIN, target.posX, target.posY);
+                    // CreateUnitDeathAtLocation(U_SCOURGE, playerID, L_MAIN);
                 }
             }
             ResetCheckCollision();
@@ -812,6 +840,18 @@ function UpdateTime() {
         time_state = 1;
         time_state_changed = 1;
     }
+}
+
+function DoDamageAtPos(positionx, positiony, playerID, shape, size, damage, maxtargets) {
+    queue_event_owner = playerID;
+    queue_event_posx = positionx;
+    queue_event_posy = positiony;
+    queue_event_shape = shape;
+    queue_event_size = size;
+    queue_event_damage = damage;
+    queue_event_maxtargets = maxtargets;
+    queue_event_maxtime = 1;
+    CreateEvent();
 }
 
 var fow_state;
@@ -948,6 +988,14 @@ function PlaySong(id) {
     if (id == 0) PlayWAV("staredit/wav/song0.ogg");
 }
 
+function PlaySword() {
+    const sound = Random(1, 4);
+    if (sound == 1) PlayWAV("staredit/wav/sword1.ogg");
+    else if (sound == 2) PlayWAV("staredit/wav/sword2.ogg");
+    else if (sound == 3) PlayWAV("staredit/wav/sword3.ogg");
+    else if (sound == 4) PlayWAV("staredit/wav/sword4.ogg");
+}
+
 function FillActiveNearbyUnits(playerID, positionx, positiony) {
     var storage = playerID * ACTIVE_UNITS_MAX;
     const storage_max = (playerID + 1) * ACTIVE_UNITS_MAX;
@@ -1018,6 +1066,8 @@ function afterTriggerExec() {
         if (playerID >= 0 && playerID < 6) {
             const unit = CUnit(p_cunit[playerID]);
             p_x[playerID], p_y[playerID] = unit.posX, unit.posY;
+            p_angle[playerID] = SCDirectionToDeg(unit.currentDirection1);
+            debug_values[2] = p_angle[playerID];
             var order_input = 0;
             var unit_is_moving = 0;
             var unit_just_attacked = 0;
@@ -1189,28 +1239,53 @@ function afterTriggerExec() {
                             p_weapon[playerID] = item_id;
                             p_current_item_unit[playerID] = 0;
                             ClearTextLines(0, 2);
-                            DisplayText("Swapped with current weapon.");
+                            screen.printf("\x13\x04Equipped \x1F{:s}", strings_weapons[p_weapon[playerID]]);
                         } else if (keypress_1[playerID]) {
                             setloc(L_MAIN, item_x, item_y);
                             RemoveUnitAt(1, U_WEAPON, L_MAIN, $P8);
                             p_weapon[playerID] = item_id;
                             p_current_item_unit[playerID] = 0;
                             ClearTextLines(0, 2);
-                            DisplayText("Equipped.");
+                            screen.printf("\x13\x04Equipped \x1F{:s}", strings_weapons[p_weapon[playerID]]);
                         }
                     }
                 }
             }
 
-            if (unit_just_attacked) {
-                DisplayText("attacked.");
-                queue_event_owner = playerID;
-                queue_event_posx = p_x[playerID];
-                queue_event_posy = p_y[playerID];
-                queue_event_size = 128;
-                queue_event_damage = 12;
-                queue_event_maxtime = 1;
-                CreateEvent();
+            if (p_weapon_cooldown[playerID] > 0) p_weapon_cooldown[playerID]--;
+            if (unit_just_attacked && p_weapon_cooldown[playerID] == 0) {
+                p_weapon_cooldown[playerID] = GetWeaponCooldown(p_weapon[playerID]);
+                p_weapon_state[playerID] = 1;
+                //display info, play a sound
+            }
+            if (p_weapon_state[playerID] > 0 && p_weapon[playerID] == WEAPON_SHORTSWORD) {
+                if (p_weapon_state[playerID] == 1) {
+                    DoDamageAtPos(p_x[playerID], p_y[playerID], playerID, 1, 128, 6, 2);
+                    p_weapon_angle[playerID] = p_angle[playerID] + 60;
+                    PlaySword();
+                }
+                if (p_weapon_state[playerID] > 0) {
+                    for (var i = 0; i < 2; i++) {
+                        queue_pro_posx = p_x[playerID];
+                        queue_pro_posy = p_y[playerID];
+                        queue_pro_maxtime = 3;
+                        queue_pro_angle = p_weapon_angle[playerID];
+                        queue_pro_velocity = 20;
+                        // queue_pro_effect0_type = 0;
+                        // queue_pro_effect0 = 0;
+                        // queue_pro_effect0_start = 0;
+                        queue_pro_effect1_type = 0;
+                        queue_pro_effect1 = 424;
+                        queue_pro_effect1_start = 0;
+                        queue_pro_effect2_type = 0;
+                        queue_pro_effect2 = 213;
+                        queue_pro_effect2_start = 3;
+                        CreateProjectile();
+                        p_weapon_angle[playerID] -= 20;
+                    }
+                }
+                p_weapon_state[playerID]++;
+                if (p_weapon_state[playerID] >= 3) p_weapon_state[playerID] = 0;
             }
 
             // EXP
