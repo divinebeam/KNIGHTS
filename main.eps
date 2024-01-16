@@ -1202,16 +1202,16 @@ function afterTriggerExec() {
                 }
             }
 
-            // if (unit_just_attacked) {
-            //     DisplayText("attacked.");
-            //     queue_event_owner = playerID;
-            //     queue_event_posx = p_x[playerID];
-            //     queue_event_posy = p_y[playerID];
-            //     queue_event_size = 128;
-            //     queue_event_damage = 12;
-            //     queue_event_maxtime = 1;
-            //     CreateEvent();
-            // }
+            if (unit_just_attacked) {
+                DisplayText("attacked.");
+                queue_event_owner = playerID;
+                queue_event_posx = p_x[playerID];
+                queue_event_posy = p_y[playerID];
+                queue_event_size = 128;
+                queue_event_damage = 12;
+                queue_event_maxtime = 1;
+                CreateEvent();
+            }
 
             // EXP
             if (p_exp_current[playerID] >= p_exp_goal[playerID]) {
