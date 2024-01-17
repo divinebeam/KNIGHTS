@@ -13,6 +13,7 @@ TODO
 	re-do armor and health toughness calculations because it seems messy and dont know if it actually works correctly.
 	see if changing size of khalis crystal works now that theres no preplaced
 	in the future could replace string arrays with get functions item id as argument.
+	damage display system anytime you do damage it should show what caused it and how much damage it was.
 	
 IDEAS
 	use kingdom of heaven music
@@ -53,6 +54,14 @@ IDEAS
 		Description
 		-<1>- Equip/Take
 		-<2>- 
+
+	BITS
+		0 = 1
+		1 = 2
+		2 = 4
+		3 = 8
+		4 = 16
+		5 = 32
 
 GAMEPLAY
 	players should choose loadout at the beginning of the match

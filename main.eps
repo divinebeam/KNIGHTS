@@ -2,14 +2,16 @@ const L_ANYWHERE = $L("Anywhere");
 const L_MAIN = $L("main");
 const L_3X3 = $L("3x3");
 const L_16x16 = $L("16x16");
+const L_PLAYER = [4, 5, 6, 7, 8, 9];
 
-const U_HERO = [61, 62, 64, 69, 60, 86];
+const U_HERO = [61, 62, 64, 12, 60, 86];
 const U_CHIMERA = 37;
 const U_ANY = 229;
 const U_KAKARU = 94;
 const U_SCOURGE = 47;
 const U_WEAPON = 129;
-const U_MARKER = 7;
+const U_ARMOR = 219;
+const U_MARKER = 7; // P10 = WEAPON, P11 = ARMOR
 
 const ORDER_HOLD = 107;
 const ORDER_PATROL = 152;
@@ -29,13 +31,14 @@ const MENU_MAIN_SIGIL = 1;
 
 const PLAYER_DEFAULT_HP = 100;
 const PLAYER_DEFAULT_SIGHT = 8;
-const PLAYER_DEFAULT_ARMOR = 100;
+const PLAYER_DEFAULT_SHIELD = 0;
 const PLAYER_DEFAULT_DAMAGE = 6;
-const PLAYER_DEFAULT_ATTRIBUTE = 20;
+const PLAYER_DEFAULT_ATTRIBUTE = 1;
 
 const WEAPON_SHORTSWORD = 1;
 const WEAPON_SHORTBOW = 2;
 const WEAPON_FIREBALL = 3;
+const ARMOR_SHATTERED_KNIGHTS = 1;
 
 const CHIMERA_EXP = 30;
 
@@ -68,21 +71,23 @@ const strings_weapon_descriptions = EUDArray(WEAPON_ARRAY_SIZE);
 
 const strings_loot_interactions = EUDArray(10);
 
-const p_cunit = PVariable();
-const p_x = PVariable();
+const p_cunit = PVariable(); // holds the cunit pointer of the players unit
+const p_x = PVariable(); // coordinates of the unit
 const p_y = PVariable();
-const p_x_old = PVariable();
+const p_x_old = PVariable(); 
 const p_y_old = PVariable();
-const p_angle = PVariable();
-const p_chunk_x_old = PVariable();
+const p_angle = PVariable(); // facing angle
+const p_orderx = PVariable();
+const p_ordery = PVariable();
+const p_chunk_x_old = PVariable(); 
 const p_chunk_y_old = PVariable();
 const p_health = PVariable();
 const p_health_max = PVariable();
-const p_armor = PVariable();
-const p_armor_max = PVariable();
-const p_armor_recover = PVariable();
-const p_armor_old = PVariable();
-const p_damage = PVariable();
+const p_shield = PVariable();
+const p_shield_max = PVariable();
+const p_shield_recover = PVariable();
+const p_shield_broken = PVariable();
+const p_damage = PVariable(); // damage of the unit attack
 const p_brightness = PVariable();
 const p_exp_current = PVariable();
 const p_exp_goal = PVariable();
@@ -91,6 +96,9 @@ const p_weapon = PVariable();
 const p_weapon_state = PVariable();
 const p_weapon_cooldown = PVariable();
 const p_weapon_angle = PVariable();
+const p_weapon_x = PVariable();
+const p_weapon_y = PVariable();
+const p_armor = PVariable();
 const p_homepos_x = PVariable();
 const p_homepos_y = PVariable();
 const p_indoors = PVariable();
@@ -117,13 +125,47 @@ const chunk_buffer = EUDArray(8);
 const active_units = EUDArray(ACTIVE_UNITS_MAX * 6);
 var active_units_update = 0;
 
-var debug_enabled = 1;
+var debug_enabled = 0;
 const debug_values = EUDArray(8);
 var time = 0;
+var total_time = 0;
 var time_state = 0;
 var time_state_changed = 0;
 var days_elapsed = 0;
 var test_delay = 0;
+
+
+function GetStringItemName(item_id, unitID) {
+    if (unitID == U_WEAPON) {
+        switch(item_id) {
+            case 0: return Db("Nothing");
+            case WEAPON_SHORTSWORD: return Db("Short Sword");
+            case WEAPON_SHORTBOW: return Db("Short Bow");
+            case WEAPON_FIREBALL: return Db("Tome Of Fireball");
+	    }
+    } else if (unitID == U_ARMOR) {
+        switch(item_id) {
+            case 0: return Db("Nothing");
+            case ARMOR_SHATTERED_KNIGHTS: return Db("Shattered Knight's Armor");
+        }
+    }
+}
+
+function GetStringItemDescription(item_id, unitID) {
+    if (unitID == U_WEAPON) {
+        switch(item_id) {
+            case 0: return Db("Nothing");
+            case WEAPON_SHORTSWORD: return Db("Basic sword.");
+            case WEAPON_SHORTBOW: return Db("Basic bow.");
+            case WEAPON_FIREBALL: return Db("Classic magic spell :).");
+	    }
+    } else if (unitID == U_ARMOR) {
+        switch(item_id) {
+            case 0: return Db("Nothing");
+            case ARMOR_SHATTERED_KNIGHTS: return Db("Some old armor from another life.");
+        }
+    }
+}
 
 function SetupStringArrays() {
     strings_weapons[WEAPON_SHORTSWORD] = Db("Short Sword");
@@ -181,6 +223,18 @@ function GetWeaponCooldown(item_id) {
     else if (item_id == WEAPON_FIREBALL) return 48;
 }
 
+function GetWeaponTrigger(item_id) {
+    if (item_id == WEAPON_SHORTSWORD) return 1;
+    else if (item_id == WEAPON_SHORTBOW) return 2;
+    else if (item_id == WEAPON_FIREBALL) return 2;
+    return 0;
+}
+
+function GetWeaponDamage(item_id, state, playerID) {
+    if (item_id == WEAPON_SHORTSWORD) return 6 + (1 * p_strength[playerID]);
+    return 0;
+}
+
 function GetDistance(originx, originy, destx, desty) {
     const a = originx - destx;
     const b = originy - desty;
@@ -221,6 +275,7 @@ function CreateCUnit(unitType, playerID, location) : CUnit {
 function CreateItemUnit(unitType, item_id, location) {
     const new_unit = CUnit(CreateCUnit(unitType, $P8, location));
     new_unit.energy = item_id;
+    new_unit.shield = 1000;
 }
 
 function GetVision(playerID) {
@@ -282,7 +337,18 @@ function StoreSpawnPositions() {
     }
 }
 
-function SpawnInitialWeaponUnits() {
+function GetSumOfActivePlayerBits() {
+    var sum = 0;
+    if (playerexist($P1)) sum += 1;
+    if (playerexist($P2)) sum += 2;
+    if (playerexist($P3)) sum += 4;
+    if (playerexist($P4)) sum += 8;
+    if (playerexist($P5)) sum += 16;
+    if (playerexist($P6)) sum += 32;
+    return sum;
+}
+
+function SpawnInitialItemUnits() {
     foreach(unit : EUDLoopCUnit()) {
         if (unit.playerID == $P10) {
             if (unit.unitType == U_MARKER) {
@@ -291,9 +357,50 @@ function SpawnInitialWeaponUnits() {
                 RemoveUnitAt(1, U_MARKER, L_MAIN, $P10);
                 const new_unit = CUnit(CreateCUnit(U_WEAPON, $P8, L_MAIN));
                 new_unit.energy = weapon_id;
+                new_unit.shield = GetSumOfActivePlayerBits();
+            }
+        } else if (unit.playerID == $P11) {
+            if (unit.unitType == U_MARKER) {
+                const armor_id = unit.hp / 256;
+                setloc(L_MAIN, unit.posX, unit.posY);
+                RemoveUnitAt(1, U_MARKER, L_MAIN, $P11);
+                const new_unit = CUnit(CreateCUnit(U_ARMOR, $P8, L_MAIN));
+                new_unit.energy = armor_id;
+                new_unit.shield = GetSumOfActivePlayerBits();
             }
         }
     }
+}
+
+function UnitItemHasBeenLooted(playerID, value) {
+    if (value > 63) return 0;
+    var check_bits = value;
+    var p0, p1, p2, p3, p4, p5 = 0, 0, 0, 0, 0, 0;
+    if (check_bits >= 32) {check_bits -= 32; p5 = 1;}
+    if (check_bits >= 16) {check_bits -= 16; p4 = 1;}
+    if (check_bits >= 8) {check_bits -= 8; p3 = 1;}
+    if (check_bits >= 4) {check_bits -= 4; p2 = 1;}
+    if (check_bits >= 2) {check_bits -= 2; p1 = 1;}
+    if (check_bits >= 1) {check_bits -= 1; p0 = 1;}
+    if (playerID == 0 && p0 > 0) return 0;
+    else if (playerID == 1 && p1 > 0) return 0;
+    else if (playerID == 2 && p2 > 0) return 0;
+    else if (playerID == 3 && p3 > 0) return 0;
+    else if (playerID == 4 && p4 > 0) return 0;
+    else if (playerID == 5 && p5 > 0) return 0;
+    return 1;
+}
+
+function ModifyItemLootedStatus(playerID, current_value) {
+    if (current_value >= 1000) return 0; // return 0 if the item is non-shared
+    var new_value = current_value;
+    if (playerID == 0) new_value -= 1;
+    else if (playerID == 1) new_value -= 2;
+    else if (playerID == 2) new_value -= 4;
+    else if (playerID == 3) new_value -= 8;
+    else if (playerID == 4) new_value -= 16;
+    else if (playerID == 5) new_value -= 32;
+    return new_value; // if this returns 0 the item should be removed from the map
 }
 
 function GetChunkID(chunkX, chunkY) {
@@ -372,8 +479,8 @@ function IsPosWithinRect(positionx, positiony, left, right, top, bottom) {
 }
 
 function IsAlive(playerID) {
-    if (Command(playerID, AtLeast, 1, U_HERO[playerID])) return true;
-    return false;
+    if (Command(playerID, AtLeast, 1, U_HERO[playerID])) return 1;
+    return 0;
 }
 
 function IsPosIndoors(positionx, positiony) {
@@ -421,9 +528,9 @@ function HealPlayer(playerID, unit:CUnit, amount) {
     else unit.hp += amount;
 }
 
-function HealArmorPlayer(playerID, unit:CUnit, amount) {
-    if (unit.shield == p_armor_max[playerID]) return;
-    else if (unit.shield + amount > p_armor_max[playerID]) unit.shield = p_armor_max[playerID];
+function HealShieldPlayer(playerID, unit:CUnit, amount) {
+    if (unit.shield == p_shield_max[playerID]) return;
+    else if (unit.shield + amount > p_shield_max[playerID]) unit.shield = p_shield_max[playerID];
     else unit.shield += amount;
 }
 
@@ -472,10 +579,22 @@ function PosToSquare(positionx, positiony, width) {
     return limit_left, limit_right, limit_top, limit_bottom;
 }
 
-function SpawnHero(playerID, location) {
+function GetSpawnPosition(playerID) {
+    if (playerID == 0) return 1984, 1184;
+    else if (playerID == 1) return 2048, 1120;
+    else if (playerID == 2) return 2128, 1072;
+    else if (playerID == 3) return 2192, 1120;
+    else if (playerID == 4) return 2144, 1168;
+    else if (playerID == 5) return 2080, 1200;
+    return 0, 0;
+}
+
+function SpawnHero(playerID) {
+    if (debug_enabled) p_homepos_x[playerID], p_homepos_y[playerID] = GetLocationPoint(L_PLAYER[playerID]);
+    if (p_homepos_x[playerID] == 0) p_homepos_x[playerID], p_homepos_y[playerID] = GetSpawnPosition(playerID);
     if (IsAlive(playerID)) RemoveUnit(U_HERO[playerID], playerID);
-    p_cunit[playerID] = CreateCUnit(U_HERO[playerID], playerID, location);
-    if (p_homepos_x[playerID] == 0) p_homepos_x[playerID], p_homepos_y[playerID] = GetLocationPoint(L_MAIN);
+    setloc(L_MAIN, p_homepos_x[playerID], p_homepos_y[playerID]);
+    p_cunit[playerID] = CreateCUnit(U_HERO[playerID], playerID, L_MAIN);
 }
 
 function SetMaxHP(playerID, value) {
@@ -485,18 +604,50 @@ function SetMaxHP(playerID, value) {
     ModifyUnitHitPoints(1, U_HERO[playerID], playerID, L_ANYWHERE, 100);
 }
 
+function CalculateMaxShield(playerID) {
+    p_shield_max[playerID] = 0;
+    if (p_armor[playerID] == ARMOR_SHATTERED_KNIGHTS) p_shield_max[playerID] += 100 * 256;
+}
+
+function EquipItem(item_id, unitType, playerID) {
+    if (unitType == U_WEAPON) {
+        p_weapon[playerID] = item_id;
+    } else if (unitType == U_ARMOR) {
+        p_armor[playerID] = item_id;
+        CalculateMaxShield(playerID);
+    }
+}
+
 function SetHeroDefaults(playerID) {
-    p_exp_goal[playerID] = 30;
-    p_armor_max[playerID] = PLAYER_DEFAULT_ARMOR * 256;
+    p_exp_goal[playerID] = 150;
+    p_shield_max[playerID] = PLAYER_DEFAULT_SHIELD * 256;
     p_damage[playerID] = PLAYER_DEFAULT_DAMAGE;
     p_attributepoints[playerID] = PLAYER_DEFAULT_ATTRIBUTE;
     SetMaxHP(playerID, PLAYER_DEFAULT_HP * 256);
 }
 
+const included = EUDArray(6);
 function RedeemUnitExp(playerID, Unit) {
-    if (Unit == U_CHIMERA) {
-        p_exp_current[playerID] += CHIMERA_EXP;
+    var amount_players_nearby = 1;
+    var exp_to_gain = 0;
+    if (Unit == U_CHIMERA) exp_to_gain += 30;
+    for (var i = 0; i < 6; i++) {
+        included[i] = 0;
+        if (i != playerID && GetDistance(p_x[playerID], p_y[playerID], p_x[i], p_y[i]) <= 640) {
+            amount_players_nearby += 1;
+            included[i] = 1;
+        }
     }
+    if (amount_players_nearby > 0) {
+        exp_to_gain = (exp_to_gain / amount_players_nearby) + 1;
+        for (var i = 0; i < 6; i++) {
+            if (included[i] > 0) p_exp_current[i] += exp_to_gain;
+        }
+        p_exp_current[playerID] += exp_to_gain;
+    } else {
+        p_exp_current[playerID] += exp_to_gain;
+    }
+    screen.printf("exp gained: {}", exp_to_gain);
 }
 
 function DrawCircle(positionx, positiony, diameter, dots, imageID) {
@@ -641,15 +792,15 @@ function UpdateProjectiles() {
             setloc(L_MAIN, offsetx, offsety);
             //IMAGES
             if (PosIsOnMap(offsetx, offsety) ) {
-                if (pro_time[i] >= pro_effect0_start[i] && pro_time[i] < pro_effect1_start[i]) {
+                if (pro_effect0[i] > 0 && pro_time[i] >= pro_effect0_start[i] && pro_time[i] < pro_effect1_start[i]) {
                     // time for effect 0
                     if (pro_effect0_type[i] == 0) CreateImageSpriteAtLocation($P8, L_MAIN, pro_effect0[i], 0);
                     else CreateUnitDeathAtLocation(pro_effect0[i], $P8, L_MAIN);
-                } else if (pro_time[i] >= pro_effect1_start[i] && pro_time[i] < pro_effect2_start[i]) {
+                } else if (pro_effect1[i] > 0 && pro_time[i] >= pro_effect1_start[i] && pro_time[i] < pro_effect2_start[i]) {
                     // time for effect 1
                     if (pro_effect1_type[i] == 0) CreateImageSpriteAtLocation($P8, L_MAIN, pro_effect1[i], 0);
                     else CreateUnitDeathAtLocation(pro_effect1[i], $P8, L_MAIN);
-                } else if (pro_time[i] >= pro_effect2_start[i]) {
+                } else if (pro_effect2[i] > 0 && pro_time[i] >= pro_effect2_start[i]) {
                     // time for effect 2
                     if (pro_effect2_type[i] == 0) CreateImageSpriteAtLocation($P8, L_MAIN, pro_effect2[i], 0);
                     else CreateUnitDeathAtLocation(pro_effect2[i], $P8, L_MAIN);
@@ -706,7 +857,7 @@ function CheckCollision(playerID) {
     if (col_enemies) {
         if (col_shape == 0) {
             const l, r, t, b = PosToSquare(col_posx, col_posy, col_shape_size);
-            for (var u = playerID * ACTIVE_UNITS_MAX; u < playerID + 1 * ACTIVE_UNITS_MAX; u++) {
+            for (var u = playerID * ACTIVE_UNITS_MAX; u < (playerID + 1) * ACTIVE_UNITS_MAX; u++) {
                 if (active_units[u] > 0) {
                     const unit = CUnit(active_units[u]);
                     if (IsPosWithinRect(unit.posX, unit.posY, l, r, t, b)) {
@@ -717,7 +868,7 @@ function CheckCollision(playerID) {
                 }
             }
         } else if (col_shape == 1) {
-            for (var u = playerID * ACTIVE_UNITS_MAX; u < playerID + 1 * ACTIVE_UNITS_MAX; u++) {
+            for (var u = playerID * ACTIVE_UNITS_MAX; u < (playerID + 1) * ACTIVE_UNITS_MAX; u++) {
                 if (active_units[u] > 0) {
                     const unit = CUnit(active_units[u]);
                     if (GetDistance(unit.posX, unit.posY, col_posx, col_posy) <= col_shape_size) {
@@ -831,14 +982,17 @@ function UpdateEvents() {
 function UpdateTime() {
     time_state_changed = 0;
     time += 1;
+    total_time += 1;
     if (time > FULL_DAY_LENGTH) {
         time = 0; 
         time_state = 0;
         time_state_changed = 1;
         days_elapsed += 1;
+        DisplayTextAll("\x13\x03--+ The Sun Rises +--");
     } else if (time_state == 0 && time >= FULL_DAY_LENGTH/2) {
         time_state = 1;
         time_state_changed = 1;
+        DisplayTextAll("\x13\x1C--+ The Sun Sets +--");
     }
 }
 
@@ -911,10 +1065,11 @@ function UpdateSigilMenu(playerID) {
         for (var i = 0; i < 8; i++) {
             queue_pro_posx = p_x[playerID];
             queue_pro_posy = p_y[playerID];
-            queue_pro_maxtime = 8;
+            queue_pro_maxtime = 5;
             queue_pro_angle = (i + 1) * 45;
             queue_pro_velocity = 20;
             queue_pro_effect2 = 450;
+            queue_pro_effect2_start = 3;
             CreateProjectile();
         }
         PlayWAV("staredit/wav/increase_attribute.ogg");
@@ -926,10 +1081,11 @@ function UpdateSigilMenu(playerID) {
         for (var i = 0; i < 8; i++) {
             queue_pro_posx = p_x[playerID];
             queue_pro_posy = p_y[playerID];
-            queue_pro_maxtime = 8;
+            queue_pro_maxtime = 5;
             queue_pro_angle = (i + 1) * 45;
             queue_pro_velocity = 20;
-            queue_pro_effect2 = 517;
+            queue_pro_effect2 = 505;
+            queue_pro_effect2_start = 3;
             CreateProjectile();
         }
         PlayWAV("staredit/wav/increase_attribute.ogg");
@@ -941,10 +1097,11 @@ function UpdateSigilMenu(playerID) {
         for (var i = 0; i < 8; i++) {
             queue_pro_posx = p_x[playerID];
             queue_pro_posy = p_y[playerID];
-            queue_pro_maxtime = 8;
+            queue_pro_maxtime = 5;
             queue_pro_angle = (i + 1) * 45;
             queue_pro_velocity = 20;
             queue_pro_effect2 = 466;
+            queue_pro_effect2_start = 3;
             CreateProjectile();
         }
         PlayWAV("staredit/wav/increase_attribute.ogg");
@@ -966,7 +1123,7 @@ function LevelUp(playerID) {
     p_exp_goal[playerID] = 300 + 150 * p_level_current[playerID];
     screen.printf("LEVEL UP - Level {}", p_level_current[playerID]);
     PlayWAV("staredit/wav/levelup.ogg");
-    CreateUnitDeathAtLocation($U("Protoss Observer"), playerID, L_MAIN);
+    CreateUnitDeathAtLocation($U("Protoss Observer"), $P8, L_MAIN);
     for (var i = 0; i < 8; i++) {
         queue_pro_posx = p_x[playerID];
         queue_pro_posy = p_y[playerID];
@@ -1023,7 +1180,7 @@ function FillActiveNearbyUnits(playerID, positionx, positiony) {
 function onPluginStart() {
     SetupStringArrays();
     StoreSpawnPositions();
-    SpawnInitialWeaponUnits();
+    SpawnInitialItemUnits();
     EUDPlayerLoop()();
         const playerID = getcurpl();
         if (playerID >= 0 && playerID < 6) {
@@ -1031,11 +1188,8 @@ function onPluginStart() {
             SetAllianceStatus($P7, Enemy);
             SetAllianceStatus($P8, Ally);
             SetHeroDefaults(playerID);
-            if (Command(playerID, AtLeast, 1, U_HERO[0])) {
-                MoveLocation(L_MAIN, U_HERO[0], playerID, L_ANYWHERE);
-                RemoveUnit(U_HERO[0], playerID);
-                SpawnHero(playerID, L_MAIN);
-                CenterView(L_MAIN);
+            if (debug_enabled) {
+                p_attributepoints[playerID] = 20;
             }
             PlaySong(0);
             // GetVision($P7);
@@ -1065,32 +1219,36 @@ function afterTriggerExec() {
         const playerID = getcurpl();
         if (playerID >= 0 && playerID < 6) {
             const unit = CUnit(p_cunit[playerID]);
-            p_x[playerID], p_y[playerID] = unit.posX, unit.posY;
-            p_angle[playerID] = SCDirectionToDeg(unit.currentDirection1);
-            debug_values[2] = p_angle[playerID];
             var order_input = 0;
             var unit_is_moving = 0;
             var unit_just_attacked = 0;
             var unit_is_indoors = 0;
+            var unit_took_health_damage = 0;
+            var unit_using_attack_order = 0;
+            if (IsAlive(playerID)) {
+                p_x[playerID], p_y[playerID] = unit.posX, unit.posY;
+                p_angle[playerID] = SCDirectionToDeg(unit.currentDirection1);
+                p_orderx[playerID], p_ordery[playerID] = unit.orderTargetX, unit.orderTargetY;
 
-            if (active_units_update == 0) FillActiveNearbyUnits(playerID, p_x[playerID], p_y[playerID]);
-
-            if (unit.orderID == ORDER_HOLD || unit.orderID == ORDER_PATROL) {
-                order_input = unit.orderID;
-                unit.orderID = 3;
+                if (active_units_update == 0) FillActiveNearbyUnits(playerID, p_x[playerID], p_y[playerID]);
+                if (unit.orderID == 14 || unit.orderID == 10) unit_using_attack_order = 1;
+                if (unit.orderID == ORDER_HOLD || unit.orderID == ORDER_PATROL) {
+                    order_input = unit.orderID;
+                    unit.orderID = 3;
+                }
+                if (p_x[playerID] == p_x_old[playerID] && p_y[playerID] == p_y_old[playerID]) {
+                    unit_is_moving = 0;
+                } else {
+                    p_x_old[playerID] = p_x[playerID];
+                    p_y_old[playerID] = p_y[playerID];
+                    unit_is_moving = 1;
+                }
+                if (!unit_is_moving && unit.currentSpeed1 > 0) {
+                    unit.currentSpeed1 = 0; // Unit stuck because of flingy movement fix.
+                    unit.currentSpeed2 = 0;
+                }
             }
-            if (p_x[playerID] == p_x_old[playerID] && p_y[playerID] == p_y_old[playerID]) {
-                unit_is_moving = 0;
-            } else {
-                p_x_old[playerID] = p_x[playerID];
-                p_y_old[playerID] = p_y[playerID];
-                unit_is_moving = 1;
-            }
-            if (!unit_is_moving && unit.currentSpeed1 > 0) {
-                unit.currentSpeed1 = 0; // Unit stuck because of flingy movement fix.
-                unit.currentSpeed2 = 0;
-            }
-            if (unit_is_moving) {
+            if (unit_is_moving && IsAlive(playerID)) {
                 const x, y = GetChunkAtPos(p_x[playerID], p_y[playerID]);
                 if (p_chunk_x_old[playerID] != x || p_chunk_y_old[playerID] != y) {
                     p_chunk_x_old[playerID] = x;
@@ -1146,6 +1304,7 @@ function afterTriggerExec() {
                 }
                 if (unit.hp < p_health[playerID]) {
                     const health_lost = p_health[playerID] - unit.hp;
+                    unit_took_health_damage = health_lost;
                     const amount_recovered = GetHealthToughnessDeduction(playerID, health_lost);
                     HealPlayer(playerID, unit, amount_recovered); // toughness from dexterity
                     p_health[playerID] = unit.hp;
@@ -1154,37 +1313,40 @@ function afterTriggerExec() {
                 }
             }
 
-            // ARMOR
+            // SHIELDS/ARMOR
             if (IsAlive(playerID)) {
                 CenterLocHero(L_16x16, playerID);
-                if (unit.shield != p_armor_max[playerID] && !EnemiesAtLoc(L_16x16)) HealArmorPlayer(playerID, unit, p_armor_max[playerID]);
+                if (unit.shield != p_shield_max[playerID] && !EnemiesAtLoc(L_16x16)) HealShieldPlayer(playerID, unit, p_shield_max[playerID]);
                 CenterLocHero(L_3X3, playerID);
-                if (EnemiesAtLoc(L_3X3) && p_armor_recover[playerID] == 0) p_armor_recover[playerID] = 1;
-                else if (!EnemiesAtLoc(L_3X3) && p_armor_recover[playerID] > 0) {
-                    p_armor_recover[playerID] = 0;
-                    HealArmorPlayer(playerID, unit, p_armor_max[playerID]);
+                if (EnemiesAtLoc(L_3X3) && p_shield_recover[playerID] == 0) p_shield_recover[playerID] = 1;
+                else if (!EnemiesAtLoc(L_3X3) && p_shield_recover[playerID] > 0) {
+                    p_shield_recover[playerID] = 0;
+                    HealShieldPlayer(playerID, unit, p_shield_max[playerID]);
                     CreateImageSpriteAtLocation($P8, L_3X3, 377, 0);
                     PlayWAV("staredit/wav/dodge.ogg");
                 }
-                if (unit.shield > p_armor[playerID]) {
-                    if (unit.shield > p_armor_max[playerID]) unit.shield = p_armor_max[playerID];
-                    const armor_gained = unit.shield - p_armor[playerID];
-                    p_armor[playerID] = unit.shield;
+                if (unit.shield == p_shield_max[playerID] && p_shield_broken[playerID] > 0) p_shield_broken[playerID] = 0;
+                else if (p_shield_broken[playerID] > 0) unit.shield = 0;
+                if (unit.shield > p_shield[playerID]) {
+                    if (unit.shield > p_shield_max[playerID]) unit.shield = p_shield_max[playerID];
+                    const armor_gained = unit.shield - p_shield[playerID];
+                    p_shield[playerID] = unit.shield;
                     // const gained_whole, gained_frac = GetWholeAndFraction((armor_gained * 10000) / 256);
                     // screen.printf("{}.{} armor gained", gained_whole, gained_frac);
                 }
-                if (unit.shield < p_armor[playerID]) {
-                    const armor_lost = p_armor[playerID] - unit.shield;
+                if (unit.shield < p_shield[playerID]) {
+                    const armor_lost = p_shield[playerID] - unit.shield;
                     const amount_recovered = GetArmorToughnessDeduction(playerID, armor_lost);
-                    HealArmorPlayer(playerID, unit, amount_recovered); // toughness from resilience
-                    p_armor[playerID] = unit.shield;
-                    // screen.printf("{} armor LOST", armor_lost / 256);
-                    if (p_armor[playerID] < 256) {
-                        DisplayText("ARMOR BROKEN");
+                    HealShieldPlayer(playerID, unit, amount_recovered); // toughness from resilience
+                    if (unit_took_health_damage && p_shield[playerID] >= 256) {
+                        p_shield_broken[playerID] = 1;
+                        // DisplayText("\x13\x06-! ARMOR BROKEN !-");
                         PlayWAV("staredit/wav/shields_broke.ogg");
                         setloc(L_MAIN, p_x[playerID], p_y[playerID]);
                         CreateImageSpriteAtLocation($P8, L_MAIN, 107, 16);
                     }
+                    p_shield[playerID] = unit.shield;
+                    // screen.printf("{} armor LOST", armor_lost / 256);
                 }
             }
 
@@ -1195,13 +1357,19 @@ function afterTriggerExec() {
                     unit.groundWeaponCooldown -= GetAttackSpeed(playerID);
                     const target = unit.orderTargetUnit;
                     var target_is_valid = 1;
-                    if (target.unitID == U_WEAPON) {
+                    if (target.unitID == U_WEAPON || target.unitID == U_ARMOR) {
                         unit.orderID = 3;
+                        unit_just_attacked = 0;
                         CenterLocHero(L_16x16, playerID);
-                        ModifyUnitHitPoints(All, U_WEAPON, $P8, L_16x16, 100);
+                        ModifyUnitHitPoints(All, target.unitID, $P8, L_16x16, 100);
                         target_is_valid = 0;
-                        p_current_item_unit[playerID] = target;
-                        PlayWAV("staredit/wav/check_item.ogg");
+                        debug_values[3] = UnitItemHasBeenLooted(playerID, target.shield);
+                        if (UnitItemHasBeenLooted(playerID, target.shield)) {
+                            DisplayText("You've already looted this.");
+                        } else {
+                            p_current_item_unit[playerID] = target;
+                            PlayWAV("staredit/wav/check_item.ogg");
+                        }
                     }
                     if (target_is_valid) {
                         const target_state = DamageUnit(target, p_damage[playerID], 0, 0, ACTIVE_UNITS_MAX + 1);
@@ -1216,77 +1384,90 @@ function afterTriggerExec() {
             if (p_current_item_unit[playerID] > 0) {
                 const item_unit = CUnit(p_current_item_unit[playerID]);
                 const item_id = item_unit.energy;
-                const item_unittype = item_unit.unitID;
+                const item_looted_status = item_unit.shield;
+                const item_unit_type = item_unit.unitID;
                 const item_x, item_y = item_unit.posX, item_unit.posY;
                 if (GetDistance(p_x[playerID], p_y[playerID], item_x, item_y) > CLOSE_LOOT_MENU_DISTANCE) {
                     ClearTextLines(0, 2);
                     p_current_item_unit[playerID] = 0;
                 } else {
-                    if (item_unittype == U_WEAPON) {
-                        screen.printfAt(0, "\x09\x09\x09\x09\x09\x09\x09\x09\x09\x04--+ \x1F{:s}", strings_weapons[item_id]);
-                        screen.printfAt(1, "\x09\x09\x09\x09\x09\x09\x09\x09\x09\x09\x09\x02{:s}", strings_weapon_descriptions[item_id]);
-                        if (p_weapon[playerID] > 0) {
-                            screen.printfAt(2, "\x09\x09\x09\x09\x09\x09\x09\x09\x09\x09\x09\x02{:s}\x1F{:s}", strings_loot_interactions[1], strings_weapons[p_weapon[playerID]]);
-                        } else {
-                            screen.printfAt(2, "\x09\x09\x09\x09\x09\x09\x09\x09\x09\x09\x09\x02{:s}", strings_loot_interactions[0]);
-                        }
-
-                        if (keypress_1[playerID] && p_weapon[playerID] > 0) {
+                    const item_name = GetStringItemName(item_id, item_unit_type);
+                    const item_description = GetStringItemDescription(item_id, item_unit_type);
+                    var equipped_id = 0; // whatever is currently equipped in the target slot
+                    if (item_unit_type == U_WEAPON) equipped_id = p_weapon[playerID];
+                    else if (item_unit_type == U_ARMOR) equipped_id = p_armor[playerID];
+                    const equipped_name = GetStringItemName(equipped_id, item_unit_type);
+                    screen.printfAt(0, "\x09\x09\x09\x09\x09\x09\x09\x09\x09\x04--+ \x1F{:s}", item_name);
+                    screen.printfAt(1, "\x09\x09\x09\x09\x09\x09\x09\x09\x09\x09\x09\x02{:s}", item_description);
+                    if (equipped_id > 0) {
+                        screen.printfAt(2, "\x09\x09\x09\x09\x09\x09\x09\x09\x09\x09\x09\x02{:s}\x1F{:s}", strings_loot_interactions[1], equipped_name);
+                    } else {
+                        screen.printfAt(2, "\x09\x09\x09\x09\x09\x09\x09\x09\x09\x09\x09\x02{:s}", strings_loot_interactions[0]);
+                    }
+                    if (keypress_1[playerID]) {
+                        item_unit.shield = ModifyItemLootedStatus(playerID, item_looted_status);
+                        if (item_unit.shield == 0) { // remove the unit if the loot status returns 0
                             setloc(L_MAIN, item_x, item_y);
-                            RemoveUnitAt(1, U_WEAPON, L_MAIN, $P8);
+                            RemoveUnitAt(1, item_unit_type, L_MAIN, $P8);
+                        }
+                        if (equipped_id > 0) {
                             setloc(L_MAIN, p_x[playerID], p_y[playerID]);
-                            CreateItemUnit(U_WEAPON, p_weapon[playerID], L_MAIN);
-                            p_weapon[playerID] = item_id;
-                            p_current_item_unit[playerID] = 0;
-                            ClearTextLines(0, 2);
-                            screen.printf("\x13\x04Equipped \x1F{:s}", strings_weapons[p_weapon[playerID]]);
-                        } else if (keypress_1[playerID]) {
-                            setloc(L_MAIN, item_x, item_y);
-                            RemoveUnitAt(1, U_WEAPON, L_MAIN, $P8);
-                            p_weapon[playerID] = item_id;
-                            p_current_item_unit[playerID] = 0;
-                            ClearTextLines(0, 2);
-                            screen.printf("\x13\x04Equipped \x1F{:s}", strings_weapons[p_weapon[playerID]]);
+                            CreateItemUnit(item_unit_type, equipped_id, L_MAIN);
+                            screen.printf("\x13\x06Dropped \x1F{:s}", equipped_name);
                         }
+                        EquipItem(item_id, item_unit_type, playerID);
+                        p_current_item_unit[playerID] = 0;
+                        ClearTextLines(0, 2);
+                        screen.printf("\x13\x04Equipped \x1F{:s}", item_name);
+                        PlayWAV("staredit/wav/equip_weapon.ogg");
                     }
                 }
             }
 
+            // WEAPON
             if (p_weapon_cooldown[playerID] > 0) p_weapon_cooldown[playerID]--;
-            if (unit_just_attacked && p_weapon_cooldown[playerID] == 0) {
+            var weapon_triggered = 0;
+            if (unit_just_attacked && GetWeaponTrigger(p_weapon[playerID]) == 1) weapon_triggered = 1;
+            else if (unit_using_attack_order && GetWeaponTrigger(p_weapon[playerID]) == 2) weapon_triggered = 1;
+            if (weapon_triggered && p_weapon_cooldown[playerID] == 0) {
                 p_weapon_cooldown[playerID] = GetWeaponCooldown(p_weapon[playerID]);
                 p_weapon_state[playerID] = 1;
-                //display info, play a sound
             }
+            // SHORT SWORD
             if (p_weapon_state[playerID] > 0 && p_weapon[playerID] == WEAPON_SHORTSWORD) {
                 if (p_weapon_state[playerID] == 1) {
-                    DoDamageAtPos(p_x[playerID], p_y[playerID], playerID, 1, 128, 6, 2);
+                    const damage = GetWeaponDamage(p_weapon[playerID], p_weapon_state[playerID], playerID);
+                    screen.printf("Damage {}", damage);
+                    p_weapon_x[playerID], p_weapon_y[playerID] = MovePosTowards(p_x[playerID], p_y[playerID], p_angle[playerID], 32);
+                    DoDamageAtPos(p_weapon_x[playerID], p_weapon_y[playerID], playerID, 1, 128, damage, 2);
                     p_weapon_angle[playerID] = p_angle[playerID] + 60;
                     PlaySword();
                 }
                 if (p_weapon_state[playerID] > 0) {
-                    for (var i = 0; i < 2; i++) {
-                        queue_pro_posx = p_x[playerID];
-                        queue_pro_posy = p_y[playerID];
-                        queue_pro_maxtime = 3;
-                        queue_pro_angle = p_weapon_angle[playerID];
-                        queue_pro_velocity = 20;
-                        // queue_pro_effect0_type = 0;
-                        // queue_pro_effect0 = 0;
-                        // queue_pro_effect0_start = 0;
-                        queue_pro_effect1_type = 0;
-                        queue_pro_effect1 = 424;
-                        queue_pro_effect1_start = 0;
-                        queue_pro_effect2_type = 0;
-                        queue_pro_effect2 = 213;
-                        queue_pro_effect2_start = 3;
-                        CreateProjectile();
-                        p_weapon_angle[playerID] -= 20;
-                    }
+                    queue_pro_posx = p_x[playerID];
+                    queue_pro_posy = p_y[playerID];
+                    queue_pro_maxtime = 3;
+                    queue_pro_angle = p_weapon_angle[playerID];
+                    queue_pro_velocity = 20;
+                    queue_pro_effect1_type = 0;
+                    queue_pro_effect1 = 424;
+                    queue_pro_effect1_start = 0;
+                    queue_pro_effect2_type = 0;
+                    queue_pro_effect2 = 213;
+                    queue_pro_effect2_start = 3;
+                    CreateProjectile();
+                    p_weapon_angle[playerID] -= 20;
                 }
+                p_weapon_state[playerID]++;
+                if (p_weapon_state[playerID] >= 6) p_weapon_state[playerID] = 0;
+            }
+            // FIRE BALL
+            if (p_weapon_state[playerID] > 0 && p_weapon[playerID] == WEAPON_FIREBALL) {
                 p_weapon_state[playerID]++;
                 if (p_weapon_state[playerID] >= 3) p_weapon_state[playerID] = 0;
             }
+
+            // EQUIPMENT: ARMOR
 
             // EXP
             if (p_exp_current[playerID] >= p_exp_goal[playerID]) {
@@ -1296,13 +1477,16 @@ function afterTriggerExec() {
             // TIME
             if (time_state_changed) {
                 if (time_state == 0) {
-                    DisplayText("DAY TIME!!!!!");
                     PlaySong(0);
                 }
                 else if (time_state == 1) {
-                    DisplayText("NIGHT TIME!!!!!");
                     PlayWAV("staredit/wav/night_ambience.ogg");
                 }
+            }
+
+            // RESPAWN
+            if (!IsAlive(playerID) && total_time > 144) {
+                SpawnHero(playerID);
             }
 
             if (debug_enabled) {
@@ -1313,17 +1497,35 @@ function afterTriggerExec() {
                     test_delay = 12;
                 }
                 if (!IsAlive(playerID)) {
-                    setloc(L_MAIN, p_homepos_x[playerID], p_homepos_y[playerID]);
-                    SpawnHero(playerID, L_MAIN);
+                    SpawnHero(playerID);
+                    CenterLocHero(L_MAIN, playerID);
                     CenterView(L_MAIN);
+                    DisplayText("respawned");
                 }
                 debug_values[0] = p_x[playerID];
                 debug_values[1] = p_y[playerID];
-                debug_values[2] = keypress_f[playerID];
+                debug_values[2] = p_shield_max[playerID];
                 eprintf("{} | {} | {} | {} | {} | {} | {} | {}", debug_values[0], debug_values[1], debug_values[2], debug_values[3], debug_values[4], debug_values[5], debug_values[6], debug_values[7]);
+            }
+
+            if (total_time == 144 && !debug_enabled) {
+                SpawnHero(playerID);
+                CenterView(L_MAIN);
             }
         }
     EUDEndPlayerLoop();
+
+    if (!debug_enabled) {
+        if (total_time == 48) {
+            ClearTextLines(0, 10);
+            DisplayTextAllAt(5, "\x13\x06SPIRIT KNIGHTS");
+        }
+        if (total_time == 120) {
+            ClearTextLines(0, 10);
+            DisplayTextAllAt(5, "\x13\x04You wake up.");
+        }
+    }
+
     if (active_units_update == 0) active_units_update = 24;
     active_units_update -= 1;
 }
