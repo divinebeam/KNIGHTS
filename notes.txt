@@ -14,6 +14,11 @@ TODO
 	see if changing size of khalis crystal works now that theres no preplaced
 	in the future could replace string arrays with get functions item id as argument.
 	damage display system anytime you do damage it should show what caused it and how much damage it was.
+
+BUGS
+	might not be getting exp when killing with events
+	exp gain is definitely glitched
+	BUG: exp gained 0 when doing event damage to enemy units, spammed each time
 	
 IDEAS
 	use kingdom of heaven music
@@ -62,6 +67,8 @@ IDEAS
 		3 = 8
 		4 = 16
 		5 = 32
+	
+	what if the maze had randomized teleporters
 
 GAMEPLAY
 	players should choose loadout at the beginning of the match
