@@ -94,12 +94,6 @@ const p_exp_buffer = PVariable();
 const p_exp_goal = PVariable();
 const p_exp_total = PVariable();
 const p_level_current = PVariable();
-const p_weapon = PVariable();
-const p_weapon_state = PVariable();
-const p_weapon_cooldown = PVariable();
-const p_weapon_angle = PVariable();
-const p_weapon_x = PVariable();
-const p_weapon_y = PVariable();
 const p_armor = PVariable();
 const p_homepos_x = PVariable();
 const p_homepos_y = PVariable();
@@ -111,6 +105,16 @@ const p_attributepoints = PVariable();
 const p_on_sigil = PVariable();
 const p_current_sigil = PVariable();
 const p_current_item_unit = PVariable();
+const p_just_attacked = PVariable();
+
+const MAX_WEAPON_OBJECTS = 6 + 50;
+const weapon_cunit = EUDArray(MAX_WEAPON_OBJECTS);
+const weapon = EUDArray(MAX_WEAPON_OBJECTS);
+const weapon_state = EUDArray(MAX_WEAPON_OBJECTS);
+const weapon_cooldown = EUDArray(MAX_WEAPON_OBJECTS);
+const weapon_angle = EUDArray(MAX_WEAPON_OBJECTS);
+const weapon_x = EUDArray(MAX_WEAPON_OBJECTS);
+const weapon_y = EUDArray(MAX_WEAPON_OBJECTS);
 
 const m_main = PVariable();
 const m_page = PVariable();
@@ -127,7 +131,7 @@ const chunk_buffer = EUDArray(8);
 const active_units = EUDArray(ACTIVE_UNITS_MAX * 6);
 var active_units_update = 0;
 
-var debug_enabled = 0;
+var debug_enabled = 1;
 const debug_values = EUDArray(8);
 var time = 0;
 var total_time = 0;
@@ -136,6 +140,18 @@ var time_state_changed = 0;
 var days_elapsed = 0;
 var test_delay = 0;
 
+
+function PlaySong(id) {
+    if (id == 0) PlayWAV("staredit/wav/song0.ogg");
+}
+
+function PlaySword() {
+    const sound = Random(1, 4);
+    if (sound == 1) PlayWAV("staredit/wav/sword1.ogg");
+    else if (sound == 2) PlayWAV("staredit/wav/sword2.ogg");
+    else if (sound == 3) PlayWAV("staredit/wav/sword3.ogg");
+    else if (sound == 4) PlayWAV("staredit/wav/sword4.ogg");
+}
 
 function GetStringItemName(item_id, unitID) {
     if (unitID == U_WEAPON) {
@@ -641,7 +657,7 @@ function CalculateMaxShield(playerID) {
 
 function EquipItem(item_id, unitType, playerID) {
     if (unitType == U_WEAPON) {
-        p_weapon[playerID] = item_id;
+        weapon[playerID] = item_id;
     } else if (unitType == U_ARMOR) {
         p_armor[playerID] = item_id;
         CalculateMaxShield(playerID);
@@ -956,6 +972,7 @@ function CreateEvent() {
 }
 
 function UpdateEvents() {
+    // TODO: this needs to accomodate healing units and needs to affect players
     for (var i = 0; i < EVENT_POOL; i++) {
         if (event_time[i] > 0) {
             const playerID = event_owner[i];
@@ -969,7 +986,7 @@ function UpdateEvents() {
                 for (var result_i = 0; result_i < col_max_results; result_i++) {
                     if (col_results_unit[result_i] > 0) {
                         const target = CUnit(col_results_unit[result_i]);
-                        const target_state = DamageUnit(playerID, target, event_damage[i], col_results_unit_activei[result_i]);
+                        if (event_damage[i] > 0) DamageUnit(playerID, target, event_damage[i], col_results_unit_activei[result_i]);
                     }
                 }
             }
@@ -1119,6 +1136,83 @@ function UpdateSigilMenu(playerID) {
     screen.printfAt(6, "\x09\x09\x09\x04Available Attribute Points: \x1F{}", p_attributepoints[playerID]);
 }
 
+function UpdateWeaponState(playerID) {
+    var check_from = 0;
+    var check_to = 0;
+    if (playerID >= 0 && playerID <= 5) {
+        check_from = playerID;
+        check_to = playerID + 1;
+    } else if (playerID == $P7) {
+        check_from = 6;
+        check_to = MAX_WEAPON_OBJECTS;
+    }
+    debug_values[2] = check_from;
+    debug_values[3] = check_to;
+    for (var weapon_index = check_from; weapon_index < check_to; weapon_index++) {
+        const i = weapon_index;
+        if (weapon[i] > 0) {
+            var unit_ptr = weapon_cunit[i]; // set unit to whatever the weapon id is attached to
+            var is_player = 0;
+            var unit_using_attack_order = 0;
+            var unit_just_attacked = 0;
+            var unit_x = 0;
+            var unit_y = 0;
+            var unit_angle = 0;
+            if (i >= 0 && i <= 5) {unit_ptr = p_cunit[i]; is_player = 1;} // set unit to players unit if its a player
+            const unit = CUnit(unit_ptr);
+            if (is_player) {
+                if (unit.orderID == 14 || unit.orderID == 10) unit_using_attack_order = 1;
+                unit_just_attacked = p_just_attacked[i];
+                unit_x = p_x[i];
+                unit_y = p_y[i];
+                unit_angle = p_angle[i];
+            }
+            // TRIGGER
+            if (weapon_cooldown[i] > 0) weapon_cooldown[i]--;
+            var weapon_triggered = 0;
+            if (unit_just_attacked && GetWeaponTrigger(weapon[i]) == 1) weapon_triggered = 1;
+            else if (unit_using_attack_order && GetWeaponTrigger(weapon[i]) == 2) weapon_triggered = 1;
+            if (weapon_triggered && weapon_cooldown[i] == 0) {
+                weapon_cooldown[i] = GetWeaponCooldown(weapon[i]);
+                weapon_state[i] = 1;
+            }
+
+            // SHORT SWORD
+            if (weapon_state[i] > 0 && weapon[i] == WEAPON_SHORTSWORD) {
+                if (weapon_state[i] == 1) {
+                    const damage = GetWeaponDamage(weapon[i], weapon_state[i], i);
+                    weapon_x[i], weapon_y[i] = MovePosTowards(unit_x, unit_y, unit_angle, 32);
+                    DoDamageAtPos(weapon_x[i], weapon_y[i], i, 1, 128, damage, 2);
+                    weapon_angle[i] = p_angle[i] + 60;
+                    PlaySword();
+                }
+                if (weapon_state[i] > 0) {
+                    queue_pro_posx = unit_x;
+                    queue_pro_posy = unit_y;
+                    queue_pro_maxtime = 3;
+                    queue_pro_angle = weapon_angle[i];
+                    queue_pro_velocity = 20;
+                    queue_pro_effect1_type = 0;
+                    queue_pro_effect1 = 424;
+                    queue_pro_effect1_start = 0;
+                    queue_pro_effect2_type = 0;
+                    queue_pro_effect2 = 213;
+                    queue_pro_effect2_start = 3;
+                    CreateProjectile();
+                    weapon_angle[i] -= 20;
+                }
+                weapon_state[i]++;
+                if (weapon_state[i] >= 6) weapon_state[i] = 0;
+            }
+            // FIRE BALL
+            if (weapon_state[i] > 0 && weapon[i] == WEAPON_FIREBALL) {
+                weapon_state[i]++;
+                if (weapon_state[i] >= 3) weapon_state[i] = 0;
+            }
+        }
+    }
+}
+
 function LevelUp(playerID) {
     p_level_current[playerID] += 1;
     p_attributepoints[playerID] += 1;
@@ -1142,18 +1236,6 @@ function LevelUp(playerID) {
         queue_pro_effect2_start = queue_pro_maxtime;
         CreateProjectile();
     }
-}
-
-function PlaySong(id) {
-    if (id == 0) PlayWAV("staredit/wav/song0.ogg");
-}
-
-function PlaySword() {
-    const sound = Random(1, 4);
-    if (sound == 1) PlayWAV("staredit/wav/sword1.ogg");
-    else if (sound == 2) PlayWAV("staredit/wav/sword2.ogg");
-    else if (sound == 3) PlayWAV("staredit/wav/sword3.ogg");
-    else if (sound == 4) PlayWAV("staredit/wav/sword4.ogg");
 }
 
 function FillActiveNearbyUnits(playerID, positionx, positiony) {
@@ -1193,6 +1275,7 @@ function onPluginStart() {
             SetHeroDefaults(playerID);
             if (debug_enabled) {
                 p_attributepoints[playerID] = 20;
+                EquipItem(ARMOR_SHATTERED_KNIGHTS, U_ARMOR, playerID);
             }
             PlaySong(0);
             // GetVision($P7);
@@ -1224,17 +1307,15 @@ function afterTriggerExec() {
             const unit = CUnit(p_cunit[playerID]);
             var order_input = 0;
             var unit_is_moving = 0;
-            var unit_just_attacked = 0;
+            p_just_attacked[playerID] = 0;
             var unit_is_indoors = 0;
             var unit_took_health_damage = 0;
-            var unit_using_attack_order = 0;
             if (IsAlive(playerID)) {
                 p_x[playerID], p_y[playerID] = unit.posX, unit.posY;
                 p_angle[playerID] = SCDirectionToDeg(unit.currentDirection1);
                 p_orderx[playerID], p_ordery[playerID] = unit.orderTargetX, unit.orderTargetY;
 
                 if (active_units_update == 0) FillActiveNearbyUnits(playerID, p_x[playerID], p_y[playerID]);
-                if (unit.orderID == 14 || unit.orderID == 10) unit_using_attack_order = 1;
                 if (unit.orderID == ORDER_HOLD || unit.orderID == ORDER_PATROL) {
                     order_input = unit.orderID;
                     unit.orderID = 3;
@@ -1356,13 +1437,13 @@ function afterTriggerExec() {
             // UNIT ATTACK
             if (IsAlive(playerID)) {
                 if (unit.groundWeaponCooldown == 26) {
-                    unit_just_attacked = 1;
+                    p_just_attacked[playerID] = 1;
                     unit.groundWeaponCooldown -= GetAttackSpeed(playerID);
                     const target = unit.orderTargetUnit;
                     var target_is_valid = 1;
                     if (target.unitID == U_WEAPON || target.unitID == U_ARMOR) {
                         unit.orderID = 3;
-                        unit_just_attacked = 0;
+                        p_just_attacked[playerID] = 0;
                         CenterLocHero(L_16x16, playerID);
                         ModifyUnitHitPoints(All, target.unitID, $P8, L_16x16, 100);
                         target_is_valid = 0;
@@ -1374,9 +1455,7 @@ function afterTriggerExec() {
                             PlayWAV("staredit/wav/check_item.ogg");
                         }
                     }
-                    if (target_is_valid) {
-                        const target_state = DamageUnit(playerID, target, p_damage[playerID], ACTIVE_UNITS_MAX + 1);
-                    }
+                    if (target_is_valid) DamageUnit(playerID, target, p_damage[playerID], ACTIVE_UNITS_MAX + 1);
                 }
             }
 
@@ -1394,7 +1473,7 @@ function afterTriggerExec() {
                     const item_name = GetStringItemName(item_id, item_unit_type);
                     const item_description = GetStringItemDescription(item_id, item_unit_type);
                     var equipped_id = 0; // whatever is currently equipped in the target slot
-                    if (item_unit_type == U_WEAPON) equipped_id = p_weapon[playerID];
+                    if (item_unit_type == U_WEAPON) equipped_id = weapon[playerID];
                     else if (item_unit_type == U_ARMOR) equipped_id = p_armor[playerID];
                     const equipped_name = GetStringItemName(equipped_id, item_unit_type);
                     screen.printfAt(0, "\x09\x09\x09\x09\x09\x09\x09\x09\x09\x04--+ \x1F{:s}", item_name);
@@ -1425,46 +1504,7 @@ function afterTriggerExec() {
             }
 
             // WEAPON
-            if (p_weapon_cooldown[playerID] > 0) p_weapon_cooldown[playerID]--;
-            var weapon_triggered = 0;
-            if (unit_just_attacked && GetWeaponTrigger(p_weapon[playerID]) == 1) weapon_triggered = 1;
-            else if (unit_using_attack_order && GetWeaponTrigger(p_weapon[playerID]) == 2) weapon_triggered = 1;
-            if (weapon_triggered && p_weapon_cooldown[playerID] == 0) {
-                p_weapon_cooldown[playerID] = GetWeaponCooldown(p_weapon[playerID]);
-                p_weapon_state[playerID] = 1;
-            }
-            // SHORT SWORD
-            if (p_weapon_state[playerID] > 0 && p_weapon[playerID] == WEAPON_SHORTSWORD) {
-                if (p_weapon_state[playerID] == 1) {
-                    const damage = GetWeaponDamage(p_weapon[playerID], p_weapon_state[playerID], playerID);
-                    p_weapon_x[playerID], p_weapon_y[playerID] = MovePosTowards(p_x[playerID], p_y[playerID], p_angle[playerID], 32);
-                    DoDamageAtPos(p_weapon_x[playerID], p_weapon_y[playerID], playerID, 1, 128, damage, 2);
-                    p_weapon_angle[playerID] = p_angle[playerID] + 60;
-                    PlaySword();
-                }
-                if (p_weapon_state[playerID] > 0) {
-                    queue_pro_posx = p_x[playerID];
-                    queue_pro_posy = p_y[playerID];
-                    queue_pro_maxtime = 3;
-                    queue_pro_angle = p_weapon_angle[playerID];
-                    queue_pro_velocity = 20;
-                    queue_pro_effect1_type = 0;
-                    queue_pro_effect1 = 424;
-                    queue_pro_effect1_start = 0;
-                    queue_pro_effect2_type = 0;
-                    queue_pro_effect2 = 213;
-                    queue_pro_effect2_start = 3;
-                    CreateProjectile();
-                    p_weapon_angle[playerID] -= 20;
-                }
-                p_weapon_state[playerID]++;
-                if (p_weapon_state[playerID] >= 6) p_weapon_state[playerID] = 0;
-            }
-            // FIRE BALL
-            if (p_weapon_state[playerID] > 0 && p_weapon[playerID] == WEAPON_FIREBALL) {
-                p_weapon_state[playerID]++;
-                if (p_weapon_state[playerID] >= 3) p_weapon_state[playerID] = 0;
-            }
+            UpdateWeaponState(playerID);
 
             // EXP
             if (p_exp_buffer[playerID] > 0) {
@@ -1507,7 +1547,6 @@ function afterTriggerExec() {
                 }
                 debug_values[0] = p_x[playerID];
                 debug_values[1] = p_y[playerID];
-                debug_values[2] = p_exp_current[playerID];
                 eprintf("{} | {} | {} | {} | {} | {} | {} | {}", debug_values[0], debug_values[1], debug_values[2], debug_values[3], debug_values[4], debug_values[5], debug_values[6], debug_values[7]);
             }
         }

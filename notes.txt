@@ -16,6 +16,7 @@ TODO
 	damage display system anytime you do damage it should show what caused it and how much damage it was.
 	make it so weapon use effects are a function so they can just be cast by whatever player and work correctly, so monsters can have the same skills as the player
 	some sort of allocation system for computer players and then values are obviously attached to players
+	make it so players are put into the active units array and are checked during collision checks and other things
 
 BUGS
 	
