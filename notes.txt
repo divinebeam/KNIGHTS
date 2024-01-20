@@ -14,11 +14,10 @@ TODO
 	see if changing size of khalis crystal works now that theres no preplaced
 	in the future could replace string arrays with get functions item id as argument.
 	damage display system anytime you do damage it should show what caused it and how much damage it was.
+	make it so weapon use effects are a function so they can just be cast by whatever player and work correctly, so monsters can have the same skills as the player
+	some sort of allocation system for computer players and then values are obviously attached to players
 
 BUGS
-	might not be getting exp when killing with events
-	exp gain is definitely glitched
-	BUG: exp gained 0 when doing event damage to enemy units, spammed each time
 	
 IDEAS
 	use kingdom of heaven music
