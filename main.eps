@@ -1,3 +1,4 @@
+// @bm CONSTANTS
 const L_ANYWHERE = $L("Anywhere");
 const L_MAIN = $L("main");
 const L_3X3 = $L("3x3");
@@ -130,8 +131,8 @@ const chunk_spawns = EUDArray(256);
 const chunk_buffer = EUDArray(8);
 const active_units = EUDArray(ACTIVE_UNITS_MAX * 6);
 var active_units_update = 0;
-
-var debug_enabled = 1;
+// @bm DEBUG MODE
+var debug_enabled = 1; 
 const debug_values = EUDArray(8);
 var time = 0;
 var total_time = 0;
@@ -254,19 +255,14 @@ function GetWeaponCooldown(item_id) {
     else if (item_id == WEAPON_FIREBALL) return 48;
 }
 
-function GetWeaponTrigger(item_id) {
-    if (item_id == WEAPON_SHORTSWORD) return 1;
-    else if (item_id == WEAPON_SHORTBOW) return 2;
-    else if (item_id == WEAPON_FIREBALL) return 2;
-    return 0;
-}
-
-function GetWeaponDamage(item_id, state, playerID) {
+function GetWeaponDamage(item_id, state, playerID) { // in the future could make unit an argument so that can have different damage based on unitid
     var damage = 0;
     if (playerID >= 0 && playerID <= 5) {
         if (item_id == WEAPON_SHORTSWORD) damage = 6 + (1 * p_strength[playerID]);
+        else if (item_id == WEAPON_FIREBALL) damage = 4 + (2 * p_resilience[playerID]);
     } else if (playerID == $P7) {
-        damage = 100;
+        if (item_id == WEAPON_SHORTSWORD) damage = 30;
+        else if (item_id == WEAPON_FIREBALL) damage = 50;
     }
     return damage;
 }
@@ -279,6 +275,10 @@ function CheckForWeaponTrigger(playerID, unit: CUnit, weapon_id) {
         if (is_player && p_just_attacked[playerID] > 0) weapon_was_triggered = 1;
         else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.groundWeaponCooldown == 7) weapon_was_triggered = 1;
     }
+    else if (weapon_id == WEAPON_FIREBALL) {
+        if ((is_player && unit.orderID == 14) || (is_player && unit.orderID == 10)) weapon_was_triggered = 1;
+        else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.groundWeaponCooldown == 7) weapon_was_triggered = 1;
+    }
     return weapon_was_triggered;
 }
 
@@ -286,7 +286,7 @@ function AttachWeaponToUnit(unit_ptr, weapon_id) {
     for (var i = 6; i < MAX_WEAPON_OBJECTS; i++) {
         if (weapon[i] == 0) {
             weapon[i] = weapon_id;
-            weapon_cunit[i] = unit_ptr; // UpdateWeaponState should manage when a unit with a weapon dies.
+            weapon_cunit[i] = unit_ptr;
             break;
         }
     }
@@ -505,12 +505,6 @@ function SpawnUnitsAtChunk(chunkX, chunkY) {
             if (monster_spawn_type[i] > 0) {
                 setloc(L_MAIN, monster_spawn_x[i], monster_spawn_y[i]);
                 const new_unit = CreateCUnit(monster_spawn_type[i], $P7, L_MAIN);
-                debug_values[3] = new_unit;
-                // CreateUnit(1, monster_spawn_type[i], L_MAIN, $P7);
-                if (debug_values[2] == 0) {
-                    debug_values[2] = 1;
-                    AttachWeaponToUnit(new_unit, WEAPON_SHORTSWORD);
-                }
             }
         }
     }
@@ -590,7 +584,6 @@ function RedeemUnitExp(playerID, unitType) {
 }
 
 function DamageUnit(playerID, unit: CUnit, damage, index) {
-    if (unit.playerID == $P1) DisplayText("damaged by P7");
     // returns if the unit is dead or not
     var target_state = 1;
     var damage_remaining = damage * 256;
@@ -1218,7 +1211,7 @@ function ResetWeaponIndex(index) {
     weapon_x[index] = 0;
     weapon_y[index] = 0;
 }
-
+// @bm UpdateWeaponState
 function UpdateWeaponState(playerID) {
     var check_from = 0;
     var check_to = 0;
@@ -1234,18 +1227,20 @@ function UpdateWeaponState(playerID) {
         if (weapon[i] > 0) {
             var unit_ptr = weapon_cunit[i]; // set unit to whatever the weapon id is attached to
             var is_player = 0;
-            var unit_using_attack_order = 0;
             var unit_just_attacked = 0;
             var unit_x = 0;
             var unit_y = 0;
+            var unit_order_x = 0;
+            var unit_order_y = 0;
             var unit_angle = 0;
             if (i >= 0 && i <= 5) {unit_ptr = p_cunit[i]; is_player = 1;} // set unit to players unit if its a player
             const unit = CUnit(unit_ptr);
             if (is_player) {
-                if (unit.orderID == 14 || unit.orderID == 10) unit_using_attack_order = 1;
                 unit_just_attacked = p_just_attacked[i];
                 unit_x = p_x[i];
                 unit_y = p_y[i];
+                unit_order_x = p_orderx[i];
+                unit_order_y = p_ordery[i];
                 unit_angle = p_angle[i];
             } else if (playerID == $P7) {
                 if (unit.hp == 0) {
@@ -1254,6 +1249,8 @@ function UpdateWeaponState(playerID) {
                 }
                 unit_x = unit.posX;
                 unit_y = unit.posY;
+                unit_order_x = unit.orderTargetX;
+                unit_order_y = unit.orderTargetY;
                 unit_angle = SCDirectionToDeg(unit.currentDirection1);
             }
 
@@ -1294,8 +1291,31 @@ function UpdateWeaponState(playerID) {
             }
             // FIRE BALL
             if (weapon_state[i] > 0 && weapon[i] == WEAPON_FIREBALL) {
+                if (weapon_state[i] == 1) {
+                    const angle_to_order = GetAngle(unit_x, unit_y, unit_order_x, unit_order_y);
+                    const distance_to_order = GetDistance(unit_x, unit_y, unit_order_x, unit_order_y);
+                    if (distance_to_order > 256) weapon_x[i], weapon_y[i] = MovePosTowards(unit_x, unit_y, angle_to_order, 256);
+                    else weapon_x[i], weapon_y[i] = unit_order_x, unit_order_y;
+                    queue_pro_posx, queue_pro_posy = MovePosTowards(weapon_x[i], weapon_y[i], 280, 366);
+                    queue_pro_maxtime = 20;
+                    queue_pro_angle = 100;
+                    queue_pro_velocity = 20;
+                    queue_pro_effect1 = 332;
+                    queue_pro_effect1_start = 0;
+                    queue_pro_effect2 = 333;
+                    queue_pro_effect2_start = queue_pro_maxtime;
+                    CreateProjectile();
+                    PlayWAV("staredit/wav/fireball_incoming.ogg");
+                }
                 weapon_state[i]++;
-                if (weapon_state[i] >= 3) weapon_state[i] = 0;
+                if (weapon_state[i] >= 20) {
+                    weapon_state[i] = 0;
+                    const damage = GetWeaponDamage(weapon[i], weapon_state[i], playerID);
+                    DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 128, damage, 8);
+                    setloc(L_MAIN, weapon_x[i], weapon_y[i]);
+                    CreateImageSpriteAtLocation($P8, L_MAIN, 429, 0);
+                    PlayWAV("staredit/wav/fireball.ogg");
+                }
             }
         }
     }
@@ -1350,7 +1370,7 @@ function FillActiveNearbyUnits(playerID, positionx, positiony) {
     }
 }
 
-
+// @bm onPluginStart
 function onPluginStart() {
     SetupStringArrays();
     StoreSpawnPositions();
@@ -1365,14 +1385,14 @@ function onPluginStart() {
             if (debug_enabled) {
                 p_attributepoints[playerID] = 20;
                 EquipItem(ARMOR_SHATTERED_KNIGHTS, U_ARMOR, playerID);
-                EquipItem(WEAPON_SHORTSWORD, U_WEAPON, playerID);
+                EquipItem(WEAPON_FIREBALL, U_WEAPON, playerID);
             }
             PlaySong(0);
             // GetVision($P7);
         }
     EUDEndPlayerLoop();
 }
-
+// @bm afterTriggerExec
 function afterTriggerExec() {
     UpdateTime();
     UpdateProjectiles();
@@ -1637,6 +1657,7 @@ function afterTriggerExec() {
                 }
                 debug_values[0] = p_x[playerID];
                 debug_values[1] = p_y[playerID];
+                debug_values[2] = unit.orderID;
                 eprintf("{} | {} | {} | {} | {} | {} | {} | {}", debug_values[0], debug_values[1], debug_values[2], debug_values[3], debug_values[4], debug_values[5], debug_values[6], debug_values[7]);
             }
         }
