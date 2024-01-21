@@ -141,6 +141,19 @@ var days_elapsed = 0;
 var test_delay = 0;
 
 
+function isAlly(p: TrgPlayer, tgp: TrgPlayer) {
+    const q, r = div(tgp, 4);
+    const epd = EPD(0x58D634) + q + (3 * p);
+    var bitmask;
+    switch (r, 3) {
+        case 0: bitmask = 3 << 0; break;
+        case 1: bitmask = 3 << 8; break;
+        case 2: bitmask = 3 << 16; break;
+        case 3: bitmask = 3 << 24; break;
+    }
+    return l2v(MemoryXEPD(epd, AtLeast, 1, bitmask));
+}
+
 function PlaySong(id) {
     if (id == 0) PlayWAV("staredit/wav/song0.ogg");
 }
@@ -249,8 +262,34 @@ function GetWeaponTrigger(item_id) {
 }
 
 function GetWeaponDamage(item_id, state, playerID) {
-    if (item_id == WEAPON_SHORTSWORD) return 6 + (1 * p_strength[playerID]);
-    return 0;
+    var damage = 0;
+    if (playerID >= 0 && playerID <= 5) {
+        if (item_id == WEAPON_SHORTSWORD) damage = 6 + (1 * p_strength[playerID]);
+    } else if (playerID == $P7) {
+        damage = 100;
+    }
+    return damage;
+}
+
+function CheckForWeaponTrigger(playerID, unit: CUnit, weapon_id) {
+    var is_player = 0;
+    var weapon_was_triggered = 0;
+    if (playerID >= 0 && playerID <= 5) is_player = 1;
+    if (weapon_id == WEAPON_SHORTSWORD) {
+        if (is_player && p_just_attacked[playerID] > 0) weapon_was_triggered = 1;
+        else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.groundWeaponCooldown == 7) weapon_was_triggered = 1;
+    }
+    return weapon_was_triggered;
+}
+
+function AttachWeaponToUnit(unit_ptr, weapon_id) {
+    for (var i = 6; i < MAX_WEAPON_OBJECTS; i++) {
+        if (weapon[i] == 0) {
+            weapon[i] = weapon_id;
+            weapon_cunit[i] = unit_ptr; // UpdateWeaponState should manage when a unit with a weapon dies.
+            break;
+        }
+    }
 }
 
 function GetDistance(originx, originy, destx, desty) {
@@ -465,7 +504,13 @@ function SpawnUnitsAtChunk(chunkX, chunkY) {
         if (monster_spawn_x[i] >= limit_left && monster_spawn_x[i] < limit_right && monster_spawn_y[i] >= limit_top && monster_spawn_y[i] < limit_bottom) {
             if (monster_spawn_type[i] > 0) {
                 setloc(L_MAIN, monster_spawn_x[i], monster_spawn_y[i]);
-                CreateUnit(1, monster_spawn_type[i], L_MAIN, $P7);
+                const new_unit = CreateCUnit(monster_spawn_type[i], $P7, L_MAIN);
+                debug_values[3] = new_unit;
+                // CreateUnit(1, monster_spawn_type[i], L_MAIN, $P7);
+                if (debug_values[2] == 0) {
+                    debug_values[2] = 1;
+                    AttachWeaponToUnit(new_unit, WEAPON_SHORTSWORD);
+                }
             }
         }
     }
@@ -504,6 +549,10 @@ function IsAlive(playerID) {
 function IsPosIndoors(positionx, positiony) {
     if (IsPosWithinRect(positionx, positiony, 3840, 4390, 1630, 2340)) return 1;
     if (IsPosWithinRect(positionx, positiony, 2870, 3580, 890, 1440)) return 1;
+    if (IsPosWithinRect(positionx, positiony, 0, 1280, 1280, 2660)) return 1;
+    if (IsPosWithinRect(positionx, positiony, 1281, 1890, 1470, 2150)) return 1;
+    if (IsPosWithinRect(positionx, positiony, 1281, 1632, 2151, 2480)) return 1;
+    if (IsPosWithinRect(positionx, positiony, 1632, 1696, 2270, 2370)) return 1;
     return 0;
 }
 
@@ -540,7 +589,8 @@ function RedeemUnitExp(playerID, unitType) {
     p_exp_buffer[playerID] += exp_to_gain;
 }
 
-function DamageUnit(playerID, unit:CUnit, damage, index) {
+function DamageUnit(playerID, unit: CUnit, damage, index) {
+    if (unit.playerID == $P1) DisplayText("damaged by P7");
     // returns if the unit is dead or not
     var target_state = 1;
     var damage_remaining = damage * 256;
@@ -558,7 +608,7 @@ function DamageUnit(playerID, unit:CUnit, damage, index) {
     }
 	if (unit.hp == 0) {
         if (unit.playerID == $P7 && index < ACTIVE_UNITS_MAX) active_units[index] = 0; // remove from active units array
-        RedeemUnitExp(playerID, unit.unitType);
+        if (playerID >= 0 && playerID <= 5) RedeemUnitExp(playerID, unit.unitType);
         unit.die();
         target_state = 0;
     } else {
@@ -567,13 +617,13 @@ function DamageUnit(playerID, unit:CUnit, damage, index) {
     return target_state;
 }
 
-function HealPlayer(playerID, unit:CUnit, amount) {
+function HealPlayer(playerID, unit: CUnit, amount) {
     if (unit.hp == p_health_max[playerID]) return;
     else if (unit.hp + amount > p_health_max[playerID]) unit.hp = p_health_max[playerID];
     else unit.hp += amount;
 }
 
-function HealShieldPlayer(playerID, unit:CUnit, amount) {
+function HealShieldPlayer(playerID, unit: CUnit, amount) {
     if (unit.shield == p_shield_max[playerID]) return;
     else if (unit.shield + amount > p_shield_max[playerID]) unit.shield = p_shield_max[playerID];
     else unit.shield += amount;
@@ -641,6 +691,8 @@ function SpawnHero(playerID) {
     setloc(L_MAIN, p_homepos_x[playerID], p_homepos_y[playerID]);
     p_cunit[playerID] = CreateCUnit(U_HERO[playerID], playerID, L_MAIN);
     CenterView(L_MAIN);
+    const unit = CUnit(p_cunit[playerID]);
+    unit.killCount = p_level_current[playerID];
 }
 
 function SetMaxHP(playerID, value) {
@@ -875,29 +927,38 @@ function ResetCheckCollision() {
 
 function CheckCollision(playerID) {
     // checks for things according to the configuration of the above vars. use results vars for the results of the check.
+    // need to make this check for alliance status
     var result_exists = 0;
-    if (col_enemies) {
-        if (col_shape == 0) {
-            const l, r, t, b = PosToSquare(col_posx, col_posy, col_shape_size);
-            for (var u = playerID * ACTIVE_UNITS_MAX; u < (playerID + 1) * ACTIVE_UNITS_MAX; u++) {
-                if (active_units[u] > 0) {
-                    const unit = CUnit(active_units[u]);
-                    if (unit.hp > 0 && IsPosWithinRect(unit.posX, unit.posY, l, r, t, b)) {
-                        result_exists = 1;
-                        const full = AddUnitToColResults(active_units[u], u);
-                        if (full) break;
-                    }
+    var check_from = 0;
+    var check_to = 0;
+    if (playerID >= 0 && playerID <= 5) {
+        check_from = playerID * ACTIVE_UNITS_MAX;
+        check_to = check_from + ACTIVE_UNITS_MAX;
+    } else {
+        check_to = ACTIVE_UNITS_MAX;
+    }
+    if (col_shape == 0) {
+        const l, r, t, b = PosToSquare(col_posx, col_posy, col_shape_size);
+        for (var u = check_from; u < check_to; u++) {
+            if (active_units[u] > 0) {
+                const unit = CUnit(active_units[u]);
+                if (col_enemies == 0 && !isAlly(playerID, unit.playerID)) continue;
+                if (col_allies == 0 && isAlly(playerID, unit.playerID)) continue;
+                if (unit.hp > 0 && IsPosWithinRect(unit.posX, unit.posY, l, r, t, b)) {
+                    result_exists = 1;
+                    const full = AddUnitToColResults(active_units[u], u);
+                    if (full) break;
                 }
             }
-        } else if (col_shape == 1) {
-            for (var u = playerID * ACTIVE_UNITS_MAX; u < (playerID + 1) * ACTIVE_UNITS_MAX; u++) {
-                if (active_units[u] > 0) {
-                    const unit = CUnit(active_units[u]);
-                    if (unit.hp > 0 && GetDistance(unit.posX, unit.posY, col_posx, col_posy) <= col_shape_size) {
-                        result_exists = 1;
-                        const full = AddUnitToColResults(active_units[u], u);
-                        if (full) break;
-                    }
+        }
+    } else if (col_shape == 1) {
+        for (var u = check_from; u < check_to; u++) {
+            if (active_units[u] > 0) {
+                const unit = CUnit(active_units[u]);
+                if (unit.hp > 0 && GetDistance(unit.posX, unit.posY, col_posx, col_posy) <= col_shape_size) {
+                    result_exists = 1;
+                    const full = AddUnitToColResults(active_units[u], u);
+                    if (full) break;
                 }
             }
         }
@@ -916,6 +977,8 @@ const event_heal = EUDArray(EVENT_POOL);
 const event_damage = EUDArray(EVENT_POOL);
 const event_owner = EUDArray(EVENT_POOL);
 const event_maxtargets = EUDArray(EVENT_POOL);
+const event_affect_enemies = EUDArray(EVENT_POOL);
+const event_affect_allies = EUDArray(EVENT_POOL);
 function ResetEvent(i) {
     event_posx[i] = 0;
     event_posy[i] = 0;
@@ -927,6 +990,8 @@ function ResetEvent(i) {
     event_damage[i] = 0;
     event_owner[i] = 0;
     event_maxtargets[i] = 0;
+    event_affect_enemies[i] = 0;
+    event_affect_allies[i] = 0;
 }
 
 var queue_event_posx = 0;
@@ -939,6 +1004,8 @@ var queue_event_heal = 0;
 var queue_event_damage = 0;
 var queue_event_owner = 0;
 var queue_event_maxtargets = 0;
+var queue_event_affect_enemies = 0;
+var queue_event_affect_allies = 0;
 function ResetEventQueue() {
     queue_event_posx = 0;
     queue_event_posy = 0;
@@ -950,6 +1017,8 @@ function ResetEventQueue() {
     queue_event_damage = 0;
     queue_event_owner = 0;
     queue_event_maxtargets = 0;
+    queue_event_affect_enemies = 0;
+    queue_event_affect_allies = 0;
 }
 
 function CreateEvent() {
@@ -965,6 +1034,8 @@ function CreateEvent() {
             event_damage[i] = queue_event_damage;
             event_owner[i] = queue_event_owner;
             event_maxtargets[i] = queue_event_maxtargets;
+            event_affect_enemies[i] = queue_event_affect_enemies;
+            event_affect_allies[i] = queue_event_affect_allies;
             ResetEventQueue();
             break;
         }
@@ -979,8 +1050,9 @@ function UpdateEvents() {
             col_posx = event_posx[i];
             col_posy = event_posy[i];
             col_shape_size = event_size[i];
-            col_max_results = 8;
-            col_enemies = 1;
+            col_max_results = event_maxtargets[i]; 
+            col_enemies = event_affect_enemies[i];
+            col_allies = event_affect_allies[i];
             const result_exists = CheckCollision(playerID);
             if (result_exists) {
                 for (var result_i = 0; result_i < col_max_results; result_i++) {
@@ -1023,6 +1095,7 @@ function DoDamageAtPos(positionx, positiony, playerID, shape, size, damage, maxt
     queue_event_shape = shape;
     queue_event_size = size;
     queue_event_damage = damage;
+    queue_event_affect_enemies = 1;
     queue_event_maxtargets = maxtargets;
     queue_event_maxtime = 1;
     CreateEvent();
@@ -1136,6 +1209,16 @@ function UpdateSigilMenu(playerID) {
     screen.printfAt(6, "\x09\x09\x09\x04Available Attribute Points: \x1F{}", p_attributepoints[playerID]);
 }
 
+function ResetWeaponIndex(index) {
+    weapon_cunit[index] = 0;
+    weapon[index] = 0;
+    weapon_state[index] = 0;
+    weapon_cooldown[index] = 0;
+    weapon_angle[index] = 0;
+    weapon_x[index] = 0;
+    weapon_y[index] = 0;
+}
+
 function UpdateWeaponState(playerID) {
     var check_from = 0;
     var check_to = 0;
@@ -1146,8 +1229,6 @@ function UpdateWeaponState(playerID) {
         check_from = 6;
         check_to = MAX_WEAPON_OBJECTS;
     }
-    debug_values[2] = check_from;
-    debug_values[3] = check_to;
     for (var weapon_index = check_from; weapon_index < check_to; weapon_index++) {
         const i = weapon_index;
         if (weapon[i] > 0) {
@@ -1166,12 +1247,19 @@ function UpdateWeaponState(playerID) {
                 unit_x = p_x[i];
                 unit_y = p_y[i];
                 unit_angle = p_angle[i];
+            } else if (playerID == $P7) {
+                if (unit.hp == 0) {
+                    ResetWeaponIndex(i);
+                    continue;
+                }
+                unit_x = unit.posX;
+                unit_y = unit.posY;
+                unit_angle = SCDirectionToDeg(unit.currentDirection1);
             }
+
             // TRIGGER
             if (weapon_cooldown[i] > 0) weapon_cooldown[i]--;
-            var weapon_triggered = 0;
-            if (unit_just_attacked && GetWeaponTrigger(weapon[i]) == 1) weapon_triggered = 1;
-            else if (unit_using_attack_order && GetWeaponTrigger(weapon[i]) == 2) weapon_triggered = 1;
+            var weapon_triggered = CheckForWeaponTrigger(playerID, unit, weapon[i]);
             if (weapon_triggered && weapon_cooldown[i] == 0) {
                 weapon_cooldown[i] = GetWeaponCooldown(weapon[i]);
                 weapon_state[i] = 1;
@@ -1180,10 +1268,10 @@ function UpdateWeaponState(playerID) {
             // SHORT SWORD
             if (weapon_state[i] > 0 && weapon[i] == WEAPON_SHORTSWORD) {
                 if (weapon_state[i] == 1) {
-                    const damage = GetWeaponDamage(weapon[i], weapon_state[i], i);
+                    const damage = GetWeaponDamage(weapon[i], weapon_state[i], playerID);
                     weapon_x[i], weapon_y[i] = MovePosTowards(unit_x, unit_y, unit_angle, 32);
-                    DoDamageAtPos(weapon_x[i], weapon_y[i], i, 1, 128, damage, 2);
-                    weapon_angle[i] = p_angle[i] + 60;
+                    DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 128, damage, 2);
+                    weapon_angle[i] = unit_angle + 60;
                     PlaySword();
                 }
                 if (weapon_state[i] > 0) {
@@ -1213,11 +1301,12 @@ function UpdateWeaponState(playerID) {
     }
 }
 
-function LevelUp(playerID) {
+function LevelUp(playerID, unit: CUnit) {
     p_level_current[playerID] += 1;
     p_attributepoints[playerID] += 1;
     p_exp_current[playerID] = 0;
     p_exp_goal[playerID] = 300 + 150 * p_level_current[playerID];
+    unit.killCount = p_level_current[playerID];
     screen.printf("LEVEL UP - Level {}", p_level_current[playerID]);
     PlayWAV("staredit/wav/levelup.ogg");
     CreateUnitDeathAtLocation($U("Protoss Observer"), $P8, L_MAIN);
@@ -1239,24 +1328,24 @@ function LevelUp(playerID) {
 }
 
 function FillActiveNearbyUnits(playerID, positionx, positiony) {
-    var storage = playerID * ACTIVE_UNITS_MAX;
+    var storage_i = (playerID * ACTIVE_UNITS_MAX) + 1;
     const storage_max = (playerID + 1) * ACTIVE_UNITS_MAX;
-    for (var i = storage; i < storage_max; i++) active_units[i] = 0;
+    for (var i = storage_i; i < storage_max; i++) active_units[i] = 0;
     const limit_left, limit_right, limit_top, limit_bottom = PosToSquare(positionx, positiony, ACTIVE_UNITS_RECT);
+    if (IsAlive(playerID)) active_units[storage_i - 1] = p_cunit[playerID]; // set the first storage index for the player to the player's unit.
     var i = 0;
     foreach(unit : EUDLoopCUnit()) {
         if (unit.playerID == $P7 && unit.hp > 0) {
-            // check if unit is within square, if it is add it to the active units array.
-            if (IsPosWithinRect(unit.posX, unit.posY, limit_left, limit_right, limit_top, limit_bottom)) {
-                active_units[storage] = unit;
-                storage++;
-                if (storage > storage_max) break;
+            if (IsPosWithinRect(unit.posX, unit.posY, limit_left, limit_right, limit_top, limit_bottom)) { // check if unit is within square, if it is add it to the active units array.
+                active_units[storage_i] = unit;
+                storage_i++;
+                if (storage_i > storage_max) break;
             }
-            i++;
-            if (i > 1000) {
-                DisplayTextAll("NOTICE: CHECKED MORE THAN 1000 P7 UNITS!");
-                break;
-            }
+        }
+        i++;
+        if (i > 1000) {
+            DisplayTextAll("NOTICE: CHECKED MORE THAN 1000 UNITS!");
+            break;
         }
     }
 }
@@ -1276,6 +1365,7 @@ function onPluginStart() {
             if (debug_enabled) {
                 p_attributepoints[playerID] = 20;
                 EquipItem(ARMOR_SHATTERED_KNIGHTS, U_ARMOR, playerID);
+                EquipItem(WEAPON_SHORTSWORD, U_WEAPON, playerID);
             }
             PlaySong(0);
             // GetVision($P7);
@@ -1303,6 +1393,7 @@ function afterTriggerExec() {
     if (test_delay > 0) test_delay -= 1;
     EUDPlayerLoop()();
         const playerID = getcurpl();
+        // HUMAN PLAYERS
         if (playerID >= 0 && playerID < 6) {
             const unit = CUnit(p_cunit[playerID]);
             var order_input = 0;
@@ -1447,7 +1538,6 @@ function afterTriggerExec() {
                         CenterLocHero(L_16x16, playerID);
                         ModifyUnitHitPoints(All, target.unitID, $P8, L_16x16, 100);
                         target_is_valid = 0;
-                        debug_values[3] = UnitItemHasBeenLooted(playerID, target.shield);
                         if (UnitItemHasBeenLooted(playerID, target.shield)) {
                             DisplayText("You've already looted this.");
                         } else {
@@ -1514,9 +1604,9 @@ function afterTriggerExec() {
                 if (p_exp_current[playerID] >= p_exp_goal[playerID]) {
                     exp_just_gained = p_exp_current[playerID] - p_exp_goal[playerID];
                     p_exp_current[playerID] += exp_just_gained;
-                    LevelUp(playerID);
+                    LevelUp(playerID, p_cunit[playerID]);
                 }
-                screen.printf("\x12\x1F+{} Exp \x04({}|{})\x09\x09", p_exp_buffer[playerID], p_exp_current[playerID], p_exp_goal[playerID]);
+                screen.printf("\x12\x1F+{} Exp \x04({} | {})\x09\x09", p_exp_buffer[playerID], p_exp_current[playerID], p_exp_goal[playerID]);
                 PlayWAV("staredit/wav/gain_exp.ogg");
                 p_exp_buffer[playerID] = 0;
             }
@@ -1549,6 +1639,11 @@ function afterTriggerExec() {
                 debug_values[1] = p_y[playerID];
                 eprintf("{} | {} | {} | {} | {} | {} | {} | {}", debug_values[0], debug_values[1], debug_values[2], debug_values[3], debug_values[4], debug_values[5], debug_values[6], debug_values[7]);
             }
+        }
+
+        // PLAYER 7 - MONSTERS
+        if (playerID == $P7) {
+            UpdateWeaponState(playerID);
         }
     EUDEndPlayerLoop();
 
