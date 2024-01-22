@@ -71,7 +71,7 @@ const strings_weapons = EUDArray(WEAPON_ARRAY_SIZE);
 const strings_weapon_descriptions = EUDArray(WEAPON_ARRAY_SIZE);
 
 const strings_loot_interactions = EUDArray(10);
-
+// @bm PLAYER VARS
 const p_cunit = PVariable(); // holds the cunit pointer of the players unit
 const p_x = PVariable(); // coordinates of the unit
 const p_y = PVariable();
@@ -84,6 +84,7 @@ const p_chunk_x_old = PVariable();
 const p_chunk_y_old = PVariable();
 const p_health = PVariable();
 const p_health_max = PVariable();
+const p_health_magic_drained = PVariable();
 const p_shield = PVariable();
 const p_shield_max = PVariable();
 const p_shield_recover = PVariable();
@@ -132,7 +133,7 @@ const chunk_buffer = EUDArray(8);
 const active_units = EUDArray(ACTIVE_UNITS_MAX * 6);
 var active_units_update = 0;
 // @bm DEBUG MODE
-var debug_enabled = 1; 
+var debug_enabled = 0; 
 const debug_values = EUDArray(8);
 var time = 0;
 var total_time = 0;
@@ -245,8 +246,17 @@ function CalculateKnightSwordDamage(playerID) {
     p_damage[playerID] = PLAYER_DEFAULT_DAMAGE + (p_strength[playerID] * 3);
 }
 
-function GetHealthRegen(playerID) {
-    return 2 * (p_strength[playerID] / 2); // 2 per frame = 0.1875 per second
+function GetHealthRegen(playerID) { // 2 per frame = 0.1875 per second
+    var regen = 2 * (p_strength[playerID] / 2);
+    var magic_drain_rate = 4 * p_resilience[playerID];
+    if (p_health_magic_drained[playerID] >= magic_drain_rate) {
+        regen += magic_drain_rate;
+        p_health_magic_drained[playerID] -= magic_drain_rate;
+    } else if (p_health_magic_drained[playerID] > 0) {
+        regen += p_health_magic_drained[playerID];
+        p_health_magic_drained[playerID] = 0;
+    }
+    return regen;
 }
 
 function GetWeaponCooldown(item_id) {
@@ -265,6 +275,12 @@ function GetWeaponDamage(item_id, state, playerID) { // in the future could make
         else if (item_id == WEAPON_FIREBALL) damage = 50;
     }
     return damage;
+}
+
+function GetWeaponLifeCost(item_id, playerID) {
+    var life_cost = 0;
+    if (item_id == WEAPON_FIREBALL) life_cost = 10 * 256;
+    return life_cost;
 }
 
 function CheckForWeaponTrigger(playerID, unit: CUnit, weapon_id) {
@@ -584,8 +600,6 @@ function RedeemUnitExp(playerID, unitType) {
 }
 
 function DamageUnit(playerID, unit: CUnit, damage, index) {
-    // returns if the unit is dead or not
-    var target_state = 1;
     var damage_remaining = damage * 256;
     if (unit.shield > 0) {
         if (unit.shield < damage_remaining) {
@@ -596,18 +610,16 @@ function DamageUnit(playerID, unit: CUnit, damage, index) {
             damage_remaining = 0;
         }
     }
-    if (unit.hp < damage_remaining) {
+    if (unit.hp <= damage_remaining) {
         unit.hp = 0;
     }
 	if (unit.hp == 0) {
         if (unit.playerID == $P7 && index < ACTIVE_UNITS_MAX) active_units[index] = 0; // remove from active units array
         if (playerID >= 0 && playerID <= 5) RedeemUnitExp(playerID, unit.unitType);
         unit.die();
-        target_state = 0;
     } else {
         unit.hp -= damage_remaining;
     }
-    return target_state;
 }
 
 function HealPlayer(playerID, unit: CUnit, amount) {
@@ -620,6 +632,12 @@ function HealShieldPlayer(playerID, unit: CUnit, amount) {
     if (unit.shield == p_shield_max[playerID]) return;
     else if (unit.shield + amount > p_shield_max[playerID]) unit.shield = p_shield_max[playerID];
     else unit.shield += amount;
+}
+
+function DoMagicLifeDrainCost(playerID, unit: CUnit, amount) {
+    if (playerID == $P7 || playerID == $P8) return;
+    unit.hp -= amount;
+    p_health_magic_drained[playerID] += amount;
 }
 
 function SCDirectionToDeg(direction) {
@@ -1036,7 +1054,6 @@ function CreateEvent() {
 }
 
 function UpdateEvents() {
-    // TODO: this needs to accomodate healing units and needs to affect players
     for (var i = 0; i < EVENT_POOL; i++) {
         if (event_time[i] > 0) {
             const playerID = event_owner[i];
@@ -1291,6 +1308,12 @@ function UpdateWeaponState(playerID) {
             }
             // FIRE BALL
             if (weapon_state[i] > 0 && weapon[i] == WEAPON_FIREBALL) {
+                const life_cost = GetWeaponLifeCost(weapon[i], playerID);
+                if (weapon_state[i] == 1 && unit.hp > life_cost) {
+                    DoMagicLifeDrainCost(playerID, unit, life_cost);
+                } else if (weapon_state[i] == 1) {
+                    weapon_state[i] = 0;
+                }
                 if (weapon_state[i] == 1) {
                     const angle_to_order = GetAngle(unit_x, unit_y, unit_order_x, unit_order_y);
                     const distance_to_order = GetDistance(unit_x, unit_y, unit_order_x, unit_order_y);
@@ -1306,11 +1329,13 @@ function UpdateWeaponState(playerID) {
                     queue_pro_effect2_start = queue_pro_maxtime;
                     CreateProjectile();
                     PlayWAV("staredit/wav/fireball_incoming.ogg");
+                    DrawCircle(weapon_x[i], weapon_y[i], 128, 24, 448);
                 }
-                weapon_state[i]++;
+                if (weapon_state[i] > 0) weapon_state[i]++;
                 if (weapon_state[i] >= 20) {
                     weapon_state[i] = 0;
                     const damage = GetWeaponDamage(weapon[i], weapon_state[i], playerID);
+                    screen.printf("damage: {}", damage);
                     DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 128, damage, 8);
                     setloc(L_MAIN, weapon_x[i], weapon_y[i]);
                     CreateImageSpriteAtLocation($P8, L_MAIN, 429, 0);
@@ -1361,6 +1386,8 @@ function FillActiveNearbyUnits(playerID, positionx, positiony) {
                 storage_i++;
                 if (storage_i > storage_max) break;
             }
+        } else if (unit.playerID == $P7 && unit.hp == 0) {
+            unit.die();
         }
         i++;
         if (i > 1000) {
@@ -1655,9 +1682,8 @@ function afterTriggerExec() {
                 if (test_delay == 0 && playerID == 0) {
                     test_delay = 12;
                 }
-                debug_values[0] = p_x[playerID];
-                debug_values[1] = p_y[playerID];
-                debug_values[2] = unit.orderID;
+                debug_values[6] = p_x[playerID];
+                debug_values[7] = p_y[playerID];
                 eprintf("{} | {} | {} | {} | {} | {} | {} | {}", debug_values[0], debug_values[1], debug_values[2], debug_values[3], debug_values[4], debug_values[5], debug_values[6], debug_values[7]);
             }
         }

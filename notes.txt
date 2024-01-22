@@ -20,6 +20,7 @@ TODO
 
 BUGS
 	for some reason short sword casts on swap with another weapon
+	sometimes damageunit doesnt seem to properly kill units and they get stuck at 0 hp, seems really inconsistent and doesnt happen at all sometimes
 	
 IDEAS
 	use kingdom of heaven music
