@@ -1,12 +1,9 @@
 
 CURRENTLY
-	implementing stats and attribute changes
+	implementing shortbow and projectile collision functionality
 
 TODO
 	implement drawline function
-	for orbiting projectiles to look good will need opposing orbit of different graphic
-	maybe should be able to choose the image for the orbit and the "true" projectile separate, can choose to hide the center image.
-	implement acceleration for projectiles
 	create unit death function that only uses a single unit id and can have elevation changes
 	see if changing size of khalis crystal works now that theres no preplaced
 	in the future could replace string arrays with get functions item id as argument.
@@ -17,10 +14,11 @@ TODO
 	make it so your spawn position changes when you visit the first sigil
 	blood effects when you die, some message
 	hints at the beginning when you die
+	PROJECTILE SYSTEM: trail images, orbiting opposing image, acceleration, orbit images, projectile target, projectile turn amount towards target etc.
 
 BUGS
 	for some reason short sword casts on swap with another weapon
-	sometimes damageunit doesnt seem to properly kill units and they get stuck at 0 hp, seems really inconsistent and doesnt happen at all sometimes
+	MAYBE FIXED sometimes damageunit doesnt seem to properly kill units and they get stuck at 0 hp, seems really inconsistent and doesnt happen at all sometimes 
 	
 IDEAS
 	use kingdom of heaven music
@@ -29,6 +27,7 @@ IDEAS
 			crusaders
 			the king
 			the battle of kerak
+			a new world - good for the canyon area?
 		complete
 			france 1184
 			crusaders
@@ -37,6 +36,7 @@ IDEAS
 			after godfrey
 			the king
 			terms
+		0: CRUSADERS - spotify soundtrack
 	maybe players can pledge themselves to a god
 		you can change your pledge but will have to suffer the wrath of your old god
 	names:

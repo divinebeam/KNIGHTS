@@ -2,6 +2,7 @@
 const L_ANYWHERE = $L("Anywhere");
 const L_MAIN = $L("main");
 const L_3X3 = $L("3x3");
+const L_4x4 = $L("4x4");
 const L_16x16 = $L("16x16");
 const L_PLAYER = [4, 5, 6, 7, 8, 9];
 
@@ -133,7 +134,7 @@ const chunk_buffer = EUDArray(8);
 const active_units = EUDArray(ACTIVE_UNITS_MAX * 6);
 var active_units_update = 0;
 // @bm DEBUG MODE
-var debug_enabled = 0; 
+var debug_enabled = 1;
 const debug_values = EUDArray(8);
 var time = 0;
 var total_time = 0;
@@ -289,6 +290,10 @@ function CheckForWeaponTrigger(playerID, unit: CUnit, weapon_id) {
     if (playerID >= 0 && playerID <= 5) is_player = 1;
     if (weapon_id == WEAPON_SHORTSWORD) {
         if (is_player && p_just_attacked[playerID] > 0) weapon_was_triggered = 1;
+        else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.groundWeaponCooldown == 7) weapon_was_triggered = 1;
+    }
+    else if (weapon_id == WEAPON_SHORTBOW) {
+        if ((is_player && unit.orderID == 14) || (is_player && unit.orderID == 10)) weapon_was_triggered = 1;
         else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.groundWeaponCooldown == 7) weapon_was_triggered = 1;
     }
     else if (weapon_id == WEAPON_FIREBALL) {
@@ -752,152 +757,6 @@ function ClearTextLines(from_line, to_line) {
     }
 }
 
-const PROJECTILE_POOL = 192;
-const pro_posx = EUDArray(PROJECTILE_POOL);
-const pro_posy = EUDArray(PROJECTILE_POOL);
-const pro_time = EUDArray(PROJECTILE_POOL);
-const pro_maxtime = EUDArray(PROJECTILE_POOL);
-const pro_angle = EUDArray(PROJECTILE_POOL);
-const pro_velocity = EUDArray(PROJECTILE_POOL);
-const pro_angular_velocity = EUDArray(PROJECTILE_POOL);
-const pro_orbit = EUDArray(PROJECTILE_POOL);
-const pro_orbit_velocity = EUDArray(PROJECTILE_POOL);
-const pro_orbit_dist = EUDArray(PROJECTILE_POOL);
-const pro_effect0_type = EUDArray(PROJECTILE_POOL); //whether the effect is an image or a unit death
-const pro_effect0 = EUDArray(PROJECTILE_POOL);
-const pro_effect0_start = EUDArray(PROJECTILE_POOL);
-const pro_effect1_type = EUDArray(PROJECTILE_POOL);
-const pro_effect1 = EUDArray(PROJECTILE_POOL);
-const pro_effect1_start = EUDArray(PROJECTILE_POOL);
-const pro_effect2_type = EUDArray(PROJECTILE_POOL);
-const pro_effect2 = EUDArray(PROJECTILE_POOL);
-const pro_effect2_start = EUDArray(PROJECTILE_POOL);
-function ResetProjectile(i) {
-    pro_time[i] = 0;
-    pro_maxtime[i] = 0;
-    pro_posx[i] = 0;
-    pro_posy[i] = 0;
-    pro_angle[i] = 0;
-    pro_velocity[i] = 0;
-    pro_angular_velocity[i] = 0;
-    pro_orbit[i] = 0;
-    pro_orbit_velocity[i] = 0;
-    pro_orbit_dist[i] = 0;
-    pro_effect0_type[i] = 0;
-    pro_effect0[i] = 0;
-    pro_effect0_start[i] = 0;
-    pro_effect1_type[i] = 0;
-    pro_effect1[i] = 0;
-    pro_effect1_start[i] = 0;
-    pro_effect2_type[i] = 0;
-    pro_effect2[i] = 0;
-    pro_effect2_start[i] = 0;
-}
-
-var queue_pro_posx = 0;
-var queue_pro_posy = 0;
-var queue_pro_time = 0;
-var queue_pro_maxtime = 0;
-var queue_pro_angle = 0;
-var queue_pro_velocity = 0;
-var queue_pro_angular_velocity = 0;
-var queue_pro_orbit = 0;
-var queue_pro_orbit_velocity = 0;
-var queue_pro_orbit_dist = 0;
-var queue_pro_effect0_type = 0;
-var queue_pro_effect0 = 0;
-var queue_pro_effect0_start = 0;
-var queue_pro_effect1_type = 0;
-var queue_pro_effect1 = 0;
-var queue_pro_effect1_start = 0;
-var queue_pro_effect2_type = 0;
-var queue_pro_effect2 = 0;
-var queue_pro_effect2_start = 0;
-function ResetProjectileQueue() {
-    queue_pro_posx = 0;
-    queue_pro_posy = 0;
-    queue_pro_time = 0;
-    queue_pro_maxtime = 0;
-    queue_pro_angle = 0;
-    queue_pro_velocity = 0;
-    queue_pro_angular_velocity = 0;
-    queue_pro_orbit = 0;
-    queue_pro_orbit_velocity = 0;
-    queue_pro_orbit_dist = 0;
-    queue_pro_effect0_type = 0;
-    queue_pro_effect0 = 0;
-    queue_pro_effect0_start = 0;
-    queue_pro_effect1_type = 0;
-    queue_pro_effect1 = 0;
-    queue_pro_effect1_start = 0;
-    queue_pro_effect2_type = 0;
-    queue_pro_effect2 = 0;
-    queue_pro_effect2_start = 0;
-}
-
-function CreateProjectile() {
-    for (var i = 0; i < PROJECTILE_POOL; i++) {
-        if (pro_time[i] == 0) {
-            pro_time[i] = 1;
-            pro_maxtime[i] = queue_pro_maxtime;
-            pro_posx[i] = queue_pro_posx;
-            pro_posy[i] = queue_pro_posy;
-            pro_angle[i] = queue_pro_angle;
-            pro_velocity[i] = queue_pro_velocity;
-            pro_angular_velocity[i] = queue_pro_angular_velocity;
-            pro_orbit[i] = queue_pro_angle;
-            pro_orbit_velocity[i] = queue_pro_orbit_velocity;
-            pro_orbit_dist[i] = queue_pro_orbit_dist;
-            pro_effect0_type[i] = queue_pro_effect0_type;
-            pro_effect0[i] = queue_pro_effect0;
-            pro_effect0_start[i] = queue_pro_effect0_start;
-            pro_effect1_type[i] = queue_pro_effect1_type;
-            pro_effect1[i] = queue_pro_effect1;
-            pro_effect1_start[i] = queue_pro_effect1_start;
-            pro_effect2_type[i] = queue_pro_effect2_type;
-            pro_effect2[i] = queue_pro_effect2;
-            pro_effect2_start[i] = queue_pro_effect2_start;
-            ResetProjectileQueue();
-            break;
-        }
-    }
-}
-
-function UpdateProjectiles() {
-    for (var i = 0; i < PROJECTILE_POOL; i++) {
-        if (pro_time[i] > 0) {
-            pro_time[i] += 1;
-            pro_angle[i] = AddAngles(pro_angle[i], pro_angular_velocity[i]);
-            const new_posx, new_posy = MovePosTowards(pro_posx[i], pro_posy[i], pro_angle[i], pro_velocity[i]);
-            pro_posx[i] = new_posx;
-            pro_posy[i] = new_posy;
-
-            pro_orbit[i] = AddAngles(pro_orbit[i], pro_orbit_velocity[i]);
-            const offsetx, offsety = MovePosTowards(new_posx, new_posy, pro_orbit[i], pro_orbit_dist[i]);
-            setloc(L_MAIN, offsetx, offsety);
-            //IMAGES
-            if (PosIsOnMap(offsetx, offsety) ) {
-                if (pro_effect0[i] > 0 && pro_time[i] >= pro_effect0_start[i] && pro_time[i] < pro_effect1_start[i]) {
-                    // time for effect 0
-                    if (pro_effect0_type[i] == 0) CreateImageSpriteAtLocation($P8, L_MAIN, pro_effect0[i], 0);
-                    else CreateUnitDeathAtLocation(pro_effect0[i], $P8, L_MAIN);
-                } else if (pro_effect1[i] > 0 && pro_time[i] >= pro_effect1_start[i] && pro_time[i] < pro_effect2_start[i]) {
-                    // time for effect 1
-                    if (pro_effect1_type[i] == 0) CreateImageSpriteAtLocation($P8, L_MAIN, pro_effect1[i], 0);
-                    else CreateUnitDeathAtLocation(pro_effect1[i], $P8, L_MAIN);
-                } else if (pro_effect2[i] > 0 && pro_time[i] >= pro_effect2_start[i]) {
-                    // time for effect 2
-                    if (pro_effect2_type[i] == 0) CreateImageSpriteAtLocation($P8, L_MAIN, pro_effect2[i], 0);
-                    else CreateUnitDeathAtLocation(pro_effect2[i], $P8, L_MAIN);
-                }
-            }
-            if (pro_time[i] >= pro_maxtime[i]) {
-                ResetProjectile(i);
-            }
-        }
-    }
-}
-
 var col_posx = 0;
 var col_posy = 0;
 var col_enemies = 0;
@@ -906,9 +765,9 @@ var col_terrain = 0; // check if the posx, posy is unpathable.
 var col_shape = 0; // determines if the check will be for circle or square. Shape only works for units. 
 var col_shape_size = 0; // width of the square, or diameter of the circle.
 var col_max_results = 0; // should probably increase max results in the future and make it a constant
-const col_results_unit = EUDArray(8);
+const col_results_unit = EUDArray(8); // unit pointers
 const col_results_unit_activei = EUDArray(8); // index position of the unit in the active units array, this is for deleting it from the active units array if it dies.
-var col_results_unit_i = 0;
+var col_results_unit_i = 0; // keeps track of how many things have been added to the results array
 var col_results_terrain = 0;
 function AddUnitToColResults(value, indexfromactive) {
     if (col_results_unit_i < col_max_results) {
@@ -975,6 +834,222 @@ function CheckCollision(playerID) {
         }
     }
     return result_exists;
+}
+
+// @bm PROJECTILE FUNCTIONS
+const PROJECTILE_POOL = 192;
+const pro_owner = EUDArray(PROJECTILE_POOL);
+const pro_posx = EUDArray(PROJECTILE_POOL);
+const pro_posy = EUDArray(PROJECTILE_POOL);
+const pro_time = EUDArray(PROJECTILE_POOL);
+const pro_maxtime = EUDArray(PROJECTILE_POOL);
+const pro_angle = EUDArray(PROJECTILE_POOL);
+const pro_velocity = EUDArray(PROJECTILE_POOL);
+const pro_angular_velocity = EUDArray(PROJECTILE_POOL);
+const pro_orbit = EUDArray(PROJECTILE_POOL);
+const pro_orbit_velocity = EUDArray(PROJECTILE_POOL);
+const pro_orbit_dist = EUDArray(PROJECTILE_POOL);
+const pro_effect0_type = EUDArray(PROJECTILE_POOL); //whether the effect is an image or a unit death
+const pro_effect0 = EUDArray(PROJECTILE_POOL);
+const pro_effect0_start = EUDArray(PROJECTILE_POOL);
+const pro_effect1_type = EUDArray(PROJECTILE_POOL);
+const pro_effect1 = EUDArray(PROJECTILE_POOL);
+const pro_effect1_start = EUDArray(PROJECTILE_POOL);
+const pro_effect2_type = EUDArray(PROJECTILE_POOL);
+const pro_effect2 = EUDArray(PROJECTILE_POOL);
+const pro_effect2_start = EUDArray(PROJECTILE_POOL);
+const pro_weapon_id = EUDArray(PROJECTILE_POOL);
+const pro_collide_enemies = EUDArray(PROJECTILE_POOL);
+const pro_collide_allies = EUDArray(PROJECTILE_POOL);
+const pro_collide_terrain = EUDArray(PROJECTILE_POOL);
+const pro_collide_shape = EUDArray(PROJECTILE_POOL);
+const pro_collide_size = EUDArray(PROJECTILE_POOL);
+const pro_collision_pos_x = EUDArray(PROJECTILE_POOL); // these are results that exist after the projectile has collided with something
+const pro_collision_pos_y = EUDArray(PROJECTILE_POOL);
+const pro_collision_unit = EUDArray(PROJECTILE_POOL);
+function ResetProjectile(i) {
+    pro_owner[i] = 0;
+    pro_time[i] = 0;
+    pro_maxtime[i] = 0;
+    pro_posx[i] = 0;
+    pro_posy[i] = 0;
+    pro_angle[i] = 0;
+    pro_velocity[i] = 0;
+    pro_angular_velocity[i] = 0;
+    pro_orbit[i] = 0;
+    pro_orbit_velocity[i] = 0;
+    pro_orbit_dist[i] = 0;
+    pro_effect0_type[i] = 0;
+    pro_effect0[i] = 0;
+    pro_effect0_start[i] = 0;
+    pro_effect1_type[i] = 0;
+    pro_effect1[i] = 0;
+    pro_effect1_start[i] = 0;
+    pro_effect2_type[i] = 0;
+    pro_effect2[i] = 0;
+    pro_effect2_start[i] = 0;
+    pro_weapon_id[i] = 0;
+    pro_collide_enemies[i] = 0;
+    pro_collide_allies[i] = 0;
+    pro_collide_terrain[i] = 0;
+    pro_collide_shape[i] = 0;
+    pro_collide_size[i] = 0;
+    pro_collision_pos_x[i] = 0;
+    pro_collision_pos_y[i] = 0;
+    pro_collision_unit[i] = 0;
+}
+
+var queue_pro_owner = 0;
+var queue_pro_posx = 0;
+var queue_pro_posy = 0;
+var queue_pro_time = 0;
+var queue_pro_maxtime = 0;
+var queue_pro_angle = 0;
+var queue_pro_velocity = 0;
+var queue_pro_angular_velocity = 0;
+var queue_pro_orbit = 0;
+var queue_pro_orbit_velocity = 0;
+var queue_pro_orbit_dist = 0;
+var queue_pro_effect0_type = 0;
+var queue_pro_effect0 = 0;
+var queue_pro_effect0_start = 0;
+var queue_pro_effect1_type = 0;
+var queue_pro_effect1 = 0;
+var queue_pro_effect1_start = 0;
+var queue_pro_effect2_type = 0;
+var queue_pro_effect2 = 0;
+var queue_pro_effect2_start = 0;
+var queue_pro_weapon_id = 0;
+var queue_pro_collide_enemies = 0;
+var queue_pro_collide_allies = 0;
+var queue_pro_collide_terrain = 0;
+var queue_pro_collide_shape = 0;
+var queue_pro_collide_size = 0;
+function ResetProjectileQueue() {
+    queue_pro_owner = 0;
+    queue_pro_posx = 0;
+    queue_pro_posy = 0;
+    queue_pro_time = 0;
+    queue_pro_maxtime = 0;
+    queue_pro_angle = 0;
+    queue_pro_velocity = 0;
+    queue_pro_angular_velocity = 0;
+    queue_pro_orbit = 0;
+    queue_pro_orbit_velocity = 0;
+    queue_pro_orbit_dist = 0;
+    queue_pro_effect0_type = 0;
+    queue_pro_effect0 = 0;
+    queue_pro_effect0_start = 0;
+    queue_pro_effect1_type = 0;
+    queue_pro_effect1 = 0;
+    queue_pro_effect1_start = 0;
+    queue_pro_effect2_type = 0;
+    queue_pro_effect2 = 0;
+    queue_pro_effect2_start = 0;
+    queue_pro_weapon_id = 0;
+    queue_pro_collide_enemies = 0;
+    queue_pro_collide_allies = 0;
+    queue_pro_collide_terrain = 0;
+    queue_pro_collide_shape = 0;
+    queue_pro_collide_size = 0;
+}
+
+function CreateProjectile() {
+    for (var i = 0; i < PROJECTILE_POOL; i++) {
+        if (pro_time[i] == 0) {
+            pro_owner[i] = queue_pro_owner;
+            pro_time[i] = 1;
+            pro_maxtime[i] = queue_pro_maxtime;
+            pro_posx[i] = queue_pro_posx;
+            pro_posy[i] = queue_pro_posy;
+            pro_angle[i] = queue_pro_angle;
+            pro_velocity[i] = queue_pro_velocity;
+            pro_angular_velocity[i] = queue_pro_angular_velocity;
+            pro_orbit[i] = queue_pro_angle;
+            pro_orbit_velocity[i] = queue_pro_orbit_velocity;
+            pro_orbit_dist[i] = queue_pro_orbit_dist;
+            pro_effect0_type[i] = queue_pro_effect0_type;
+            pro_effect0[i] = queue_pro_effect0;
+            pro_effect0_start[i] = queue_pro_effect0_start;
+            pro_effect1_type[i] = queue_pro_effect1_type;
+            pro_effect1[i] = queue_pro_effect1;
+            pro_effect1_start[i] = queue_pro_effect1_start;
+            pro_effect2_type[i] = queue_pro_effect2_type;
+            pro_effect2[i] = queue_pro_effect2;
+            pro_effect2_start[i] = queue_pro_effect2_start;
+            pro_weapon_id[i] = queue_pro_weapon_id;
+            pro_collide_enemies[i] = queue_pro_collide_enemies;
+            pro_collide_allies[i] = queue_pro_collide_allies;
+            pro_collide_terrain[i] = queue_pro_collide_terrain;
+            pro_collide_shape[i] = queue_pro_collide_shape;
+            pro_collide_size[i] = queue_pro_collide_size;
+            ResetProjectileQueue();
+            break;
+        }
+    }
+}
+
+function UpdateProjectiles() {
+    for (var i = 0; i < PROJECTILE_POOL; i++) {
+        if (pro_time[i] > 0) {
+            pro_time[i] += 1;
+            pro_angle[i] = AddAngles(pro_angle[i], pro_angular_velocity[i]);
+            const new_posx, new_posy = MovePosTowards(pro_posx[i], pro_posy[i], pro_angle[i], pro_velocity[i]);
+            pro_posx[i] = new_posx;
+            pro_posy[i] = new_posy;
+
+            // CHECK COLLISION
+            col_posx = pro_posx[i];
+            col_posy = pro_posy[i];
+            col_enemies = pro_collide_enemies[i];
+            col_allies = pro_collide_allies[i];
+            col_terrain = pro_collide_terrain[i];
+            col_shape = pro_collide_shape[i];
+            col_shape_size = pro_collide_size[i];
+            col_max_results = 1;
+            const had_collision = CheckCollision(pro_owner[i]);
+            if (had_collision) {
+                pro_collision_pos_x[i], pro_collision_pos_y[i] = pro_posx[i], pro_posy[i];
+                pro_collision_unit[i] = col_results_unit[0];
+            }
+            ResetCheckCollision();
+
+            pro_orbit[i] = AddAngles(pro_orbit[i], pro_orbit_velocity[i]);
+            const offsetx, offsety = MovePosTowards(new_posx, new_posy, pro_orbit[i], pro_orbit_dist[i]);
+            setloc(L_MAIN, offsetx, offsety);
+            // IMAGES
+            if (PosIsOnMap(offsetx, offsety) ) {
+                if (pro_effect0[i] > 0 && pro_time[i] >= pro_effect0_start[i] && pro_time[i] < pro_effect1_start[i]) {
+                    // time for effect 0
+                    if (pro_effect0_type[i] == 0) CreateImageSpriteAtLocation($P8, L_MAIN, pro_effect0[i], 0);
+                    else CreateUnitDeathAtLocation(pro_effect0[i], $P8, L_MAIN);
+                } else if (pro_effect1[i] > 0 && pro_time[i] >= pro_effect1_start[i] && pro_time[i] < pro_effect2_start[i]) {
+                    // time for effect 1
+                    if (pro_effect1_type[i] == 0) CreateImageSpriteAtLocation($P8, L_MAIN, pro_effect1[i], 0);
+                    else CreateUnitDeathAtLocation(pro_effect1[i], $P8, L_MAIN);
+                } else if (pro_effect2[i] > 0 && pro_time[i] >= pro_effect2_start[i]) {
+                    // time for effect 2
+                    if (pro_effect2_type[i] == 0) CreateImageSpriteAtLocation($P8, L_MAIN, pro_effect2[i], 0);
+                    else CreateUnitDeathAtLocation(pro_effect2[i], $P8, L_MAIN);
+                }
+            }
+            if (pro_time[i] >= pro_maxtime[i]) {
+                ResetProjectile(i);
+            }
+        }
+    }
+}
+
+function UpdateProjectileCollisions() {
+    for (var i = 0; i < PROJECTILE_POOL; i++) {
+        if (pro_collision_pos_x[i] > 0) {
+            // SHORT BOW
+            if (pro_weapon_id[i] == WEAPON_SHORTBOW) {
+                DamageUnit(pro_owner[i], pro_collision_unit[i], 100, ACTIVE_UNITS_MAX + 1);
+            }
+            ResetProjectile(i);
+        }
+    }
 }
 
 const EVENT_POOL = 192;
@@ -1303,9 +1378,34 @@ function UpdateWeaponState(playerID) {
                     CreateProjectile();
                     weapon_angle[i] -= 20;
                 }
-                weapon_state[i]++;
+                if (weapon_state[i] > 0) weapon_state[i]++;
                 if (weapon_state[i] >= 6) weapon_state[i] = 0;
             }
+
+            // SHORT BOW
+            if (weapon_state[i] > 0 && weapon[i] == WEAPON_SHORTBOW) {
+                if (weapon_state[i] == 1) {
+                    CenterLoc(L_4x4, unit_x, unit_y);
+                    if (EnemiesAtLoc(L_4x4)) weapon_state[i] = 0;
+                    else {
+                        const angle_to_order = GetAngle(unit_x, unit_y, unit_order_x, unit_order_y);
+                        weapon_x[i], weapon_y[i] = unit_x, unit_y;
+                        queue_pro_weapon_id = weapon[i];
+                        queue_pro_posx = unit_x;
+                        queue_pro_posy = unit_y;
+                        queue_pro_maxtime = 24;
+                        queue_pro_angle = angle_to_order;
+                        queue_pro_velocity = 40;
+                        queue_pro_effect2 = 422;
+                        queue_pro_collide_enemies = 1;
+                        queue_pro_collide_size = 64;
+                        CreateProjectile();
+                    }
+                }
+                if (weapon_state[i] > 0) weapon_state[i]++;
+                if (weapon_state[i] >= 6) weapon_state[i] = 0;
+            }
+
             // FIRE BALL
             if (weapon_state[i] > 0 && weapon[i] == WEAPON_FIREBALL) {
                 const life_cost = GetWeaponLifeCost(weapon[i], playerID);
@@ -1423,6 +1523,7 @@ function onPluginStart() {
 function afterTriggerExec() {
     UpdateTime();
     UpdateProjectiles();
+    UpdateProjectileCollisions();
     UpdateEvents();
     UpdateSigils();
     // UpdateFOW();
