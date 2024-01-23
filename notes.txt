@@ -15,10 +15,13 @@ TODO
 	blood effects when you die, some message
 	hints at the beginning when you die
 	PROJECTILE SYSTEM: trail images, orbiting opposing image, acceleration, orbit images, projectile target, projectile turn amount towards target etc.
+	units should aggro when you damage them with skill
 
 BUGS
 	for some reason short sword casts on swap with another weapon
-	MAYBE FIXED sometimes damageunit doesnt seem to properly kill units and they get stuck at 0 hp, seems really inconsistent and doesnt happen at all sometimes 
+	MAYBE FIXED sometimes damageunit doesnt seem to properly kill units and they get stuck at 0 hp, seems really inconsistent and doesnt happen at all sometimes
+	randomly getting 1 exp
+
 	
 IDEAS
 	use kingdom of heaven music
@@ -27,7 +30,7 @@ IDEAS
 			crusaders
 			the king
 			the battle of kerak
-			a new world - good for the canyon area?
+			a new world - good for the canyon area? or maybe night time
 		complete
 			france 1184
 			crusaders
@@ -72,6 +75,9 @@ IDEAS
 	
 	what if the maze had randomized teleporters
 	what if when you reach certain amounts of kills you get proficiency in killing certain monsters
+	sight range increase is good for spellcaster and ranger builds
+	hybrid or specializations when you have an equal amount at a threshold for certain skills
+	secondarys should drop from the first bosses
 
 GAMEPLAY
 	players should choose loadout at the beginning of the match
