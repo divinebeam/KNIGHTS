@@ -5,22 +5,20 @@ CURRENTLY
 TODO
 	implement drawline function
 	create unit death function that only uses a single unit id and can have elevation changes
-	see if changing size of khalis crystal works now that theres no preplaced
-	in the future could replace string arrays with get functions item id as argument.
 	damage display system anytime you do damage it should show what caused it and how much damage it was.
-	make it so weapon use effects are a function so they can just be cast by whatever player and work correctly, so monsters can have the same skills as the player
-	some sort of allocation system for computer players and then values are obviously attached to players
 	make it so players are put into the active units array and are checked during collision checks and other things
 	make it so your spawn position changes when you visit the first sigil
 	blood effects when you die, some message
 	hints at the beginning when you die
 	PROJECTILE SYSTEM: trail images, orbiting opposing image, acceleration, orbit images, projectile target, projectile turn amount towards target etc.
 	units should aggro when you damage them with skill
+	computers should anticipate players movement with aoe or aim skills, like maybe should make a prediction of where the player is going to be.
 
 BUGS
 	for some reason short sword casts on swap with another weapon
 	MAYBE FIXED sometimes damageunit doesnt seem to properly kill units and they get stuck at 0 hp, seems really inconsistent and doesnt happen at all sometimes
 	randomly getting 1 exp
+	might be a bug where you're getting shields broken after death because of some var not being set or something
 
 	
 IDEAS
