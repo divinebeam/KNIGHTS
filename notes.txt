@@ -117,6 +117,18 @@ GAMEPLAY
 			Magic Damage
 			Armor Toughness
 
+		WEAPON DETAILS:
+			SHORT SWORD		Mechanic: Frenzy
+			LONG SWORD
+			GREAT SWORD
+			SHORT BOW		Mechanic: Frenzy
+			LONG BOW
+			GREAT BOW
+			FIRE BALL
+			LIGHTNING BLAST
+			BLADE STORM
+			STAR FALL
+
 			
 			
 

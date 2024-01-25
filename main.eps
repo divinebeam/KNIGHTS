@@ -56,10 +56,16 @@ const WEAPON_SHORTSWORD = 1;
 const WEAPON_SHORTBOW = 2;
 const WEAPON_FIREBALL = 3;
 const WEAPON_ANCIENT_TOME_OF_STARFALL = 4;
-const WEAPON_CRIMSON_LONG_SWORD = 5;
+const WEAPON_LONGSWORD = 5;
+const WEAPON_GREATSWORD = 6;
+const WEAPON_LONGBOW = 7;
+const WEAPON_GREATBOW = 8;
+const WEAPON_LIGHTNINGBLAST = 9;
+const WEAPON_BLADESTORM = 10;
+// const WEAPON_CRIMSON_LONG_SWORD = 5;
 
 const ARMOR_SHATTERED_KNIGHTS = 1;
-const ARMOR_CRIMSON_ENGRAVED_PLATE = 2;
+// const ARMOR_CRIMSON_ENGRAVED_PLATE = 2;
 
 const CHIMERA_EXP = 30;
 
@@ -165,7 +171,7 @@ const chunk_buffer = EUDArray(8);
 const active_units = EUDArray(ACTIVE_UNITS_MAX * 6);
 var active_units_update = 0;
 // @bm DEBUG MODE
-var debug_enabled = 1;
+var debug_enabled = 0;
 const debug_values = EUDArray(8);
 var time = 0;
 var total_time = 0;
@@ -216,6 +222,12 @@ function GetStringItemName(item_id, unitID) {
             case WEAPON_SHORTBOW: return Db("Short Bow");
             case WEAPON_FIREBALL: return Db("Tome Of Fireball");
             case WEAPON_ANCIENT_TOME_OF_STARFALL: return Db("Ancient Tome Of Starfall");
+            case WEAPON_LONGSWORD: return Db("Long Sword");
+            case WEAPON_GREATSWORD: return Db("Great Sword");
+            case WEAPON_LONGBOW: return Db("Long Bow");
+            case WEAPON_GREATBOW: return Db("Great Bow");
+            case WEAPON_LIGHTNINGBLAST: return Db("Tome Of Lightning Blast");
+            case WEAPON_BLADESTORM: return Db("Tome Of Blade Storm");
 	    }
     } else if (unitID == U_ARMOR) {
         switch(item_id) {
@@ -231,8 +243,14 @@ function GetStringItemDescription(item_id, unitID) {
             case 0: return Db("Nothing");
             case WEAPON_SHORTSWORD: return Db("A basic sword meant for utility and consistency.");
             case WEAPON_SHORTBOW: return Db("A basic ranger's bow appreciate for its swiftness.");
-            case WEAPON_FIREBALL: return Db("An old and common lethal magical writing.");
+            case WEAPON_FIREBALL: return Db("An old, common, and lethal, magical writing.");
             case WEAPON_ANCIENT_TOME_OF_STARFALL: return Db("An ancient secret weapon passed down to only the most legendary ranks.");
+            case WEAPON_LONGSWORD: return Db("An agile and weighty sword.");
+            case WEAPON_GREATSWORD: return Db("A slow and powerful sword.");
+            case WEAPON_LONGBOW: return Db("A bow with medium range and effectiveness.");
+            case WEAPON_GREATBOW: return Db("A massive bow with immense velocity.");
+            case WEAPON_LIGHTNINGBLAST: return Db("Call upon sparks of energy to destroy foes.");
+            case WEAPON_BLADESTORM: return Db("A deadly art intended for close combat.");
 	    }
     } else if (unitID == U_ARMOR) {
         switch(item_id) {
@@ -298,6 +316,12 @@ function GetWeaponCooldown(item_id) {
     else if (item_id == WEAPON_SHORTBOW) return 36;
     else if (item_id == WEAPON_FIREBALL) return 48;
     else if (item_id == WEAPON_ANCIENT_TOME_OF_STARFALL) return 24;
+    else if (item_id == WEAPON_LONGSWORD) return 48;
+    else if (item_id == WEAPON_GREATSWORD) return 48;
+    else if (item_id == WEAPON_LONGBOW) return 48;
+    else if (item_id == WEAPON_GREATBOW) return 48;
+    else if (item_id == WEAPON_LIGHTNINGBLAST) return 48;
+    else if (item_id == WEAPON_BLADESTORM) return 48;
 }
 
 function GetWeaponDamage(item_id, state, playerID) { // in the future could make unit an argument so that can have different damage based on unitid
@@ -307,11 +331,23 @@ function GetWeaponDamage(item_id, state, playerID) { // in the future could make
         else if (item_id == WEAPON_SHORTBOW) damage = 10 + (2 * p_dexterity[playerID]);
         else if (item_id == WEAPON_FIREBALL) damage = 4 + (2 * p_resilience[playerID]);
         else if (item_id == WEAPON_ANCIENT_TOME_OF_STARFALL) damage = 50 + (5 * p_resilience[playerID]);
+        else if (item_id == WEAPON_LONGSWORD) damage = 6 + (1 * p_strength[playerID]);
+        else if (item_id == WEAPON_GREATSWORD) damage = 6 + (1 * p_strength[playerID]);
+        else if (item_id == WEAPON_LONGBOW) damage = 10 + (2 * p_dexterity[playerID]);
+        else if (item_id == WEAPON_GREATBOW) damage = 10 + (2 * p_dexterity[playerID]);
+        else if (item_id == WEAPON_LIGHTNINGBLAST) damage = 4 + (2 * p_resilience[playerID]);
+        else if (item_id == WEAPON_BLADESTORM) damage = 4 + (2 * p_resilience[playerID]);
     } else if (playerID == $P7) {
         if (item_id == WEAPON_SHORTSWORD) damage = 30;
         else if (item_id == WEAPON_SHORTBOW) damage = 50;
         else if (item_id == WEAPON_FIREBALL) damage = 50;
         else if (item_id == WEAPON_ANCIENT_TOME_OF_STARFALL) damage = 5000;
+        else if (item_id == WEAPON_LONGSWORD) damage = 50;
+        else if (item_id == WEAPON_GREATSWORD) damage = 50;
+        else if (item_id == WEAPON_LONGBOW) damage = 50;
+        else if (item_id == WEAPON_GREATBOW) damage = 50;
+        else if (item_id == WEAPON_LIGHTNINGBLAST) damage = 50;
+        else if (item_id == WEAPON_BLADESTORM) damage = 50;
     }
     return damage;
 }
@@ -327,25 +363,57 @@ function GetWeaponLifeCost(item_id, playerID) {
 function CheckForWeaponTrigger(playerID, unit: CUnit, weapon_id) {
     var is_player = 0;
     var weapon_was_triggered = 0;
-    if (playerID >= 0 && playerID <= 5) is_player = 1;
+    var player_attack_clicked = 0;
+    if (playerID < 6) is_player = 1;
+    if ((is_player && unit.orderID == 14) || (is_player && unit.orderID == 10)) player_attack_clicked = 1;
     if (weapon_id == WEAPON_SHORTSWORD) {
         if (is_player && p_just_attacked[playerID] > 0) weapon_was_triggered = 1;
         else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.groundWeaponCooldown == 7) weapon_was_triggered = 1;
     }
     else if (weapon_id == WEAPON_SHORTBOW) {
-        if ((is_player && unit.orderID == 14) || (is_player && unit.orderID == 10)) weapon_was_triggered = 1;
+        if (player_attack_clicked) weapon_was_triggered = 1;
         else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.groundWeaponCooldown == 7) weapon_was_triggered = 1;
         else if (playerID == $P7 && unit.unitID == U_HILL_SPINT && unit.orderID != 3) weapon_was_triggered = 1;
     }
     else if (weapon_id == WEAPON_FIREBALL) {
-        if ((is_player && unit.orderID == 14) || (is_player && unit.orderID == 10)) weapon_was_triggered = 1;
+        if (player_attack_clicked) weapon_was_triggered = 1;
         else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.groundWeaponCooldown == 7) weapon_was_triggered = 1;
     }
     else if (weapon_id == WEAPON_ANCIENT_TOME_OF_STARFALL) {
-        if ((is_player && unit.orderID == 14) || (is_player && unit.orderID == 10)) weapon_was_triggered = 1;
+        if (player_attack_clicked) weapon_was_triggered = 1;
         else if (playerID == $P7 && unit.unitID == U_GUARDIAN_ANGEL && unit.orderID != 3) weapon_was_triggered = 1;
     }
+    else if (weapon_id == WEAPON_LONGSWORD) {
+        if (is_player && p_just_attacked[playerID] > 0) weapon_was_triggered = 1;
+        else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.orderID != 3) weapon_was_triggered = 1;
+    }
+    else if (weapon_id == WEAPON_GREATSWORD) {
+        if (is_player && p_just_attacked[playerID] > 0) weapon_was_triggered = 1;
+        else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.orderID != 3) weapon_was_triggered = 1;
+    }
+    else if (weapon_id == WEAPON_LONGBOW) {
+        if (player_attack_clicked) weapon_was_triggered = 1;
+        else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.orderID != 3) weapon_was_triggered = 1;
+    }
+    else if (weapon_id == WEAPON_GREATBOW) {
+        if (player_attack_clicked) weapon_was_triggered = 1;
+        else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.orderID != 3) weapon_was_triggered = 1;
+    }
+    else if (weapon_id == WEAPON_LIGHTNINGBLAST) {
+        if (player_attack_clicked) weapon_was_triggered = 1;
+        else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.orderID != 3) weapon_was_triggered = 1;
+    }
+    else if (weapon_id == WEAPON_BLADESTORM) {
+        if (player_attack_clicked) weapon_was_triggered = 1;
+        else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.orderID != 3) weapon_was_triggered = 1;
+    }
     return weapon_was_triggered;
+    // WEAPON_LONGSWORD
+    // WEAPON_GREATSWORD
+    // WEAPON_LONGBOW
+    // WEAPON_GREATBOW
+    // WEAPON_LIGHTNINGBLAST
+    // WEAPON_BLADESTORM
 }
 
 function AttachWeaponToUnit(unit_ptr, weapon_id) {
