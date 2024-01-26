@@ -171,7 +171,7 @@ const chunk_buffer = EUDArray(8);
 const active_units = EUDArray(ACTIVE_UNITS_MAX * 6);
 var active_units_update = 0;
 // @bm DEBUG MODE
-var debug_enabled = 0;
+var debug_enabled = 1;
 const debug_values = EUDArray(8);
 var time = 0;
 var total_time = 0;
@@ -312,7 +312,7 @@ function GetHealthRegen(playerID) { // 2 per frame = 0.1875 per second
 }
 
 function GetWeaponCooldown(item_id) {
-    if (item_id == WEAPON_SHORTSWORD) return 24;
+    if (item_id == WEAPON_SHORTSWORD) return 96;
     else if (item_id == WEAPON_SHORTBOW) return 36;
     else if (item_id == WEAPON_FIREBALL) return 48;
     else if (item_id == WEAPON_ANCIENT_TOME_OF_STARFALL) return 24;
@@ -731,6 +731,7 @@ function IsPosIndoors(positionx, positiony) {
     if (IsPosWithinRect(positionx, positiony, 1281, 1890, 1470, 2150)) return 1;
     if (IsPosWithinRect(positionx, positiony, 1281, 1632, 2151, 2480)) return 1;
     if (IsPosWithinRect(positionx, positiony, 1632, 1696, 2270, 2370)) return 1;
+    if (IsPosWithinRect(positionx, positiony, 3105, 3290, 3160, 3488)) return 1;
     return 0;
 }
 
@@ -976,18 +977,18 @@ function ResetCheckCollision() {
     col_results_unit_i = 0;
     col_results_terrain = 0;
 }
-
+// @bm CheckCollision
 function CheckCollision(playerID) {
     // checks for things according to the configuration of the above vars. use results vars for the results of the check.
     // need to make this check for alliance status
     var result_exists = 0;
     var check_from = 0;
     var check_to = 0;
-    if (playerID >= 0 && playerID <= 5) {
+    if (playerID < 6) {
         check_from = playerID * ACTIVE_UNITS_MAX;
         check_to = check_from + ACTIVE_UNITS_MAX;
     } else {
-        check_to = ACTIVE_UNITS_MAX;
+        check_to = ACTIVE_UNITS_MAX * 6;
     }
     if (col_shape == 0) {
         const l, r, t, b = PosToSquare(col_posx, col_posy, col_shape_size);
@@ -1682,14 +1683,14 @@ function UpdateWeaponState(playerID) {
                     queue_pro_effect2_start = queue_pro_maxtime;
                     CreateProjectile();
                     PlayWavAtPos("staredit/wav/fireball_incoming.ogg", weapon_x[i], weapon_y[i], 512);
-                    DrawCircle(weapon_x[i], weapon_y[i], 256, 24, 448, 0);
+                    DrawCircle(weapon_x[i], weapon_y[i], 128, 24, 448, 0);
                 }
                 if (weapon_state[i] > 0) weapon_state[i]++;
                 if (weapon_state[i] >= 20) {
                     weapon_state[i] = 0;
                     const damage = GetWeaponDamage(weapon[i], weapon_state[i], playerID);
                     screen.printf("damage: {}", damage);
-                    DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 256, damage, 8);
+                    DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 128, damage, 8);
                     setloc(L_MAIN, weapon_x[i], weapon_y[i]);
                     CreateImageSpriteAtLocation($P8, L_MAIN, 429, 0, ISCRIPT_LONGFAST);
                     PlayWavAtPos("staredit/wav/fireball.ogg", weapon_x[i], weapon_y[i], 512);
@@ -1719,14 +1720,14 @@ function UpdateWeaponState(playerID) {
                     queue_pro_effect2_start = queue_pro_maxtime;
                     CreateProjectile();
                     PlayWavAtPos("staredit/wav/fireball_incoming.ogg", weapon_x[i], weapon_y[i], 512);
-                    DrawCircle(weapon_x[i], weapon_y[i], 128, 24, 448, 16);
+                    DrawCircle(weapon_x[i], weapon_y[i], 256, 36, 448, 16);
                 }
                 if (weapon_state[i] > 0) weapon_state[i]++;
                 if (weapon_state[i] >= 20) {
                     weapon_state[i] = 0;
                     const damage = GetWeaponDamage(weapon[i], weapon_state[i], playerID);
                     screen.printf("damage: {}", damage);
-                    DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 128, damage, 8);
+                    DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 256, damage, 8);
                     setloc(L_MAIN, weapon_x[i], weapon_y[i]);
                     CreateImageSpriteAtLocation($P8, L_MAIN, 444, 0, ISCRIPT_LONGFAST);
                     PlayWavAtPos("staredit/wav/fireball.ogg", weapon_x[i], weapon_y[i], 512);
@@ -1782,6 +1783,7 @@ function FillActiveNearbyUnits(playerID, positionx, positiony) {
     for (var i = storage_i; i < storage_max; i++) active_units[i] = 0;
     const limit_left, limit_right, limit_top, limit_bottom = PosToSquare(positionx, positiony, ACTIVE_UNITS_RECT);
     if (IsAlive(playerID)) active_units[storage_i - 1] = p_cunit[playerID]; // set the first storage index for the player to the player's unit.
+    screen.printf("index position {}", storage_i - 1);
     var i = 0;
     foreach(unit : EUDLoopCUnit()) {
         if (unit.playerID == $P7 && unit.hp > 0) {
@@ -2174,6 +2176,7 @@ function afterTriggerExec() {
                 }
                 else if (time_state == 1) {
                     PlayWAV("staredit/wav/night_ambience.ogg");
+                    PlayWAV("staredit/wav/night.ogg");
                 }
             }
 

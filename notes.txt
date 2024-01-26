@@ -17,8 +17,10 @@ TODO
 BUGS
 	for some reason short sword casts on swap with another weapon
 	MAYBE FIXED sometimes damageunit doesnt seem to properly kill units and they get stuck at 0 hp, seems really inconsistent and doesnt happen at all sometimes
-	randomly getting 1 exp
+	MAYBE FIXED randomly getting 1 exp
 	might be a bug where you're getting shields broken after death because of some var not being set or something
+	heard the angel wing sound at the bottom of the mountain when I wasnt even close to the angel
+	fireball seems to mess up star fall tome
 
 	
 IDEAS
