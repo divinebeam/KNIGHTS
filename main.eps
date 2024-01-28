@@ -159,7 +159,7 @@ const weapon_y = EUDArray(MAX_WEAPON_OBJECTS);
 const m_main = PVariable();
 const m_page = PVariable();
 
-const screen = StringBuffer(256);
+const screen = StringBuffer();
 const monster_spawn_type = EUDArray(MAX_MONSTER_SPAWNS);
 const monster_spawn_x = EUDArray(MAX_MONSTER_SPAWNS);
 const monster_spawn_y = EUDArray(MAX_MONSTER_SPAWNS);
@@ -940,6 +940,15 @@ function ClearTextLines(from_line, to_line) {
     }
 }
 
+const hud_value = PVariable();
+const hud_value_string = PVariable();
+const hud_value_timer = PVariable();
+function SetHudValue(playerID, value, string_var) {
+    hud_value[playerID] = value;
+    hud_value_string[playerID] = string_var;
+    hud_value_timer[playerID] = 72;
+}
+
 var col_posx = 0;
 var col_posy = 0;
 var col_enemies = 0;
@@ -1543,6 +1552,7 @@ function UpdateWeaponState(playerID) {
             var unit_order_x = 0;
             var unit_order_y = 0;
             var unit_angle = 0;
+            var display_damage = 0;
             if (i >= 0 && i <= 5) {unit_ptr = p_cunit[i]; is_player = 1;} // set unit to players unit if its a player
             const unit = CUnit(unit_ptr);
             if (is_player) {
@@ -1580,6 +1590,7 @@ function UpdateWeaponState(playerID) {
                     DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 128, damage, 2);
                     weapon_angle[i] = unit_angle + 60;
                     PlaySword();
+                    display_damage = damage;
                 }
                 if (weapon_state[i] > 0) {
                     queue_pro_posx = unit_x;
@@ -1720,14 +1731,14 @@ function UpdateWeaponState(playerID) {
                     queue_pro_effect2_start = queue_pro_maxtime;
                     CreateProjectile();
                     PlayWavAtPos("staredit/wav/fireball_incoming.ogg", weapon_x[i], weapon_y[i], 512);
-                    DrawCircle(weapon_x[i], weapon_y[i], 256, 36, 448, 16);
+                    DrawCircle(weapon_x[i], weapon_y[i], 192, 36, 448, 16);
                 }
                 if (weapon_state[i] > 0) weapon_state[i]++;
                 if (weapon_state[i] >= 20) {
                     weapon_state[i] = 0;
                     const damage = GetWeaponDamage(weapon[i], weapon_state[i], playerID);
                     screen.printf("damage: {}", damage);
-                    DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 256, damage, 8);
+                    DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 192, damage, 8);
                     setloc(L_MAIN, weapon_x[i], weapon_y[i]);
                     CreateImageSpriteAtLocation($P8, L_MAIN, 444, 0, ISCRIPT_LONGFAST);
                     PlayWavAtPos("staredit/wav/fireball.ogg", weapon_x[i], weapon_y[i], 512);
@@ -1746,6 +1757,10 @@ function UpdateWeaponState(playerID) {
                         CreateProjectile();
                     }
                 }
+            }
+            if (is_player && display_damage > 0) {
+                const string_var = Db("\x12\x06Weapon Damage: \x04");
+                SetHudValue(playerID, display_damage, string_var);
             }
         }
     }
@@ -1783,7 +1798,6 @@ function FillActiveNearbyUnits(playerID, positionx, positiony) {
     for (var i = storage_i; i < storage_max; i++) active_units[i] = 0;
     const limit_left, limit_right, limit_top, limit_bottom = PosToSquare(positionx, positiony, ACTIVE_UNITS_RECT);
     if (IsAlive(playerID)) active_units[storage_i - 1] = p_cunit[playerID]; // set the first storage index for the player to the player's unit.
-    screen.printf("index position {}", storage_i - 1);
     var i = 0;
     foreach(unit : EUDLoopCUnit()) {
         if (unit.playerID == $P7 && unit.hp > 0) {
@@ -2177,6 +2191,7 @@ function afterTriggerExec() {
                 else if (time_state == 1) {
                     PlayWAV("staredit/wav/night_ambience.ogg");
                     PlayWAV("staredit/wav/night.ogg");
+                    PlayWAV("staredit/wav/blood_moon_ambience.ogg");
                 }
             }
 
@@ -2204,6 +2219,13 @@ function afterTriggerExec() {
                     p_death_state[playerID] = 0;
                     SpawnHero(playerID);
                 }
+            }
+
+            // HUD
+            if (hud_value_timer[playerID] > 0) {
+                hud_value_timer[playerID]--;
+                screen.printfAt(0, "{:s}{}", hud_value_string[playerID], hud_value[playerID]);
+                if (hud_value_timer[playerID] == 0) DisplayTextAt(0, "\x0BNull");
             }
 
 

@@ -78,6 +78,7 @@ IDEAS
 	sight range increase is good for spellcaster and ranger builds
 	hybrid or specializations when you have an equal amount at a threshold for certain skills
 	secondarys should drop from the first bosses
+	what if blood moon happens every 5 or 10 days
 
 GAMEPLAY
 	players should choose loadout at the beginning of the match
