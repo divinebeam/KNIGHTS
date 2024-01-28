@@ -5,14 +5,12 @@ CURRENTLY
 TODO
 	implement drawline function
 	create unit death function that only uses a single unit id and can have elevation changes
-	damage display system anytime you do damage it should show what caused it and how much damage it was.
-	make it so players are put into the active units array and are checked during collision checks and other things
 	make it so your spawn position changes when you visit the first sigil
-	blood effects when you die, some message
 	hints at the beginning when you die
 	PROJECTILE SYSTEM: trail images, orbiting opposing image, acceleration, orbit images, projectile target, projectile turn amount towards target etc.
-	units should aggro when you damage them with skill
 	computers should anticipate players movement with aoe or aim skills, like maybe should make a prediction of where the player is going to be.
+	display stats on upgrade icons on unit
+	projectile iscript changes
 
 BUGS
 	for some reason short sword casts on swap with another weapon
@@ -79,6 +77,7 @@ IDEAS
 	hybrid or specializations when you have an equal amount at a threshold for certain skills
 	secondarys should drop from the first bosses
 	what if blood moon happens every 5 or 10 days
+	what if blood moon starts with a meteor dropping and the impact site is some random event.
 
 GAMEPLAY
 	players should choose loadout at the beginning of the match

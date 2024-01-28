@@ -69,6 +69,8 @@ const ARMOR_SHATTERED_KNIGHTS = 1;
 
 const CHIMERA_EXP = 30;
 
+const STRING_WEAPON_DAMAGE = Db("\x12\x04Weapon Damage: \x06");
+
 const keypress_1 = PVariable();
 const keypress_2 = PVariable();
 const keypress_3 = PVariable();
@@ -120,6 +122,7 @@ const p_exp_total = PVariable();
 const p_exp_x = PVariable();
 const p_exp_y = PVariable();
 const p_exp_lost = PVariable();
+const p_exp_lost_timer = PVariable();
 const p_level_current = PVariable();
 const p_armor = PVariable();
 const p_homepos_x = PVariable();
@@ -171,7 +174,7 @@ const chunk_buffer = EUDArray(8);
 const active_units = EUDArray(ACTIVE_UNITS_MAX * 6);
 var active_units_update = 0;
 // @bm DEBUG MODE
-var debug_enabled = 1;
+var debug_enabled = 0;
 const debug_values = EUDArray(8);
 var time = 0;
 var total_time = 0;
@@ -242,7 +245,7 @@ function GetStringItemDescription(item_id, unitID) {
         switch(item_id) {
             case 0: return Db("Nothing");
             case WEAPON_SHORTSWORD: return Db("A basic sword meant for utility and consistency.");
-            case WEAPON_SHORTBOW: return Db("A basic ranger's bow appreciate for its swiftness.");
+            case WEAPON_SHORTBOW: return Db("A basic ranger's bow, appreciated for its swiftness.");
             case WEAPON_FIREBALL: return Db("An old, common, and lethal, magical writing.");
             case WEAPON_ANCIENT_TOME_OF_STARFALL: return Db("An ancient secret weapon passed down to only the most legendary ranks.");
             case WEAPON_LONGSWORD: return Db("An agile and weighty sword.");
@@ -1045,14 +1048,17 @@ const pro_effect0_type = EUDArray(PROJECTILE_POOL); //whether the effect is an i
 const pro_effect0 = EUDArray(PROJECTILE_POOL);
 const pro_effect0_start = EUDArray(PROJECTILE_POOL);
 const pro_effect0_drawfunc = EUDArray(PROJECTILE_POOL);
+const pro_effect0_iscript = EUDArray(PROJECTILE_POOL);
 const pro_effect1_type = EUDArray(PROJECTILE_POOL);
 const pro_effect1 = EUDArray(PROJECTILE_POOL);
 const pro_effect1_start = EUDArray(PROJECTILE_POOL);
 const pro_effect1_drawfunc = EUDArray(PROJECTILE_POOL);
+const pro_effect1_iscript = EUDArray(PROJECTILE_POOL);
 const pro_effect2_type = EUDArray(PROJECTILE_POOL);
 const pro_effect2 = EUDArray(PROJECTILE_POOL);
 const pro_effect2_start = EUDArray(PROJECTILE_POOL);
 const pro_effect2_drawfunc = EUDArray(PROJECTILE_POOL);
+const pro_effect2_iscript = EUDArray(PROJECTILE_POOL);
 const pro_weapon_id = EUDArray(PROJECTILE_POOL);
 const pro_collide_enemies = EUDArray(PROJECTILE_POOL);
 const pro_collide_allies = EUDArray(PROJECTILE_POOL);
@@ -1078,14 +1084,17 @@ function ResetProjectile(i) {
     pro_effect0[i] = 0;
     pro_effect0_start[i] = 0;
     pro_effect0_drawfunc[i] = 0;
+    pro_effect0_iscript[i] = 0;
     pro_effect1_type[i] = 0;
     pro_effect1[i] = 0;
     pro_effect1_start[i] = 0;
     pro_effect1_drawfunc[i] = 0;
+    pro_effect1_iscript[i] = 0;
     pro_effect2_type[i] = 0;
     pro_effect2[i] = 0;
     pro_effect2_start[i] = 0;
     pro_effect2_drawfunc[i] = 0;
+    pro_effect2_iscript[i] = 0;
     pro_weapon_id[i] = 0;
     pro_collide_enemies[i] = 0;
     pro_collide_allies[i] = 0;
@@ -1112,14 +1121,17 @@ var queue_pro_effect0_type = 0;
 var queue_pro_effect0 = 0;
 var queue_pro_effect0_start = 0;
 var queue_pro_effect0_drawfunc = 0;
+var queue_pro_effect0_iscript = 0;
 var queue_pro_effect1_type = 0;
 var queue_pro_effect1 = 0;
 var queue_pro_effect1_start = 0;
 var queue_pro_effect1_drawfunc = 0;
+var queue_pro_effect1_iscript = 0;
 var queue_pro_effect2_type = 0;
 var queue_pro_effect2 = 0;
 var queue_pro_effect2_start = 0;
 var queue_pro_effect2_drawfunc = 0;
+var queue_pro_effect2_iscript = 0;
 var queue_pro_weapon_id = 0;
 var queue_pro_collide_enemies = 0;
 var queue_pro_collide_allies = 0;
@@ -1142,14 +1154,17 @@ function ResetProjectileQueue() {
     queue_pro_effect0 = 0;
     queue_pro_effect0_start = 0;
     queue_pro_effect0_drawfunc = 0;
+    queue_pro_effect0_iscript = 0;
     queue_pro_effect1_type = 0;
     queue_pro_effect1 = 0;
     queue_pro_effect1_start = 0;
     queue_pro_effect1_drawfunc = 0;
+    queue_pro_effect1_iscript = 0;
     queue_pro_effect2_type = 0;
     queue_pro_effect2 = 0;
     queue_pro_effect2_start = 0;
     queue_pro_effect2_drawfunc = 0;
+    queue_pro_effect2_iscript = 0;
     queue_pro_weapon_id = 0;
     queue_pro_collide_enemies = 0;
     queue_pro_collide_allies = 0;
@@ -1176,14 +1191,17 @@ function CreateProjectile() {
             pro_effect0[i] = queue_pro_effect0;
             pro_effect0_start[i] = queue_pro_effect0_start;
             pro_effect0_drawfunc[i] = queue_pro_effect0_drawfunc;
+            pro_effect0_iscript[i] = queue_pro_effect0_iscript;
             pro_effect1_type[i] = queue_pro_effect1_type;
             pro_effect1[i] = queue_pro_effect1;
             pro_effect1_start[i] = queue_pro_effect1_start;
             pro_effect1_drawfunc[i] = queue_pro_effect1_drawfunc;
+            pro_effect1_iscript[i] = queue_pro_effect1_iscript;
             pro_effect2_type[i] = queue_pro_effect2_type;
             pro_effect2[i] = queue_pro_effect2;
             pro_effect2_start[i] = queue_pro_effect2_start;
             pro_effect2_drawfunc[i] = queue_pro_effect2_drawfunc;
+            pro_effect2_iscript[i] = queue_pro_effect2_iscript;
             pro_weapon_id[i] = queue_pro_weapon_id;
             pro_collide_enemies[i] = queue_pro_collide_enemies;
             pro_collide_allies[i] = queue_pro_collide_allies;
@@ -1228,15 +1246,15 @@ function UpdateProjectiles() {
             if (PosIsOnMap(offsetx, offsety) ) {
                 if (pro_effect0[i] > 0 && pro_time[i] >= pro_effect0_start[i] && pro_time[i] < pro_effect1_start[i]) {
                     // time for effect 0
-                    if (pro_effect0_type[i] == 0) CreateImageSpriteAtLocation($P8, L_MAIN, pro_effect0[i], pro_effect0_drawfunc[i], ISCRIPT_LONGFAST);
+                    if (pro_effect0_type[i] == 0) CreateImageSpriteAtLocation($P8, L_MAIN, pro_effect0[i], pro_effect0_drawfunc[i], pro_effect0_iscript[i]);
                     else CreateUnitDeathAtLocation(pro_effect0[i], $P8, L_MAIN);
                 } else if (pro_effect1[i] > 0 && pro_time[i] >= pro_effect1_start[i] && pro_time[i] < pro_effect2_start[i]) {
                     // time for effect 1
-                    if (pro_effect1_type[i] == 0) CreateImageSpriteAtLocation($P8, L_MAIN, pro_effect1[i], pro_effect1_drawfunc[i], ISCRIPT_LONGFAST);
+                    if (pro_effect1_type[i] == 0) CreateImageSpriteAtLocation($P8, L_MAIN, pro_effect1[i], pro_effect1_drawfunc[i], pro_effect1_iscript[i]);
                     else CreateUnitDeathAtLocation(pro_effect1[i], $P8, L_MAIN);
                 } else if (pro_effect2[i] > 0 && pro_time[i] >= pro_effect2_start[i]) {
                     // time for effect 2
-                    if (pro_effect2_type[i] == 0) CreateImageSpriteAtLocation($P8, L_MAIN, pro_effect2[i], pro_effect2_drawfunc[i], ISCRIPT_LONGFAST);
+                    if (pro_effect2_type[i] == 0) CreateImageSpriteAtLocation($P8, L_MAIN, pro_effect2[i], pro_effect2_drawfunc[i], pro_effect2_iscript[i]);
                     else CreateUnitDeathAtLocation(pro_effect2[i], $P8, L_MAIN);
                 }
             }
@@ -1255,6 +1273,7 @@ function UpdateProjectileCollisions() {
                 const damage = GetWeaponDamage(WEAPON_SHORTBOW, 0, pro_owner[i]);
                 const target_state = DamageUnit(pro_owner[i], pro_collision_unit[i], damage, ACTIVE_UNITS_MAX + 1);
                 setloc(L_MAIN, pro_collision_pos_x[i], pro_collision_pos_y[i]);
+                if (pro_owner[i] < 6) SetHudValue(pro_owner[i], damage, STRING_WEAPON_DAMAGE);
                 if (target_state) {
                     CreateUnitDeathAtLocation(U_SCOURGE, $P8, L_MAIN);
                     PlayWAVCP("staredit/wav/hitmarker.ogg", pro_owner[i]);
@@ -1601,9 +1620,11 @@ function UpdateWeaponState(playerID) {
                     queue_pro_effect1_type = 0;
                     queue_pro_effect1 = 424;
                     queue_pro_effect1_start = 0;
+                    queue_pro_effect1_iscript = ISCRIPT_FAST;
                     queue_pro_effect2_type = 0;
                     queue_pro_effect2 = 213;
                     queue_pro_effect2_start = 3;
+                    queue_pro_effect2_iscript = ISCRIPT_FAST;
                     CreateProjectile();
                     weapon_angle[i] -= 20;
                 }
@@ -1705,6 +1726,7 @@ function UpdateWeaponState(playerID) {
                     setloc(L_MAIN, weapon_x[i], weapon_y[i]);
                     CreateImageSpriteAtLocation($P8, L_MAIN, 429, 0, ISCRIPT_LONGFAST);
                     PlayWavAtPos("staredit/wav/fireball.ogg", weapon_x[i], weapon_y[i], 512);
+                    display_damage = damage;
                 }
             }
 
@@ -1742,6 +1764,7 @@ function UpdateWeaponState(playerID) {
                     setloc(L_MAIN, weapon_x[i], weapon_y[i]);
                     CreateImageSpriteAtLocation($P8, L_MAIN, 444, 0, ISCRIPT_LONGFAST);
                     PlayWavAtPos("staredit/wav/fireball.ogg", weapon_x[i], weapon_y[i], 512);
+                    display_damage = damage;
                     for (var j = 0; j < 8; j++) {
                         queue_pro_posx = weapon_x[i];
                         queue_pro_posy = weapon_y[i];
@@ -1759,8 +1782,7 @@ function UpdateWeaponState(playerID) {
                 }
             }
             if (is_player && display_damage > 0) {
-                const string_var = Db("\x12\x06Weapon Damage: \x04");
-                SetHudValue(playerID, display_damage, string_var);
+                SetHudValue(playerID, display_damage, STRING_WEAPON_DAMAGE);
             }
         }
     }
@@ -2169,6 +2191,7 @@ function afterTriggerExec() {
                 p_exp_buffer[playerID] = 0;
             }
             if (Command(playerID, AtLeast, 1, U_EXPERIENCE)) {
+                p_exp_lost_timer[playerID]--;
                 setloc(L_MAIN, p_exp_x[playerID], p_exp_y[playerID]);
                 CenterLoc(L_4x4, p_exp_x[playerID], p_exp_y[playerID]);
                 if (HeroIsAt(L_4x4, playerID)) {
@@ -2181,6 +2204,11 @@ function afterTriggerExec() {
                     MinimapPing(L_MAIN);
                     CreateImageSpriteAtLocation($P8, L_MAIN, IMAGE_HALLUC_DEATH1, 0, ISCRIPT_NORMAL);
                 }
+                if (p_exp_lost_timer[playerID] == 0) {
+                    CreateImageSpriteAtLocation($P8, L_MAIN, IMAGE_EXPL_BLUE_SMALL, 0, ISCRIPT_NORMAL);
+                    RemoveUnit(U_EXPERIENCE, playerID);
+                    DisplayText("\x13\x04Your dropped experience has vanished.");
+                }
             }
 
             // TIME
@@ -2191,7 +2219,7 @@ function afterTriggerExec() {
                 else if (time_state == 1) {
                     PlayWAV("staredit/wav/night_ambience.ogg");
                     PlayWAV("staredit/wav/night.ogg");
-                    PlayWAV("staredit/wav/blood_moon_ambience.ogg");
+                    // PlayWAV("staredit/wav/blood_moon_ambience.ogg");
                 }
             }
 
@@ -2210,6 +2238,7 @@ function afterTriggerExec() {
                         RemoveUnit(U_EXPERIENCE, playerID);
                         CreateUnitWithProperties(1, U_EXPERIENCE, L_MAIN, playerID, UnitProperty(invincible = true));
                         p_exp_lost[playerID] = p_exp_current[playerID];
+                        p_exp_lost_timer[playerID] = 2880;
                         p_exp_current[playerID] = 0;
                         p_exp_x[playerID], p_exp_y[playerID] = p_x[playerID], p_y[playerID];
                         screen.printf("\x13\x04Lost \x1F{} \x04Experience!", p_exp_lost[playerID]);
@@ -2224,8 +2253,10 @@ function afterTriggerExec() {
             // HUD
             if (hud_value_timer[playerID] > 0) {
                 hud_value_timer[playerID]--;
-                screen.printfAt(0, "{:s}{}", hud_value_string[playerID], hud_value[playerID]);
-                if (hud_value_timer[playerID] == 0) DisplayTextAt(0, "\x0BNull");
+                if (m_main[playerID] == 0) {
+                    screen.printfAt(0, "{:s}{}", hud_value_string[playerID], hud_value[playerID]);
+                    if (hud_value_timer[playerID] == 0) DisplayTextAt(0, "\x0BNull");
+                }
             }
 
 
