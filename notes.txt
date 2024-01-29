@@ -19,6 +19,7 @@ BUGS
 	might be a bug where you're getting shields broken after death because of some var not being set or something
 	heard the angel wing sound at the bottom of the mountain when I wasnt even close to the angel
 	fireball seems to mess up star fall tome
+	unit gets stuck when swapping items
 
 	
 IDEAS
@@ -85,9 +86,9 @@ GAMEPLAY
 	LOADOUT
 		0. KNIGHT SWORD
 			the unit attack.
-		1. WEAPON (PASSIVE)
+		1. WEAPON
 			Can be a sword, bow, or magic tome
-		2. SPECIAL (ACTIVE)
+		2. UTILITY
 			Unique items
 		3. AURA (SWITCHED ON OR OFF)
 			Some sort of magic

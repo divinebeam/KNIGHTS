@@ -16,6 +16,7 @@ const U_KAKARU = 94;
 const U_SCOURGE = 47;
 const U_WEAPON = 129;
 const U_ARMOR = 219;
+const U_UTILITY = 128;
 const U_MARKER = 7; // P10 = WEAPON, P11 = ARMOR
 const U_EXPERIENCE = 220;
 
@@ -63,6 +64,8 @@ const WEAPON_GREATBOW = 8;
 const WEAPON_LIGHTNINGBLAST = 9;
 const WEAPON_BLADESTORM = 10;
 // const WEAPON_CRIMSON_LONG_SWORD = 5;
+
+const UTILITY_DASH = 1;
 
 const ARMOR_SHATTERED_KNIGHTS = 1;
 // const ARMOR_CRIMSON_ENGRAVED_PLATE = 2;
@@ -136,6 +139,7 @@ const p_on_sigil = PVariable();
 const p_current_sigil = PVariable();
 const p_current_item_unit = PVariable();
 const p_just_attacked = PVariable();
+const p_order_input = PVariable();
 const p_death_state = PVariable();
 
 const MAX_NPC_UNITS = 30;
@@ -159,6 +163,15 @@ const weapon_angle = EUDArray(MAX_WEAPON_OBJECTS);
 const weapon_x = EUDArray(MAX_WEAPON_OBJECTS);
 const weapon_y = EUDArray(MAX_WEAPON_OBJECTS);
 
+const MAX_UTILITY_OBJECTS = 6 + 50;
+const utility_cunit = EUDArray(MAX_UTILITY_OBJECTS);
+const utility_id = EUDArray(MAX_UTILITY_OBJECTS);
+const utility_state = EUDArray(MAX_UTILITY_OBJECTS);
+const utility_cooldown = EUDArray(MAX_UTILITY_OBJECTS);
+const utility_x = EUDArray(MAX_UTILITY_OBJECTS);
+const utility_y = EUDArray(MAX_UTILITY_OBJECTS);
+const utility_angle = EUDArray(MAX_UTILITY_OBJECTS);
+
 const m_main = PVariable();
 const m_page = PVariable();
 
@@ -174,7 +187,7 @@ const chunk_buffer = EUDArray(8);
 const active_units = EUDArray(ACTIVE_UNITS_MAX * 6);
 var active_units_update = 0;
 // @bm DEBUG MODE
-var debug_enabled = 0;
+var debug_enabled = 1;
 const debug_values = EUDArray(8);
 var time = 0;
 var total_time = 0;
@@ -363,50 +376,50 @@ function GetWeaponLifeCost(item_id, playerID) {
     return life_cost;
 }
 
-function CheckForWeaponTrigger(playerID, unit: CUnit, weapon_id) {
+function CheckForWeaponTrigger(playerID, unit: CUnit, item_id) {
     var is_player = 0;
     var weapon_was_triggered = 0;
     var player_attack_clicked = 0;
     if (playerID < 6) is_player = 1;
     if ((is_player && unit.orderID == 14) || (is_player && unit.orderID == 10)) player_attack_clicked = 1;
-    if (weapon_id == WEAPON_SHORTSWORD) {
+    if (item_id == WEAPON_SHORTSWORD) {
         if (is_player && p_just_attacked[playerID] > 0) weapon_was_triggered = 1;
         else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.groundWeaponCooldown == 7) weapon_was_triggered = 1;
     }
-    else if (weapon_id == WEAPON_SHORTBOW) {
+    else if (item_id == WEAPON_SHORTBOW) {
         if (player_attack_clicked) weapon_was_triggered = 1;
         else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.groundWeaponCooldown == 7) weapon_was_triggered = 1;
         else if (playerID == $P7 && unit.unitID == U_HILL_SPINT && unit.orderID != 3) weapon_was_triggered = 1;
     }
-    else if (weapon_id == WEAPON_FIREBALL) {
+    else if (item_id == WEAPON_FIREBALL) {
         if (player_attack_clicked) weapon_was_triggered = 1;
         else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.groundWeaponCooldown == 7) weapon_was_triggered = 1;
     }
-    else if (weapon_id == WEAPON_ANCIENT_TOME_OF_STARFALL) {
+    else if (item_id == WEAPON_ANCIENT_TOME_OF_STARFALL) {
         if (player_attack_clicked) weapon_was_triggered = 1;
         else if (playerID == $P7 && unit.unitID == U_GUARDIAN_ANGEL && unit.orderID != 3) weapon_was_triggered = 1;
     }
-    else if (weapon_id == WEAPON_LONGSWORD) {
+    else if (item_id == WEAPON_LONGSWORD) {
         if (is_player && p_just_attacked[playerID] > 0) weapon_was_triggered = 1;
         else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.orderID != 3) weapon_was_triggered = 1;
     }
-    else if (weapon_id == WEAPON_GREATSWORD) {
+    else if (item_id == WEAPON_GREATSWORD) {
         if (is_player && p_just_attacked[playerID] > 0) weapon_was_triggered = 1;
         else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.orderID != 3) weapon_was_triggered = 1;
     }
-    else if (weapon_id == WEAPON_LONGBOW) {
+    else if (item_id == WEAPON_LONGBOW) {
         if (player_attack_clicked) weapon_was_triggered = 1;
         else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.orderID != 3) weapon_was_triggered = 1;
     }
-    else if (weapon_id == WEAPON_GREATBOW) {
+    else if (item_id == WEAPON_GREATBOW) {
         if (player_attack_clicked) weapon_was_triggered = 1;
         else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.orderID != 3) weapon_was_triggered = 1;
     }
-    else if (weapon_id == WEAPON_LIGHTNINGBLAST) {
+    else if (item_id == WEAPON_LIGHTNINGBLAST) {
         if (player_attack_clicked) weapon_was_triggered = 1;
         else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.orderID != 3) weapon_was_triggered = 1;
     }
-    else if (weapon_id == WEAPON_BLADESTORM) {
+    else if (item_id == WEAPON_BLADESTORM) {
         if (player_attack_clicked) weapon_was_triggered = 1;
         else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.orderID != 3) weapon_was_triggered = 1;
     }
@@ -417,6 +430,20 @@ function CheckForWeaponTrigger(playerID, unit: CUnit, weapon_id) {
     // WEAPON_GREATBOW
     // WEAPON_LIGHTNINGBLAST
     // WEAPON_BLADESTORM
+}
+
+function GetUtilityCooldown(item_id) {
+    if (item_id == UTILITY_DASH) return 24; // 144
+}
+
+function CheckForUtilityTrigger(playerID, unit: CUnit, item_id) {
+    var is_player = 0;
+    var utility_was_triggered = 0;
+    if (playerID < 6) is_player = 1;
+    if (item_id == UTILITY_DASH) {
+        if (is_player && p_order_input[playerID] == ORDER_PATROL) utility_was_triggered = 1;
+    }
+    return utility_was_triggered;
 }
 
 function AttachWeaponToUnit(unit_ptr, weapon_id) {
@@ -912,6 +939,8 @@ function CalculateMaxShield(playerID) {
 function EquipItem(item_id, unitType, playerID) {
     if (unitType == U_WEAPON) {
         weapon[playerID] = item_id;
+    } else if (unitType == U_UTILITY) {
+        utility_id[playerID] = item_id;
     } else if (unitType == U_ARMOR) {
         p_armor[playerID] = item_id;
         CalculateMaxShield(playerID);
@@ -919,6 +948,7 @@ function EquipItem(item_id, unitType, playerID) {
 }
 
 function SetHeroDefaults(playerID) {
+    p_level_current[playerID] = 1;
     p_exp_goal[playerID] = 150;
     p_shield_max[playerID] = PLAYER_DEFAULT_SHIELD * 256;
     p_damage[playerID] = PLAYER_DEFAULT_DAMAGE;
@@ -1788,6 +1818,65 @@ function UpdateWeaponState(playerID) {
     }
 }
 
+function ResetUtilityIndex(i) {
+    utility_cunit[i] = 0;
+    utility_id[i] = 0;
+    utility_state[i] = 0;
+    utility_cooldown[i] = 0;
+}
+// @bm UpdateUtilityState
+function UpdateUtilityState(playerID) {
+    var check_from = 0;
+    var check_to = 0;
+    if (playerID < 6) {
+        check_from = playerID;
+        check_to = playerID + 1;
+    } else if (playerID >= 6) {
+        check_from = 6;
+        check_to = MAX_UTILITY_OBJECTS;
+    }
+    for (var i = check_from; i < check_to; i++) {
+        if (utility_id[i] > 0) {
+            var unit_ptr = utility_cunit[i];
+            var unit_order_x, unit_order_y = 0, 0;
+            var unit_x, unit_y = 0, 0;
+            if (playerID < 6) unit_ptr = p_cunit[playerID];
+            const unit = CUnit(unit_ptr);
+            if (playerID < 6) {
+                unit_order_x, unit_order_y = p_orderx[playerID], p_ordery[playerID];
+                unit_x, unit_y = p_x[playerID], p_y[playerID];
+            }
+            
+            // TRIGGER
+            if (utility_cooldown[i] > 0) utility_cooldown[i]--;
+            const utility_triggered = CheckForUtilityTrigger(playerID, unit, utility_id[i]);
+            if (utility_triggered && utility_cooldown[i] == 0) {
+                utility_cooldown[i] = GetUtilityCooldown(utility_id[i]);
+                utility_state[i] = 1;
+            }
+
+            if (utility_state[i] > 0 && utility_id[i] == UTILITY_DASH) {
+                if (utility_state[i] == 1) {
+                    DisplayText("dash");
+                    utility_x[i], utility_y[i] = unit_x, unit_y;
+                    utility_angle[i] = GetAngle(unit_x, unit_y, unit_order_x, unit_order_y);
+                }
+                if (utility_state[i] > 0) {
+                    utility_x[i], utility_y[i] = MovePosTowards(utility_x[i], utility_y[i], utility_angle[i], 32);
+                    setloc(L_MAIN, utility_x[i], utility_y[i]);
+                    MoveUnit(1, U_HERO[playerID], playerID, L_ANYWHERE, L_MAIN);
+                    CreateImageSpriteAtLocation(playerID, L_MAIN, IMAGE_EXPL_BLUE_SMALL, 0, ISCRIPT_FAST);
+                }
+                utility_state[i]++;
+                if (utility_state[i] >= 12) {
+                    utility_state[i] = 0;
+                    unit.topSpeed = 2000;
+                }
+            }
+        }
+    }
+}
+
 function LevelUp(playerID, unit: CUnit) {
     p_level_current[playerID] += 1;
     p_attributepoints[playerID] += 1;
@@ -1942,6 +2031,7 @@ function onPluginStart() {
                 p_attributepoints[playerID] = 20;
                 EquipItem(ARMOR_SHATTERED_KNIGHTS, U_ARMOR, playerID);
                 EquipItem(WEAPON_SHORTSWORD, U_WEAPON, playerID);
+                EquipItem(UTILITY_DASH, U_UTILITY, playerID);
                 GetVision($P7);
             }
             PlaySong(0);
@@ -1976,9 +2066,9 @@ function afterTriggerExec() {
         // HUMAN PLAYERS
         if (playerID >= 0 && playerID < 6) {
             const unit = CUnit(p_cunit[playerID]);
-            var order_input = 0;
             var unit_is_moving = 0;
             p_just_attacked[playerID] = 0;
+            p_order_input[playerID] = 0;
             var unit_is_indoors = 0;
             var unit_took_health_damage = 0;
             if (IsAlive(playerID)) {
@@ -1988,7 +2078,7 @@ function afterTriggerExec() {
 
                 if (active_units_update == 0) FillActiveNearbyUnits(playerID, p_x[playerID], p_y[playerID]);
                 if (unit.orderID == ORDER_HOLD || unit.orderID == ORDER_PATROL) {
-                    order_input = unit.orderID;
+                    p_order_input[playerID] = unit.orderID;
                     unit.orderID = 3;
                 }
                 if (p_x[playerID] == p_x_old[playerID] && p_y[playerID] == p_y_old[playerID]) {
@@ -2041,6 +2131,13 @@ function afterTriggerExec() {
                 } else if (m_main[playerID] == MENU_MAIN_SIGIL) {
                     UpdateSigilMenu(playerID);
                 }
+                // set to home if this is the players first sigil
+                const x, y = GetSpawnPosition(playerID);
+                if (p_homepos_x[playerID] == x && p_homepos_y[playerID] == y) {
+                    p_homepos_x[playerID] = sigil_x[p_current_sigil[playerID]];
+                    p_homepos_y[playerID] = sigil_y[p_current_sigil[playerID]];
+                }
+
             } else if (p_on_sigil[playerID] == 0 && m_main[playerID] > 0) {
                 m_main[playerID] = 0;
                 ClearTextLines(0, 9);
@@ -2175,6 +2272,7 @@ function afterTriggerExec() {
 
             // WEAPON
             UpdateWeaponState(playerID);
+            UpdateUtilityState(playerID);
 
             // EXP
             if (p_exp_buffer[playerID] > 0) {
@@ -2266,6 +2364,8 @@ function afterTriggerExec() {
                 }
                 debug_values[6] = p_x[playerID];
                 debug_values[7] = p_y[playerID];
+                debug_values[0] = unit.currentSpeed1;
+                debug_values[1] = unit.topSpeed;
                 eprintf("{} | {} | {} | {} | {} | {} | {} | {}", debug_values[0], debug_values[1], debug_values[2], debug_values[3], debug_values[4], debug_values[5], debug_values[6], debug_values[7]);
             }
         }
