@@ -6,6 +6,11 @@ const L_3X3 = $L("3x3");
 const L_4x4 = $L("4x4");
 const L_16x16 = $L("16x16");
 const L_PLAYER = [4, 5, 6, 7, 8, 9];
+const L_MOUSE = [16, 17, 18, 19, 20, 21];
+const L_CHECK = $L("check");
+const L_HEIGHT0 = $L("height0");
+const L_HEIGHT1 = $L("height1");
+const L_HEIGHT2 = $L("height2");
 
 const U_HERO = [61, 62, 64, 12, 60, 86];
 const U_CHIMERA = 37;
@@ -19,6 +24,8 @@ const U_ARMOR = 219;
 const U_UTILITY = 128;
 const U_MARKER = 7; // P10 = WEAPON, P11 = ARMOR
 const U_EXPERIENCE = 220;
+const U_CHECKHEIGHT = 9;
+const U_PATHABLE = 0;
 
 const NPC_GUARDIAN_ANGEL = 1;
 
@@ -33,6 +40,9 @@ const IMAGE_ZERG_AIR_DEATH_SMALL = 59;
 const IMAGE_PLAGUE_CLOUD = 387;
 const IMAGE_HALLUC_DEATH1 = 557;
 const IMAGE_EXPL_BLUE_SMALL = 213;
+const IMAGE_SCOURGE_ATTACK = 4;
+const IMAGE_LONGBOLT_TRAIL = 422;
+const IMAGE_FRAG_GRENADE_HIT = 440;
 
 const FULL_DAY_LENGTH = 8640;
 const BRIGHTNESS_DEFAULT = 31;
@@ -195,6 +205,8 @@ var time_state = 0;
 var time_state_changed = 0;
 var days_elapsed = 0;
 var experience_ping_timer = 0;
+var cunit_pathable = 0;
+var cunit_checkheight = 0;
 
 
 function isAlly(p: TrgPlayer, tgp: TrgPlayer) {
@@ -279,6 +291,15 @@ function GetStringItemDescription(item_id, unitID) {
 function SetupStringArrays() {
     strings_loot_interactions[0] = Db("\x03-<1>- \x04to Equip.");
     strings_loot_interactions[1] = Db("\x03-<1>- \x04to Equip and swap with: ");
+}
+
+function SetupSystemUnits() {
+    cunit_checkheight = CUnit.from_read(EPD(0x628438));
+    CreateUnitWithProperties(1, U_CHECKHEIGHT, L_CHECK, $P8, UnitProperty(invincible = true));
+    GiveUnits(1, U_CHECKHEIGHT, $P8, L_ANYWHERE, $P12);
+    cunit_pathable = CUnit.from_read(EPD(0x628438));
+    CreateUnitWithProperties(1, U_PATHABLE, L_CHECK, $P8, UnitProperty(invincible = true));
+    GiveUnits(1, U_PATHABLE, $P8, L_ANYWHERE, $P12);
 }
 
 function GetWholeAndFraction(value) {
@@ -735,6 +756,13 @@ function IsAlive(playerID) {
     return 0;
 }
 
+function TeleportHeroPos(playerID, positionx, positiony) {
+    setloc(L_MAIN, positionx, positiony);
+    MoveUnit(1, U_HERO[playerID], playerID, L_ANYWHERE, L_MAIN);
+    const unit = CUnit(p_cunit[playerID]);
+    p_x[playerID], p_y[playerID] = unit.posX, unit.posY;
+}
+
 function PlayWavAtPos(sound_path_string: TrgString, positionx, positiony, max_distance) {
     for (var i = 0; i < 6; i++) {
         if (IsAlive(i) && GetDistance(p_x[i], p_y[i], positionx, positiony) <= max_distance) {
@@ -982,6 +1010,33 @@ function SetHudValue(playerID, value, string_var) {
     hud_value_timer[playerID] = 72;
 }
 
+function GetHeight(positionx, positiony) {
+    if (!PosIsOnMap(positionx, positiony)) return 0;
+    var height = 0;
+    setloc(L_MAIN, positionx, positiony);
+    MoveUnit(All, U_CHECKHEIGHT, $P12, L_ANYWHERE, L_MAIN);
+    MoveLocation(L_HEIGHT0, U_CHECKHEIGHT, $P12, L_ANYWHERE);
+    MoveLocation(L_HEIGHT1, U_CHECKHEIGHT, $P12, L_ANYWHERE);
+    MoveLocation(L_HEIGHT2, U_CHECKHEIGHT, $P12, L_ANYWHERE);
+    if (Bring($P12, AtLeast, 1, U_CHECKHEIGHT, L_HEIGHT0) ) height = 1;
+    else if (Bring($P12, AtLeast, 1, U_CHECKHEIGHT, L_HEIGHT1) ) height = 2;
+    else if (Bring($P12, AtLeast, 1, U_CHECKHEIGHT, L_HEIGHT2) ) height = 3;
+    MoveUnit(All, U_CHECKHEIGHT, $P12, L_ANYWHERE, L_CHECK);
+    return height;
+}
+
+function PosIsPathable(positionx, positiony, distance_tolerance) {
+    const unit = CUnit(cunit_pathable);
+    setloc(L_MAIN, positionx, positiony);
+    MoveUnit(All, U_PATHABLE, $P12, L_ANYWHERE, L_MAIN);
+    if (GetDistance(unit.posX, unit.posY, positionx, positiony) <= distance_tolerance) {
+        MoveUnit(All, U_PATHABLE, $P12, L_ANYWHERE, L_CHECK);
+        return 1;
+    }
+    MoveUnit(All, U_PATHABLE, $P12, L_ANYWHERE, L_CHECK);
+    return 0;
+}
+
 var col_posx = 0;
 var col_posy = 0;
 var col_enemies = 0;
@@ -1032,31 +1087,37 @@ function CheckCollision(playerID) {
     } else {
         check_to = ACTIVE_UNITS_MAX * 6;
     }
-    if (col_shape == 0) {
-        const l, r, t, b = PosToSquare(col_posx, col_posy, col_shape_size);
-        for (var u = check_from; u < check_to; u++) {
-            if (active_units[u] > 0) {
-                const unit = CUnit(active_units[u]);
-                if (col_enemies == 0 && !isAlly(playerID, unit.playerID)) continue;
-                if (col_allies == 0 && isAlly(playerID, unit.playerID)) continue;
-                if (unit.hp > 0 && IsPosWithinRect(unit.posX, unit.posY, l, r, t, b)) {
-                    result_exists = 1;
-                    const full = AddUnitToColResults(active_units[u], u);
-                    if (full) break;
+    if (col_allies || col_enemies) {
+        if (col_shape == 0) {
+            const l, r, t, b = PosToSquare(col_posx, col_posy, col_shape_size);
+            for (var u = check_from; u < check_to; u++) {
+                if (active_units[u] > 0) {
+                    const unit = CUnit(active_units[u]);
+                    if (col_enemies == 0 && !isAlly(playerID, unit.playerID)) continue;
+                    if (col_allies == 0 && isAlly(playerID, unit.playerID)) continue;
+                    if (unit.hp > 0 && IsPosWithinRect(unit.posX, unit.posY, l, r, t, b)) {
+                        result_exists = 1;
+                        const full = AddUnitToColResults(active_units[u], u);
+                        if (full) break;
+                    }
+                }
+            }
+        } else if (col_shape == 1) {
+            for (var u = check_from; u < check_to; u++) {
+                if (active_units[u] > 0) {
+                    const unit = CUnit(active_units[u]);
+                    if (unit.hp > 0 && GetDistance(unit.posX, unit.posY, col_posx, col_posy) <= col_shape_size) {
+                        result_exists = 1;
+                        const full = AddUnitToColResults(active_units[u], u);
+                        if (full) break;
+                    }
                 }
             }
         }
-    } else if (col_shape == 1) {
-        for (var u = check_from; u < check_to; u++) {
-            if (active_units[u] > 0) {
-                const unit = CUnit(active_units[u]);
-                if (unit.hp > 0 && GetDistance(unit.posX, unit.posY, col_posx, col_posy) <= col_shape_size) {
-                    result_exists = 1;
-                    const full = AddUnitToColResults(active_units[u], u);
-                    if (full) break;
-                }
-            }
-        }
+    }
+    if (col_terrain) {
+        if (!PosIsPathable(col_posx, col_posy, col_shape_size)) col_results_terrain = 1;
+        else col_results_terrain = 0;
     }
     return result_exists;
 }
@@ -1857,20 +1918,53 @@ function UpdateUtilityState(playerID) {
 
             if (utility_state[i] > 0 && utility_id[i] == UTILITY_DASH) {
                 if (utility_state[i] == 1) {
-                    DisplayText("dash");
                     utility_x[i], utility_y[i] = unit_x, unit_y;
                     utility_angle[i] = GetAngle(unit_x, unit_y, unit_order_x, unit_order_y);
+                    PlayWavAtPos("staredit/wav/dash.ogg", utility_x[i], utility_y[i], 480);
+                    const x, y = MovePosTowards(utility_x[i], utility_y[i], utility_angle[i], 64);
+                    setloc(L_MAIN, x, y);
+                    Order(U_HERO[playerID], playerID, L_ANYWHERE, Move, L_MAIN);
                 }
-                if (utility_state[i] > 0) {
-                    utility_x[i], utility_y[i] = MovePosTowards(utility_x[i], utility_y[i], utility_angle[i], 32);
+                if (utility_state[i] > 1) {
+                    col_posx, col_posy = MovePosTowards(utility_x[i], utility_y[i], utility_angle[i], 24);
+                    col_terrain = 1;
+                    col_shape_size = 8;
+                    CheckCollision(playerID);
+                    if (col_results_terrain == 0) {
+                        utility_x[i], utility_y[i] = col_posx, col_posy;
+                        setloc(L_MAIN, utility_x[i], utility_y[i]);
+                        TeleportHeroPos(playerID, utility_x[i], utility_y[i]);
+                        queue_pro_posx = utility_x[i];
+                        queue_pro_posy = utility_y[i];
+                        queue_pro_maxtime = 6;
+                        queue_pro_angle = (utility_angle[i] - 180) + Random(-10, 10);
+                        queue_pro_velocity = 20;
+                        queue_pro_angular_velocity = Random(-5, 5);
+                        queue_pro_effect0 = 0;
+                        queue_pro_effect0_start = 0;
+                        queue_pro_effect0_drawfunc = 0;
+                        queue_pro_effect0_iscript = 0;
+                        queue_pro_effect1 = IMAGE_FRAG_GRENADE_HIT;
+                        queue_pro_effect1_start = 0;
+                        queue_pro_effect1_drawfunc = 6;
+                        queue_pro_effect1_iscript = ISCRIPT_FAST;
+                        queue_pro_effect2 = IMAGE_FRAG_GRENADE_HIT;
+                        queue_pro_effect2_start = 3;
+                        queue_pro_effect2_drawfunc = 17;
+                        queue_pro_effect2_iscript = ISCRIPT_FAST;
+                        CreateProjectile();
+                    } else {
+                        utility_state[i] = 12;
+                    }
                     setloc(L_MAIN, utility_x[i], utility_y[i]);
-                    MoveUnit(1, U_HERO[playerID], playerID, L_ANYWHERE, L_MAIN);
-                    CreateImageSpriteAtLocation(playerID, L_MAIN, IMAGE_EXPL_BLUE_SMALL, 0, ISCRIPT_FAST);
+                    CreateImageSpriteAtLocation(playerID, L_MAIN, IMAGE_EXPL_BLUE_SMALL, 6, ISCRIPT_FAST);
                 }
                 utility_state[i]++;
                 if (utility_state[i] >= 12) {
+                    utility_x[i], utility_y[i] = MovePosTowards(utility_x[i], utility_y[i], utility_angle[i], 64);
+                    setloc(L_MAIN, utility_x[i], utility_y[i]);
+                    Order(U_HERO[playerID], playerID, L_ANYWHERE, Move, L_MAIN);
                     utility_state[i] = 0;
-                    unit.topSpeed = 2000;
                 }
             }
         }
@@ -2020,6 +2114,7 @@ function onPluginStart() {
     SetupStringArrays();
     StoreSpawnPositions();
     SpawnInitialItemUnits();
+    SetupSystemUnits();
     EUDPlayerLoop()();
         const playerID = getcurpl();
         if (playerID >= 0 && playerID < 6) {
@@ -2357,15 +2452,13 @@ function afterTriggerExec() {
                 }
             }
 
-
+            // @bm debug_enabled
             if (debug_enabled) {
                 if (p_on_sigil[playerID]) {
                     HealPlayer(playerID, unit, 256);
                 }
                 debug_values[6] = p_x[playerID];
                 debug_values[7] = p_y[playerID];
-                debug_values[0] = unit.currentSpeed1;
-                debug_values[1] = unit.topSpeed;
                 eprintf("{} | {} | {} | {} | {} | {} | {} | {}", debug_values[0], debug_values[1], debug_values[2], debug_values[3], debug_values[4], debug_values[5], debug_values[6], debug_values[7]);
             }
         }

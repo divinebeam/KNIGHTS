@@ -1,6 +1,6 @@
 
 CURRENTLY
-	implementing shortbow and projectile collision functionality
+	implementing dash
 
 TODO
 	implement drawline function
