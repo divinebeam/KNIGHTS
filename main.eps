@@ -43,6 +43,12 @@ const IMAGE_EXPL_BLUE_SMALL = 213;
 const IMAGE_SCOURGE_ATTACK = 4;
 const IMAGE_LONGBOLT_TRAIL = 422;
 const IMAGE_FRAG_GRENADE_HIT = 440;
+const IMAGE_LIGHTNING_STORM = 525;
+const IMAGE_LIGHTNING0 = 550;
+const IMAGE_LIGHTNING1 = 551;
+const IMAGE_LIGHTNING2 = 552;
+const IMAGE_LIGHTNING3 = 553;
+const IMAGE_NUKE_DOT = 233;
 
 const FULL_DAY_LENGTH = 8640;
 const BRIGHTNESS_DEFAULT = 31;
@@ -1010,13 +1016,13 @@ function SetHeroDefaults(playerID) {
     SetMaxHP(playerID, PLAYER_DEFAULT_HP * 256);
 }
 
-function DrawCircle(positionx, positiony, diameter, dots, imageID, drawFunc) {
+function DrawCircle(positionx, positiony, diameter, dots, imageID, drawFunc, iscript) {
     var angle_increment = (3600000 / dots) / 10000;
     var angle = 0;
     for (var i = 0; i < dots; i++) {
         const x, y = MovePosTowards(positionx, positiony, angle, diameter / 2);
         setloc(L_MAIN, x, y);
-        CreateImageSpriteAtLocation($P8, L_MAIN, imageID, drawFunc, ISCRIPT_FAST);
+        CreateImageSpriteAtLocation($P8, L_MAIN, imageID, drawFunc, iscript);
         angle += angle_increment;
     }
 }
@@ -1584,7 +1590,7 @@ function UpdateSigils() {
             if (player_on_sigil) {
                 sigil_glow[i]++;
                 if (sigil_glow[i] >= 24) {
-                    DrawCircle(sigil_x[i], sigil_y[i], SIGIL_DIAMETER, 24, 443, 0);
+                    DrawCircle(sigil_x[i], sigil_y[i], SIGIL_DIAMETER, 24, 443, 0, ISCRIPT_NORMAL);
                     sigil_glow[i] = 0;
                 }
             } else sigil_glow[i] = 0;
@@ -1843,7 +1849,7 @@ function UpdateWeaponState(playerID) {
                     queue_pro_effect2_start = queue_pro_maxtime;
                     CreateProjectile();
                     PlayWavAtPos("staredit/wav/fireball_incoming.ogg", weapon_x[i], weapon_y[i], 512);
-                    DrawCircle(weapon_x[i], weapon_y[i], 128, 24, 448, 0);
+                    DrawCircle(weapon_x[i], weapon_y[i], 128, 24, 448, 0, ISCRIPT_NORMAL);
                 }
                 if (weapon_state[i] > 0) weapon_state[i]++;
                 if (weapon_state[i] >= 20) {
@@ -1868,38 +1874,18 @@ function UpdateWeaponState(playerID) {
                     weapon_state[i] = 0;
                 }
                 if (weapon_state[i] == 1) {
-                    weapon_x[i], weapon_y[i] = unit_x, unit_y;
-                    weapon_angle[i] = unit_angle;
+                    weapon_angle[i] = GetAngle(unit_x, unit_y, unit_order_x, unit_order_y);
+                    weapon_x[i], weapon_y[i] = MovePosTowards(unit_x, unit_y, weapon_angle[i], 64);
+                    setloc(L_MAIN, weapon_x[i], weapon_y[i]);
+                    CreateImageSpriteAtLocation($P8, L_MAIN, IMAGE_LIGHTNING_STORM, 0, ISCRIPT_NORMAL);
+                    DrawCircle(weapon_x[i], weapon_y[i], 128, 24, IMAGE_NUKE_DOT, 17, ISCRIPT_NORMAL);
+                    PlayWavAtPos("sound\Bullet\zdeAtt00.wav", weapon_x[i], weapon_y[i], 512);
                 }
-                if (weapon_state[i] == 1 || weapon_state[i] % iteration_time == 0) {
-                    col_posx, col_posy = weapon_x[i], weapon_y[i];
-                    col_enemies = 1;
-                    col_shape = 0;
-                    col_shape_size = 256;
-                    col_max_results = 8;
-                    const collision_happened = CheckCollision(playerID);
-                    var furthest_distance = 0;
-                    var targetx, targety = weapon_x[i], weapon_y[i];
-                    if (collision_happened) {
-                        for (var j = 0; j < col_max_results; j++) {
-                            if (col_results_unit[j] > 0) {
-                                const unit = CUnit(col_results_unit[j]);
-                                const d = GetDistance(col_posx, col_posy, unit.posX, unit.posY);
-                                if (d > furthest_distance) {
-                                    furthest_distance = d;
-                                    targetx, targety = unit.posX, unit.posY;
-                                }
-                            }
-                        }
-                    } else {
-                        weapon_angle[i] += Random(-30, 30);
-                        targetx, targety = MovePosTowards(weapon_x[i], weapon_y[i], weapon_angle[i], 256);
-                    }
-                    DrawLine(weapon_x[i], weapon_y[i], targetx, targety, 8, IMAGE_EXPL_BLUE_SMALL, 0, ISCRIPT_FAST);
-                    weapon_x[i], weapon_y[i] = targetx, targety;
+                if (weapon_state[i] == 10) {
+                    DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 128, 5000, 8);
                 }
                 if (weapon_state[i] > 0) weapon_state[i]++;
-                if (weapon_state[i] >= (iteration_time * iterations) + 1) {
+                if (weapon_state[i] >= 12) {
                     weapon_state[i] = 0;
                 }
             }
@@ -1927,7 +1913,7 @@ function UpdateWeaponState(playerID) {
                     queue_pro_effect2_start = queue_pro_maxtime;
                     CreateProjectile();
                     PlayWavAtPos("staredit/wav/fireball_incoming.ogg", weapon_x[i], weapon_y[i], 512);
-                    DrawCircle(weapon_x[i], weapon_y[i], 192, 36, 448, 16);
+                    DrawCircle(weapon_x[i], weapon_y[i], 192, 36, 448, 16, ISCRIPT_NORMAL);
                 }
                 if (weapon_state[i] > 0) weapon_state[i]++;
                 if (weapon_state[i] >= 20) {
@@ -2300,7 +2286,7 @@ function afterTriggerExec() {
                 if (sigil < MAX_SIGIL_SPAWNS && p_on_sigil[playerID] == 0) {
                     p_on_sigil[playerID] = 1;
                     p_current_sigil[playerID] = sigil;
-                    DrawCircle(sigil_x[sigil], sigil_y[sigil], SIGIL_DIAMETER, 24, 443, 0);
+                    DrawCircle(sigil_x[sigil], sigil_y[sigil], SIGIL_DIAMETER, 24, 443, 0, ISCRIPT_NORMAL);
                     DisplayText("\x13\x04Press \x03-<F>- \x04to Interact.");
                 } else if (sigil >= MAX_SIGIL_SPAWNS && p_on_sigil[playerID] > 0) {
                     p_on_sigil[playerID] = 0;
