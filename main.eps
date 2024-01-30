@@ -108,6 +108,7 @@ EUDRegisterObjectToNamespace("key_0", keypress_0);
 EUDRegisterObjectToNamespace("key_f", keypress_f);
 
 const strings_loot_interactions = EUDArray(10);
+
 // @bm PLAYER VARS
 const p_cunit = PVariable(); // holds the cunit pointer of the players unit
 const p_x = PVariable(); // coordinates of the unit
@@ -151,6 +152,7 @@ const p_current_item_unit = PVariable();
 const p_just_attacked = PVariable();
 const p_order_input = PVariable();
 const p_death_state = PVariable();
+var p_current_death_hint = 0;
 
 const MAX_NPC_UNITS = 30;
 const npc_x = EUDArray(MAX_NPC_UNITS);
@@ -166,7 +168,7 @@ const npc_order_timer = EUDArray(MAX_NPC_UNITS);
 
 const MAX_WEAPON_OBJECTS = 6 + 50;
 const weapon_cunit = EUDArray(MAX_WEAPON_OBJECTS);
-const weapon = EUDArray(MAX_WEAPON_OBJECTS);
+const weapon_id = EUDArray(MAX_WEAPON_OBJECTS);
 const weapon_state = EUDArray(MAX_WEAPON_OBJECTS);
 const weapon_cooldown = EUDArray(MAX_WEAPON_OBJECTS);
 const weapon_angle = EUDArray(MAX_WEAPON_OBJECTS);
@@ -288,6 +290,22 @@ function GetStringItemDescription(item_id, unitID) {
     }
 }
 
+function GetStringHint(id) {
+    switch(id) {
+        case 0: return Db("Don't forget to dodge in combat. Dodging is when you recover your armor by backing away from foes.");
+        case 1: return Db("Only aggravate as many enemies as you can handle.");
+        case 2: return Db("The penalty for death is dropping your current experience. Which you can recover if you reach it in time.");
+        case 3: return Db("hint");
+        case 4: return Db("hint");
+        case 5: return Db("hint");
+        case 6: return Db("hint");
+        case 7: return Db("hint");
+        case 8: return Db("hint");
+        case 9: return Db("hint");
+        case 10: return Db("hint");
+	}
+}
+
 function SetupStringArrays() {
     strings_loot_interactions[0] = Db("\x03-<1>- \x04to Equip.");
     strings_loot_interactions[1] = Db("\x03-<1>- \x04to Equip and swap with: ");
@@ -393,6 +411,7 @@ function GetWeaponLifeCost(item_id, playerID) {
     var life_cost = 0;
     if (playerID > 5) return 0;
     if (item_id == WEAPON_FIREBALL) life_cost = 10 * 256;
+    else if (item_id == WEAPON_LIGHTNINGBLAST) life_cost = 25 * 256;
     else if (item_id == WEAPON_ANCIENT_TOME_OF_STARFALL) life_cost = 99 * 256;
     return life_cost;
 }
@@ -457,6 +476,13 @@ function GetUtilityCooldown(item_id) {
     if (item_id == UTILITY_DASH) return 24; // 144
 }
 
+function GetUtilityLifeCost(item_id, playerID) {
+    var life_cost = 0;
+    if (playerID > 5) return 0;
+    if (item_id == UTILITY_DASH) life_cost = 10 * 256;
+    return life_cost;
+}
+
 function CheckForUtilityTrigger(playerID, unit: CUnit, item_id) {
     var is_player = 0;
     var utility_was_triggered = 0;
@@ -467,10 +493,10 @@ function CheckForUtilityTrigger(playerID, unit: CUnit, item_id) {
     return utility_was_triggered;
 }
 
-function AttachWeaponToUnit(unit_ptr, weapon_id) {
+function AttachWeaponToUnit(unit_ptr, item_id) {
     for (var i = 6; i < MAX_WEAPON_OBJECTS; i++) {
-        if (weapon[i] == 0) {
-            weapon[i] = weapon_id;
+        if (weapon_id[i] == 0) {
+            weapon_id[i] = item_id;
             weapon_cunit[i] = unit_ptr;
             break;
         }
@@ -617,11 +643,11 @@ function SpawnInitialItemUnits() {
     foreach(unit : EUDLoopCUnit()) {
         if (unit.playerID == $P10) {
             if (unit.unitType == U_MARKER) {
-                const weapon_id = unit.hp / 256;
+                const weapon_item_id = unit.hp / 256;
                 setloc(L_MAIN, unit.posX, unit.posY);
                 RemoveUnitAt(1, U_MARKER, L_MAIN, $P10);
                 const new_unit = CUnit(CreateCUnit(U_WEAPON, $P8, L_MAIN));
-                new_unit.energy = weapon_id;
+                new_unit.energy = weapon_item_id;
                 new_unit.shield = GetSumOfActivePlayerBits();
             }
         } else if (unit.playerID == $P11) {
@@ -966,7 +992,7 @@ function CalculateMaxShield(playerID) {
 
 function EquipItem(item_id, unitType, playerID) {
     if (unitType == U_WEAPON) {
-        weapon[playerID] = item_id;
+        weapon_id[playerID] = item_id;
     } else if (unitType == U_UTILITY) {
         utility_id[playerID] = item_id;
     } else if (unitType == U_ARMOR) {
@@ -992,6 +1018,17 @@ function DrawCircle(positionx, positiony, diameter, dots, imageID, drawFunc) {
         setloc(L_MAIN, x, y);
         CreateImageSpriteAtLocation($P8, L_MAIN, imageID, drawFunc, ISCRIPT_FAST);
         angle += angle_increment;
+    }
+}
+
+function DrawLine(originx, originy, destinationx, destinationy, dots, imageID, drawFunc, iscript) {
+    const d = GetDistance(originx, originy, destinationx, destinationy);
+    const a = GetAngle(originx, originy, destinationx, destinationy);
+    const increment = ((d * 10000) / dots) / 10000;
+    for (var i = 0; i < dots; i++) {
+        const x, y = MovePosTowards(originx, originy, a, increment * i);
+        setloc(L_MAIN, x, y);
+        CreateImageSpriteAtLocation($P8, L_MAIN, imageID, drawFunc, iscript);
     }
 }
 
@@ -1633,7 +1670,7 @@ function UpdateSigilMenu(playerID) {
 
 function ResetWeaponIndex(index) {
     weapon_cunit[index] = 0;
-    weapon[index] = 0;
+    weapon_id[index] = 0;
     weapon_state[index] = 0;
     weapon_cooldown[index] = 0;
     weapon_angle[index] = 0;
@@ -1653,7 +1690,7 @@ function UpdateWeaponState(playerID) {
     }
     for (var weapon_index = check_from; weapon_index < check_to; weapon_index++) {
         const i = weapon_index;
-        if (weapon[i] > 0) {
+        if (weapon_id[i] > 0) {
             var unit_ptr = weapon_cunit[i]; // set unit to whatever the weapon id is attached to
             var is_player = 0;
             var unit_just_attacked = 0;
@@ -1686,16 +1723,16 @@ function UpdateWeaponState(playerID) {
 
             // TRIGGER
             if (weapon_cooldown[i] > 0) weapon_cooldown[i]--;
-            var weapon_triggered = CheckForWeaponTrigger(playerID, unit, weapon[i]);
+            var weapon_triggered = CheckForWeaponTrigger(playerID, unit, weapon_id[i]);
             if (weapon_triggered && weapon_cooldown[i] == 0) {
-                weapon_cooldown[i] = GetWeaponCooldown(weapon[i]);
+                weapon_cooldown[i] = GetWeaponCooldown(weapon_id[i]);
                 weapon_state[i] = 1;
             }
 
             // SHORT SWORD
-            if (weapon_state[i] > 0 && weapon[i] == WEAPON_SHORTSWORD) {
+            if (weapon_state[i] > 0 && weapon_id[i] == WEAPON_SHORTSWORD) {
                 if (weapon_state[i] == 1) {
-                    const damage = GetWeaponDamage(weapon[i], weapon_state[i], playerID);
+                    const damage = GetWeaponDamage(weapon_id[i], weapon_state[i], playerID);
                     weapon_x[i], weapon_y[i] = MovePosTowards(unit_x, unit_y, unit_angle, 32);
                     DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 128, damage, 2);
                     weapon_angle[i] = unit_angle + 60;
@@ -1724,7 +1761,7 @@ function UpdateWeaponState(playerID) {
             }
 
             // SHORT BOW
-            if (weapon_state[i] > 0 && weapon[i] == WEAPON_SHORTBOW) {
+            if (weapon_state[i] > 0 && weapon_id[i] == WEAPON_SHORTBOW) {
                 if (weapon_state[i] == 1) {
                     CenterLoc(L_4x4, unit_x, unit_y);
                     if (EnemiesAtLoc(L_4x4)) weapon_state[i] = 0;
@@ -1749,7 +1786,7 @@ function UpdateWeaponState(playerID) {
                 if (weapon_state[i] == 11) {
                     const angle_to_order = GetAngle(unit_x, unit_y, weapon_x[i], weapon_y[i]);
                     queue_pro_owner = playerID;
-                    queue_pro_weapon_id = weapon[i];
+                    queue_pro_weapon_id = weapon_id[i];
                     queue_pro_posx = unit_x;
                     queue_pro_posy = unit_y;
                     queue_pro_maxtime = 24;
@@ -1784,8 +1821,8 @@ function UpdateWeaponState(playerID) {
             }
 
             // FIRE BALL
-            if (weapon_state[i] > 0 && weapon[i] == WEAPON_FIREBALL) {
-                const life_cost = GetWeaponLifeCost(weapon[i], playerID);
+            if (weapon_state[i] > 0 && weapon_id[i] == WEAPON_FIREBALL) {
+                const life_cost = GetWeaponLifeCost(weapon_id[i], playerID);
                 if (weapon_state[i] == 1 && unit.hp > life_cost) {
                     DoMagicLifeDrainCost(playerID, unit, life_cost);
                 } else if (weapon_state[i] == 1) {
@@ -1811,8 +1848,7 @@ function UpdateWeaponState(playerID) {
                 if (weapon_state[i] > 0) weapon_state[i]++;
                 if (weapon_state[i] >= 20) {
                     weapon_state[i] = 0;
-                    const damage = GetWeaponDamage(weapon[i], weapon_state[i], playerID);
-                    screen.printf("damage: {}", damage);
+                    const damage = GetWeaponDamage(weapon_id[i], weapon_state[i], playerID);
                     DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 128, damage, 8);
                     setloc(L_MAIN, weapon_x[i], weapon_y[i]);
                     CreateImageSpriteAtLocation($P8, L_MAIN, 429, 0, ISCRIPT_LONGFAST);
@@ -1821,9 +1857,56 @@ function UpdateWeaponState(playerID) {
                 }
             }
 
+            // LIGHTNING BLAST
+            if (weapon_state[i] > 0 && weapon_id[i] == WEAPON_LIGHTNINGBLAST) {
+                const iterations = 3;
+                const iteration_time = 12;
+                const life_cost = GetWeaponLifeCost(weapon_id[i], playerID);
+                if (weapon_state[i] == 1 && unit.hp > life_cost) {
+                    DoMagicLifeDrainCost(playerID, unit, life_cost);
+                } else if (weapon_state[i] == 1) {
+                    weapon_state[i] = 0;
+                }
+                if (weapon_state[i] == 1) {
+                    weapon_x[i], weapon_y[i] = unit_x, unit_y;
+                    weapon_angle[i] = unit_angle;
+                }
+                if (weapon_state[i] == 1 || weapon_state[i] % iteration_time == 0) {
+                    col_posx, col_posy = weapon_x[i], weapon_y[i];
+                    col_enemies = 1;
+                    col_shape = 0;
+                    col_shape_size = 256;
+                    col_max_results = 8;
+                    const collision_happened = CheckCollision(playerID);
+                    var furthest_distance = 0;
+                    var targetx, targety = weapon_x[i], weapon_y[i];
+                    if (collision_happened) {
+                        for (var j = 0; j < col_max_results; j++) {
+                            if (col_results_unit[j] > 0) {
+                                const unit = CUnit(col_results_unit[j]);
+                                const d = GetDistance(col_posx, col_posy, unit.posX, unit.posY);
+                                if (d > furthest_distance) {
+                                    furthest_distance = d;
+                                    targetx, targety = unit.posX, unit.posY;
+                                }
+                            }
+                        }
+                    } else {
+                        weapon_angle[i] += Random(-30, 30);
+                        targetx, targety = MovePosTowards(weapon_x[i], weapon_y[i], weapon_angle[i], 256);
+                    }
+                    DrawLine(weapon_x[i], weapon_y[i], targetx, targety, 8, IMAGE_EXPL_BLUE_SMALL, 0, ISCRIPT_FAST);
+                    weapon_x[i], weapon_y[i] = targetx, targety;
+                }
+                if (weapon_state[i] > 0) weapon_state[i]++;
+                if (weapon_state[i] >= (iteration_time * iterations) + 1) {
+                    weapon_state[i] = 0;
+                }
+            }
+
             // ANCIENT TOME OF STAR FALL
-            if (weapon_state[i] > 0 && weapon[i] == WEAPON_ANCIENT_TOME_OF_STARFALL) {
-                const life_cost = GetWeaponLifeCost(weapon[i], playerID);
+            if (weapon_state[i] > 0 && weapon_id[i] == WEAPON_ANCIENT_TOME_OF_STARFALL) {
+                const life_cost = GetWeaponLifeCost(weapon_id[i], playerID);
                 if (weapon_state[i] == 1 && unit.hp > life_cost) {
                     DoMagicLifeDrainCost(playerID, unit, life_cost);
                 } else if (weapon_state[i] == 1) {
@@ -1849,8 +1932,7 @@ function UpdateWeaponState(playerID) {
                 if (weapon_state[i] > 0) weapon_state[i]++;
                 if (weapon_state[i] >= 20) {
                     weapon_state[i] = 0;
-                    const damage = GetWeaponDamage(weapon[i], weapon_state[i], playerID);
-                    screen.printf("damage: {}", damage);
+                    const damage = GetWeaponDamage(weapon_id[i], weapon_state[i], playerID);
                     DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 192, damage, 8);
                     setloc(L_MAIN, weapon_x[i], weapon_y[i]);
                     CreateImageSpriteAtLocation($P8, L_MAIN, 444, 0, ISCRIPT_LONGFAST);
@@ -1906,6 +1988,16 @@ function UpdateUtilityState(playerID) {
             if (playerID < 6) {
                 unit_order_x, unit_order_y = p_orderx[playerID], p_ordery[playerID];
                 unit_x, unit_y = p_x[playerID], p_y[playerID];
+            } else if (playerID >= 6) {
+                if (unit.hp == 0) {
+                    ResetUtilityIndex(i);
+                    continue;
+                }
+                unit_x = unit.posX;
+                unit_y = unit.posY;
+                unit_order_x = unit.orderTargetX;
+                unit_order_y = unit.orderTargetY;
+                // unit_angle = SCDirectionToDeg(unit.currentDirection1);
             }
             
             // TRIGGER
@@ -1917,6 +2009,10 @@ function UpdateUtilityState(playerID) {
             }
 
             if (utility_state[i] > 0 && utility_id[i] == UTILITY_DASH) {
+                const life_cost = GetUtilityLifeCost(utility_id[i], playerID);
+                if (utility_state[i] == 1 && unit.hp > life_cost) DoMagicLifeDrainCost(playerID, unit, life_cost);
+                else if (utility_state[i] == 1) utility_state[i] = 0;
+                if (playerID < 6 && !IsAlive(playerID)) utility_state[i] = 0;
                 if (utility_state[i] == 1) {
                     utility_x[i], utility_y[i] = unit_x, unit_y;
                     utility_angle[i] = GetAngle(unit_x, unit_y, unit_order_x, unit_order_y);
@@ -1933,19 +2029,14 @@ function UpdateUtilityState(playerID) {
                     if (col_results_terrain == 0) {
                         utility_x[i], utility_y[i] = col_posx, col_posy;
                         setloc(L_MAIN, utility_x[i], utility_y[i]);
-                        TeleportHeroPos(playerID, utility_x[i], utility_y[i]);
+                        TeleportHeroPos(playerID, utility_x[i], utility_y[i]); // This should be made to account for computer units in the future
                         queue_pro_posx = utility_x[i];
                         queue_pro_posy = utility_y[i];
                         queue_pro_maxtime = 6;
                         queue_pro_angle = (utility_angle[i] - 180) + Random(-10, 10);
                         queue_pro_velocity = 20;
                         queue_pro_angular_velocity = Random(-5, 5);
-                        queue_pro_effect0 = 0;
-                        queue_pro_effect0_start = 0;
-                        queue_pro_effect0_drawfunc = 0;
-                        queue_pro_effect0_iscript = 0;
                         queue_pro_effect1 = IMAGE_FRAG_GRENADE_HIT;
-                        queue_pro_effect1_start = 0;
                         queue_pro_effect1_drawfunc = 6;
                         queue_pro_effect1_iscript = ISCRIPT_FAST;
                         queue_pro_effect2 = IMAGE_FRAG_GRENADE_HIT;
@@ -1959,7 +2050,7 @@ function UpdateUtilityState(playerID) {
                     setloc(L_MAIN, utility_x[i], utility_y[i]);
                     CreateImageSpriteAtLocation(playerID, L_MAIN, IMAGE_EXPL_BLUE_SMALL, 6, ISCRIPT_FAST);
                 }
-                utility_state[i]++;
+                if (utility_state[i] > 0) utility_state[i]++;
                 if (utility_state[i] >= 12) {
                     utility_x[i], utility_y[i] = MovePosTowards(utility_x[i], utility_y[i], utility_angle[i], 64);
                     setloc(L_MAIN, utility_x[i], utility_y[i]);
@@ -2125,7 +2216,7 @@ function onPluginStart() {
             if (debug_enabled) {
                 p_attributepoints[playerID] = 20;
                 EquipItem(ARMOR_SHATTERED_KNIGHTS, U_ARMOR, playerID);
-                EquipItem(WEAPON_SHORTSWORD, U_WEAPON, playerID);
+                EquipItem(WEAPON_LIGHTNINGBLAST, U_WEAPON, playerID);
                 EquipItem(UTILITY_DASH, U_UTILITY, playerID);
                 GetVision($P7);
             }
@@ -2335,7 +2426,7 @@ function afterTriggerExec() {
                     const item_name = GetStringItemName(item_id, item_unit_type);
                     const item_description = GetStringItemDescription(item_id, item_unit_type);
                     var equipped_id = 0; // whatever is currently equipped in the target slot
-                    if (item_unit_type == U_WEAPON) equipped_id = weapon[playerID];
+                    if (item_unit_type == U_WEAPON) equipped_id = weapon_id[playerID];
                     else if (item_unit_type == U_ARMOR) equipped_id = p_armor[playerID];
                     const equipped_name = GetStringItemName(equipped_id, item_unit_type);
                     screen.printfAt(0, "\x09\x09\x09\x09\x09\x09\x04--+ \x1F{:s}", item_name);
@@ -2440,6 +2531,11 @@ function afterTriggerExec() {
                 if (p_death_state[playerID] >= 72) {
                     p_death_state[playerID] = 0;
                     SpawnHero(playerID);
+                    if (IsUserCP()) {
+                        screen.printf("\x13\x1FHint: \x02{:s}", GetStringHint(p_current_death_hint));
+                        p_current_death_hint++;
+                    }
+                    
                 }
             }
 
