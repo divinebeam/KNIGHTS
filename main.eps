@@ -49,6 +49,8 @@ const IMAGE_LIGHTNING1 = 551;
 const IMAGE_LIGHTNING2 = 552;
 const IMAGE_LIGHTNING3 = 553;
 const IMAGE_NUKE_DOT = 233;
+const IMAGE_PHOTON_BLASTERS = 519;
+const IMAGE_PARTICLE_BEAM = 520;
 
 const FULL_DAY_LENGTH = 8640;
 const BRIGHTNESS_DEFAULT = 31;
@@ -381,7 +383,7 @@ function GetWeaponCooldown(item_id) {
     else if (item_id == WEAPON_GREATSWORD) return 48;
     else if (item_id == WEAPON_LONGBOW) return 48;
     else if (item_id == WEAPON_GREATBOW) return 48;
-    else if (item_id == WEAPON_LIGHTNINGBLAST) return 48;
+    else if (item_id == WEAPON_LIGHTNINGBLAST) return 48; // 120
     else if (item_id == WEAPON_BLADESTORM) return 48;
 }
 
@@ -396,7 +398,8 @@ function GetWeaponDamage(item_id, state, playerID) { // in the future could make
         else if (item_id == WEAPON_GREATSWORD) damage = 6 + (1 * p_strength[playerID]);
         else if (item_id == WEAPON_LONGBOW) damage = 10 + (2 * p_dexterity[playerID]);
         else if (item_id == WEAPON_GREATBOW) damage = 10 + (2 * p_dexterity[playerID]);
-        else if (item_id == WEAPON_LIGHTNINGBLAST) damage = 4 + (2 * p_resilience[playerID]);
+        else if (item_id == WEAPON_LIGHTNINGBLAST && state == 0) damage = 8 + (2 * p_resilience[playerID]);
+        else if (item_id == WEAPON_LIGHTNINGBLAST && state == 1) damage = 4 + (2 * p_resilience[playerID]);
         else if (item_id == WEAPON_BLADESTORM) damage = 4 + (2 * p_resilience[playerID]);
     } else if (playerID == $P7) {
         if (item_id == WEAPON_SHORTSWORD) damage = 30;
@@ -1038,6 +1041,15 @@ function DrawLine(originx, originy, destinationx, destinationy, dots, imageID, d
     }
 }
 
+function DrawRect(positionx, positiony, width, height, dots, imageID, drawFunc, iscript) {
+    const half_width = width / 2;
+    const half_height = height / 2;
+    DrawLine(positionx - half_width, positiony - half_height, positionx + half_width, positiony - half_height, dots / 4, imageID, drawFunc, iscript);
+    DrawLine(positionx + half_width, positiony - half_height, positionx + half_width, positiony + half_height, dots / 4, imageID, drawFunc, iscript);
+    DrawLine(positionx + half_width, positiony + half_height, positionx - half_width, positiony + half_height, dots / 4, imageID, drawFunc, iscript);
+    DrawLine(positionx - half_width, positiony + half_height, positionx - half_width, positiony - half_height, dots / 4, imageID, drawFunc, iscript);
+}
+
 function ClearTextLines(from_line, to_line) {
     for (var i = from_line; i < to_line + 1; i++) {
         DisplayTextAt(i, "\x0BNull");
@@ -1414,20 +1426,23 @@ function UpdateProjectileCollisions() {
                 } else if (target_state == 0) {
                     CreateImageSpriteAtLocation($P8, L_MAIN, IMAGE_ZERG_AIR_DEATH_SMALL, 0, ISCRIPT_NORMAL);
                     PlayWAVCP("staredit/wav/hitmarker.ogg", pro_owner[i]);
-                    // for (var j = 0; j < 4; j++) {
-                    //     queue_pro_posx = pro_collision_pos_x[i];
-                    //     queue_pro_posy = pro_collision_pos_y[i];
-                    //     queue_pro_maxtime = 10;
-                    //     queue_pro_angle = Random(0, 359);
-                    //     queue_pro_velocity = 30;
-                    //     queue_pro_angular_velocity = Random(-10, 10);
-                    //     queue_pro_effect2_type = 1;
-                    //     queue_pro_effect2 = U_SCOURGE; // 3
-                    //     CreateProjectile();
-                    // }
                 }
             }
-            ResetProjectile(i);
+            // LIGHTNING BLAST
+            if (pro_weapon_id[i] == WEAPON_LIGHTNINGBLAST) {
+                const damage = GetWeaponDamage(WEAPON_LIGHTNINGBLAST, 1, pro_owner[i]);
+                const target_state = DamageUnit(pro_owner[i], pro_collision_unit[i], 100, ACTIVE_UNITS_MAX + 1);
+                setloc(L_MAIN, pro_collision_pos_x[i], pro_collision_pos_y[i]);
+                if (pro_owner[i] < 6) SetHudValue(pro_owner[i], damage, STRING_WEAPON_DAMAGE);
+                if (target_state) {
+                    CreateUnitDeathAtLocation(U_SCOURGE, $P8, L_MAIN);
+                    PlayWAVCP("staredit/wav/hitmarker.ogg", pro_owner[i]);
+                } else if (target_state == 0) {
+                    CreateImageSpriteAtLocation($P8, L_MAIN, IMAGE_ZERG_AIR_DEATH_SMALL, 0, ISCRIPT_NORMAL);
+                    PlayWAVCP("staredit/wav/hitmarker.ogg", pro_owner[i]);
+                }
+            }
+            ResetProjectile(i); // can decide if projectile continues after a collision by changing this
         }
     }
 }
@@ -1865,8 +1880,6 @@ function UpdateWeaponState(playerID) {
 
             // LIGHTNING BLAST
             if (weapon_state[i] > 0 && weapon_id[i] == WEAPON_LIGHTNINGBLAST) {
-                const iterations = 3;
-                const iteration_time = 12;
                 const life_cost = GetWeaponLifeCost(weapon_id[i], playerID);
                 if (weapon_state[i] == 1 && unit.hp > life_cost) {
                     DoMagicLifeDrainCost(playerID, unit, life_cost);
@@ -1875,17 +1888,39 @@ function UpdateWeaponState(playerID) {
                 }
                 if (weapon_state[i] == 1) {
                     weapon_angle[i] = GetAngle(unit_x, unit_y, unit_order_x, unit_order_y);
-                    weapon_x[i], weapon_y[i] = MovePosTowards(unit_x, unit_y, weapon_angle[i], 64);
-                    setloc(L_MAIN, weapon_x[i], weapon_y[i]);
-                    CreateImageSpriteAtLocation($P8, L_MAIN, IMAGE_LIGHTNING_STORM, 0, ISCRIPT_NORMAL);
-                    DrawCircle(weapon_x[i], weapon_y[i], 128, 24, IMAGE_NUKE_DOT, 17, ISCRIPT_NORMAL);
+                    weapon_x[i], weapon_y[i] = MovePosTowards(unit_x, unit_y, weapon_angle[i], 32);
+                    DrawRect(weapon_x[i], weapon_y[i], 96, 96, 24, 435, 16, ISCRIPT_NORMAL);
+                    // DrawCircle(weapon_x[i], weapon_y[i], 96, 20, 435, 16, ISCRIPT_NORMAL);
                     PlayWavAtPos("sound\Bullet\zdeAtt00.wav", weapon_x[i], weapon_y[i], 512);
                 }
-                if (weapon_state[i] == 10) {
-                    DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 128, 5000, 8);
+                if (weapon_state[i] == 20) {
+                    const damage = GetWeaponDamage(weapon_id[i], 0, playerID);
+                    DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 96, damage, 8);
+                    display_damage = damage;
+                    setloc(L_MAIN, weapon_x[i], weapon_y[i]);
+                    CreateImageSpriteAtLocation($P8, L_MAIN, IMAGE_PHOTON_BLASTERS, 16, ISCRIPT_NORMAL);
+                    CreateImageSpriteAtLocation($P8, L_MAIN, IMAGE_PARTICLE_BEAM, 17, ISCRIPT_NORMAL);
+                    const iterations = 1;
+                    for (var j = 0; j < iterations; j++) {
+                        queue_pro_owner = playerID;
+                        queue_pro_weapon_id = weapon_id[i];
+                        queue_pro_posx, queue_pro_posy = weapon_x[i], weapon_y[i];
+                        queue_pro_maxtime = 8;
+                        queue_pro_angle = weapon_angle[i] + Random(-30, 30);
+                        queue_pro_velocity = 60;
+                        queue_pro_effect0 = IMAGE_LIGHTNING0;
+                        queue_pro_effect0_start = 0;
+                        queue_pro_effect1 = IMAGE_LIGHTNING1;
+                        queue_pro_effect1_start = 4;
+                        queue_pro_effect2 = IMAGE_LIGHTNING2;
+                        queue_pro_effect2_start = queue_pro_maxtime;
+                        queue_pro_collide_enemies = 1;
+                        queue_pro_collide_size = 64;
+                        CreateProjectile();
+                    }
                 }
                 if (weapon_state[i] > 0) weapon_state[i]++;
-                if (weapon_state[i] >= 12) {
+                if (weapon_state[i] >= 21) {
                     weapon_state[i] = 0;
                 }
             }

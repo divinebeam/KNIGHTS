@@ -1,6 +1,9 @@
 
 CURRENTLY
-	implementing dash
+	implementing lightning blast
+		maybe should do large aoe but damage gets dispersed the more targets there are
+		so its good against a single target does a lot of damage, but multiple it does small damage.
+		zig zag the projectile, square doesnt look good.
 
 TODO
 	implement drawline function
