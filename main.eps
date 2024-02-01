@@ -22,10 +22,11 @@ const U_SCOURGE = 47;
 const U_WEAPON = 129;
 const U_ARMOR = 219;
 const U_UTILITY = 128;
-const U_MARKER = 7; // P10 = WEAPON, P11 = ARMOR
+const U_MARKER = 7; // P10 = WEAPON, P11 = ARMOR, P12 = SPECIAL
 const U_EXPERIENCE = 220;
 const U_CHECKHEIGHT = 9;
 const U_PATHABLE = 0;
+const U_LIFEPICKUP = 106;
 
 const NPC_GUARDIAN_ANGEL = 1;
 
@@ -51,6 +52,7 @@ const IMAGE_LIGHTNING3 = 553;
 const IMAGE_NUKE_DOT = 233;
 const IMAGE_PHOTON_BLASTERS = 519;
 const IMAGE_PARTICLE_BEAM = 520;
+const IMAGE_SCARAB_MISSILE = 443;
 
 const FULL_DAY_LENGTH = 8640;
 const BRIGHTNESS_DEFAULT = 31;
@@ -60,6 +62,7 @@ const ACTIVE_UNITS_MAX = 40;
 const ACTIVE_UNITS_RECT = 960;
 const MAX_MONSTER_SPAWNS = 1000;
 const MAX_SIGIL_SPAWNS = 10;
+const MAX_WORLD_INTERACTIONS = 10;
 const SIGIL_DIAMETER = 128;
 const CLOSE_LOOT_MENU_DISTANCE = 64;
 
@@ -70,6 +73,7 @@ const PLAYER_DEFAULT_SIGHT = 8;
 const PLAYER_DEFAULT_SHIELD = 0;
 const PLAYER_DEFAULT_DAMAGE = 6;
 const PLAYER_DEFAULT_ATTRIBUTE = 1;
+const PLAYER_LIFE_PICKUP_INCREASE = 20 * 256;
 
 const WEAPON_SHORTSWORD = 1;
 const WEAPON_SHORTBOW = 2;
@@ -160,6 +164,8 @@ const p_current_item_unit = PVariable();
 const p_just_attacked = PVariable();
 const p_order_input = PVariable();
 const p_death_state = PVariable();
+const p_on_world_interaction = PVariable();
+const p_interaction_prompt_delay = PVariable();
 var p_current_death_hint = 0;
 
 const MAX_NPC_UNITS = 30;
@@ -202,6 +208,9 @@ const monster_spawn_y = EUDArray(MAX_MONSTER_SPAWNS);
 const sigil_x = EUDArray(MAX_SIGIL_SPAWNS);
 const sigil_y = EUDArray(MAX_SIGIL_SPAWNS);
 const sigil_glow = EUDArray(MAX_SIGIL_SPAWNS);
+const world_interaction_x = EUDArray(MAX_WORLD_INTERACTIONS);
+const world_interaction_y = EUDArray(MAX_WORLD_INTERACTIONS);
+const world_interaction_size = EUDArray(MAX_WORLD_INTERACTIONS);
 const chunk_spawns = EUDArray(256);
 const chunk_buffer = EUDArray(8);
 const active_units = EUDArray(ACTIVE_UNITS_MAX * 6);
@@ -217,6 +226,9 @@ var days_elapsed = 0;
 var experience_ping_timer = 0;
 var cunit_pathable = 0;
 var cunit_checkheight = 0;
+
+const field_puzzle_state = EUDArray(3);
+const field_puzzle_state_solution = EUDArray(3);
 
 
 function isAlly(p: TrgPlayer, tgp: TrgPlayer) {
@@ -314,6 +326,20 @@ function GetStringHint(id) {
 	}
 }
 
+function GetStringWorldInteractionPrompt(id) {
+    switch(id) {
+        case 0, 1, 2: return Db("\x13\x04Press \x03-<1>- \x04to Examine the Pillar.\n\x13\x04Press \x03-<2>- \x04to Spin the Talisman.");
+        case 3: return Db("hint");
+        case 4: return Db("hint");
+        case 5: return Db("hint");
+        case 6: return Db("hint");
+        case 7: return Db("hint");
+        case 8: return Db("hint");
+        case 9: return Db("hint");
+        case 10: return Db("hint");
+	}
+}
+
 function SetupStringArrays() {
     strings_loot_interactions[0] = Db("\x03-<1>- \x04to Equip.");
     strings_loot_interactions[1] = Db("\x03-<1>- \x04to Equip and swap with: ");
@@ -326,6 +352,12 @@ function SetupSystemUnits() {
     cunit_pathable = CUnit.from_read(EPD(0x628438));
     CreateUnitWithProperties(1, U_PATHABLE, L_CHECK, $P8, UnitProperty(invincible = true));
     GiveUnits(1, U_PATHABLE, $P8, L_ANYWHERE, $P12);
+}
+
+function SetupWorldInteractions() {
+    world_interaction_x[0], world_interaction_y[0] = 3160, 1840; world_interaction_size[0] = 128;
+    world_interaction_x[1], world_interaction_y[1] = 3176, 2800; world_interaction_size[1] = 128;
+    world_interaction_x[2], world_interaction_y[2] = 1976, 2672; world_interaction_size[2] = 128;
 }
 
 function GetWholeAndFraction(value) {
@@ -666,6 +698,16 @@ function SpawnInitialItemUnits() {
                 RemoveUnitAt(1, U_MARKER, L_MAIN, $P11);
                 const new_unit = CUnit(CreateCUnit(U_ARMOR, $P8, L_MAIN));
                 new_unit.energy = armor_id;
+                new_unit.shield = GetSumOfActivePlayerBits();
+            }
+        } else if (unit.playerID == $P12) {
+            if (unit.unitType == U_MARKER) {
+                const special_id = unit.hp / 256;
+                var create_unit = 0;
+                setloc(L_MAIN, unit.posX, unit.posY);
+                RemoveUnitAt(1, U_MARKER, L_MAIN, $P12);
+                if (special_id == 1) create_unit = U_LIFEPICKUP;
+                const new_unit = CUnit(CreateCUnit(create_unit, $P8, L_MAIN));
                 new_unit.shield = GetSumOfActivePlayerBits();
             }
         }
@@ -1431,7 +1473,7 @@ function UpdateProjectileCollisions() {
             // LIGHTNING BLAST
             if (pro_weapon_id[i] == WEAPON_LIGHTNINGBLAST) {
                 const damage = GetWeaponDamage(WEAPON_LIGHTNINGBLAST, 1, pro_owner[i]);
-                const target_state = DamageUnit(pro_owner[i], pro_collision_unit[i], 100, ACTIVE_UNITS_MAX + 1);
+                const target_state = DamageUnit(pro_owner[i], pro_collision_unit[i], damage, ACTIVE_UNITS_MAX + 1);
                 setloc(L_MAIN, pro_collision_pos_x[i], pro_collision_pos_y[i]);
                 if (pro_owner[i] < 6) SetHudValue(pro_owner[i], damage, STRING_WEAPON_DAMAGE);
                 if (target_state) {
@@ -1889,8 +1931,7 @@ function UpdateWeaponState(playerID) {
                 if (weapon_state[i] == 1) {
                     weapon_angle[i] = GetAngle(unit_x, unit_y, unit_order_x, unit_order_y);
                     weapon_x[i], weapon_y[i] = MovePosTowards(unit_x, unit_y, weapon_angle[i], 32);
-                    DrawRect(weapon_x[i], weapon_y[i], 96, 96, 24, 435, 16, ISCRIPT_NORMAL);
-                    // DrawCircle(weapon_x[i], weapon_y[i], 96, 20, 435, 16, ISCRIPT_NORMAL);
+                    DrawCircle(weapon_x[i], weapon_y[i], 96, 20, 435, 16, ISCRIPT_NORMAL);
                     PlayWavAtPos("sound\Bullet\zdeAtt00.wav", weapon_x[i], weapon_y[i], 512);
                 }
                 if (weapon_state[i] == 20) {
@@ -2227,6 +2268,7 @@ function onPluginStart() {
     StoreSpawnPositions();
     SpawnInitialItemUnits();
     SetupSystemUnits();
+    SetupWorldInteractions();
     EUDPlayerLoop()();
         const playerID = getcurpl();
         if (playerID >= 0 && playerID < 6) {
@@ -2244,6 +2286,7 @@ function onPluginStart() {
             PlaySong(0);
         }
     EUDEndPlayerLoop();
+    setloc(L_MAIN, 2912, 2048);
 }
 // @bm afterTriggerExec
 function afterTriggerExec() {
@@ -2278,6 +2321,7 @@ function afterTriggerExec() {
             p_order_input[playerID] = 0;
             var unit_is_indoors = 0;
             var unit_took_health_damage = 0;
+            if (p_interaction_prompt_delay[playerID] > 0) p_interaction_prompt_delay[playerID]--;
             if (IsAlive(playerID)) {
                 p_x[playerID], p_y[playerID] = unit.posX, unit.posY;
                 p_angle[playerID] = SCDirectionToDeg(unit.currentDirection1);
@@ -2308,6 +2352,7 @@ function afterTriggerExec() {
                     JustEnteredChunk(x, y);
                 }
                 p_indoors[playerID] = IsPosIndoors(p_x[playerID], p_y[playerID]);
+                // check for nearby sigils
                 var sigil = MAX_SIGIL_SPAWNS;
                 for (var i = 0; i < MAX_SIGIL_SPAWNS; i++) {
                     if (sigil_x[i] > 0) {
@@ -2326,7 +2371,29 @@ function afterTriggerExec() {
                 } else if (sigil >= MAX_SIGIL_SPAWNS && p_on_sigil[playerID] > 0) {
                     p_on_sigil[playerID] = 0;
                 }
-                
+                // check for nearby world interactions
+                var world_interaction_index = MAX_WORLD_INTERACTIONS;
+                for (var i = 0; i < MAX_WORLD_INTERACTIONS; i++) {
+                    if (world_interaction_x[i] > 0) {
+                        const l, r, t, b = PosToSquare(world_interaction_x[i], world_interaction_y[i], world_interaction_size[i]);
+                        if (IsPosWithinRect(p_x[playerID], p_y[playerID], l, r, t, b)) {
+                            world_interaction_index = i;
+                            break;
+                        }
+                    }
+                }
+                if (world_interaction_index < MAX_WORLD_INTERACTIONS && p_on_world_interaction[playerID] == 0) {
+                    p_on_world_interaction[playerID] = world_interaction_index + 1;
+                    setloc(L_MAIN, world_interaction_x[p_on_world_interaction[playerID] - 1], world_interaction_y[p_on_world_interaction[playerID] - 1]);
+                    CreateImageSpriteAtLocation($P8, L_MAIN, IMAGE_SCARAB_MISSILE, 17, ISCRIPT_FAST);
+                    if (p_interaction_prompt_delay[playerID] == 0) {
+                        p_interaction_prompt_delay[playerID] = 72;
+                        const text = GetStringWorldInteractionPrompt(p_on_world_interaction[playerID] - 1);
+                        screen.printf("{:s}", text);
+                    }
+                } else if (world_interaction_index >= MAX_SIGIL_SPAWNS && p_on_world_interaction[playerID] > 0) {
+                    p_on_world_interaction[playerID] = 0;
+                }
             }
             UpdateBrightness(playerID);
             UpdateSightRange(playerID);
@@ -2348,6 +2415,23 @@ function afterTriggerExec() {
             } else if (p_on_sigil[playerID] == 0 && m_main[playerID] > 0) {
                 m_main[playerID] = 0;
                 ClearTextLines(0, 9);
+            }
+
+            // WORLD INTERACTIONS
+            if (p_on_world_interaction[playerID] && IsAlive(playerID)) {
+                const index = p_on_world_interaction[playerID] - 1;
+                /*
+                BIRD PILLAR
+                    North: "Where the frost-kissed feathers of the snow owl catch the first light, darkness stirs in silent anticipation."
+                    East: "With the rising sun, the crane takes flight, casting shadows that guide the unborn to awaken in the warmth of the dawn."
+                    South: "In the fiery embrace of the midday sun, the phoenix soars, signaling the faithful to embrace the radiant energy of the sky."
+                    West: "As the day bids farewell and the heron glides towards the horizon, a secret is whispered by the western winds."
+                
+                WOLF PILLAR
+
+                FISH PILLAR
+                
+                 */
             }
 
             // HEALTH
@@ -2409,24 +2493,34 @@ function afterTriggerExec() {
                 }
             }
 
-            // UNIT ATTACK
+            // @bm UNIT ATTACK
             if (IsAlive(playerID)) {
                 if (unit.groundWeaponCooldown == 26) {
                     p_just_attacked[playerID] = 1;
                     unit.groundWeaponCooldown -= GetAttackSpeed(playerID);
                     const target = unit.orderTargetUnit;
                     var target_is_valid = 1;
-                    if (target.unitID == U_WEAPON || target.unitID == U_ARMOR) {
+                    // LOOTING
+                    if (target.unitID == U_WEAPON || target.unitID == U_ARMOR || target.unitID == U_LIFEPICKUP) {
                         unit.orderID = 3;
                         p_just_attacked[playerID] = 0;
                         CenterLocHero(L_16x16, playerID);
                         ModifyUnitHitPoints(All, target.unitID, $P8, L_16x16, 100);
                         target_is_valid = 0;
                         if (UnitItemHasBeenLooted(playerID, target.shield)) {
-                            DisplayText("You've already looted this.");
+                            DisplayText("\x13\x04You've already looted this.");
                         } else {
                             p_current_item_unit[playerID] = target;
                             PlayWAV("staredit/wav/check_item.ogg");
+                        }
+                        if (target.unitID == U_LIFEPICKUP) {
+                            p_current_item_unit[playerID] = 0;
+                            target.shield = ModifyItemLootedStatus(playerID, target.shield);
+                            SetMaxHP(playerID, p_health_max[playerID] + PLAYER_LIFE_PICKUP_INCREASE);
+                        }
+                        if (target.shield == 0) { // remove the unit if the loot status returns 0
+                            setloc(L_MAIN, target.posX, target.posY);
+                            RemoveUnitAt(1, target.unitID, L_MAIN, $P8);
                         }
                     }
                     if (target_is_valid) DamageUnit(playerID, target, p_damage[playerID], ACTIVE_UNITS_MAX + 1);

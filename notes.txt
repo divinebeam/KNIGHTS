@@ -13,6 +13,7 @@ TODO
 	computers should anticipate players movement with aoe or aim skills, like maybe should make a prediction of where the player is going to be.
 	display stats on upgrade icons on unit
 	if you have no armor then you shouldnt dodge, same with if you have full shields
+	remove players flag from unit items if they leave the game.
 
 BUGS
 	for some reason short sword casts on swap with another weapon
@@ -49,6 +50,13 @@ IDEAS
 	dialogue:
 		God wills it
 		all death is certain
+		this is not heaven, its the world. and theres trouble in it.
+		God protect you.
+		someone knows... God knows!
+		all will be settled
+		there, at the end of the world, you are not what you were born, but what you have it in yourself to be.
+		i hope to find forgiveness.
+		all is as god wills it.
 	
 	attributes that can be changed
 		health
