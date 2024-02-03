@@ -23,6 +23,7 @@ BUGS
 	heard the angel wing sound at the bottom of the mountain when I wasnt even close to the angel
 	fireball seems to mess up star fall tome
 	unit gets stuck when swapping items
+	dash thinks theres a collision when theres not.
 
 	
 IDEAS
@@ -89,6 +90,10 @@ IDEAS
 	secondarys should drop from the first bosses
 	what if blood moon happens every 5 or 10 days
 	what if blood moon starts with a meteor dropping and the impact site is some random event.
+	North: "Where the frost-kissed feathers of the snow owl catch the first light, darkness stirs in silent anticipation."
+    East: "With the rising sun, the crane takes flight, casting shadows that guide the unborn to awaken in the warmth of the dawn."
+    South: "In the fiery embrace of the midday sun, the phoenix soars, signaling the faithful to embrace the radiant energy of the sky."
+    West: "As the day bids farewell and the heron glides towards the horizon, a secret is whispered by the western winds."
 
 GAMEPLAY
 	players should choose loadout at the beginning of the match

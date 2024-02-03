@@ -67,6 +67,7 @@ const SIGIL_DIAMETER = 128;
 const CLOSE_LOOT_MENU_DISTANCE = 64;
 
 const MENU_MAIN_SIGIL = 1;
+const MENU_MAIN_FIELD_PILLAR = 2;
 
 const PLAYER_DEFAULT_HP = 100;
 const PLAYER_DEFAULT_SIGHT = 8;
@@ -226,6 +227,7 @@ var days_elapsed = 0;
 var experience_ping_timer = 0;
 var cunit_pathable = 0;
 var cunit_checkheight = 0;
+var world_interaction_visual_timer = 0;
 
 const field_puzzle_state = EUDArray(3);
 const field_puzzle_state_solution = EUDArray(3);
@@ -328,7 +330,7 @@ function GetStringHint(id) {
 
 function GetStringWorldInteractionPrompt(id) {
     switch(id) {
-        case 0, 1, 2: return Db("\x13\x04Press \x03-<1>- \x04to Examine the Pillar.\n\x13\x04Press \x03-<2>- \x04to Spin the Talisman.");
+        case 0, 1, 2: return Db("\x13\x04Press \x03-<F>- \x04to Examine the Pillar.");
         case 3: return Db("hint");
         case 4: return Db("hint");
         case 5: return Db("hint");
@@ -358,6 +360,41 @@ function SetupWorldInteractions() {
     world_interaction_x[0], world_interaction_y[0] = 3160, 1840; world_interaction_size[0] = 128;
     world_interaction_x[1], world_interaction_y[1] = 3176, 2800; world_interaction_size[1] = 128;
     world_interaction_x[2], world_interaction_y[2] = 1976, 2672; world_interaction_size[2] = 128;
+    // randomize solutions
+    var solution1_used = 0;
+    var solution2_used = 0;
+    var solution3_used = 0;
+    var solution4_used = 0;
+    for (var i = 0; i < 3; i++) {
+        var r = Random(1, 4);
+        while (field_puzzle_state_solution[i] == 0) {
+            if (!solution1_used && r == 1) {
+                solution1_used = 1;
+                field_puzzle_state_solution[i] = 1;
+                break;
+            } else if (!solution2_used && r == 2) {
+                solution2_used = 1;
+                field_puzzle_state_solution[i] = 2;
+                break;
+            } else if (!solution3_used && r == 3) {
+                solution3_used = 1;
+                field_puzzle_state_solution[i] = 3;
+                break;
+            } else if (!solution4_used && r == 4) {
+                solution4_used = 1;
+                field_puzzle_state_solution[i] = 4;
+                break;
+            } else if (r >= 4) r = 0;
+            else r++;
+        }
+    }
+    // randomize positions
+    for (var i = 0; i < 3; i++) field_puzzle_state[i] = Random(1, 4);
+    if (field_puzzle_state[0] == field_puzzle_state_solution[0] && field_puzzle_state[1] == field_puzzle_state_solution[1] && field_puzzle_state[2] == field_puzzle_state_solution[2]) {
+        const r_index = Random(0, 2);
+        if (field_puzzle_state[r_index] >= 4) field_puzzle_state[r_index] = 0;
+        else field_puzzle_state[r_index]++;
+    }
 }
 
 function GetWholeAndFraction(value) {
@@ -988,6 +1025,12 @@ function MovePosTowards(positionx, positiony, angle, distance) {
     return new_positionx, new_positiony;
 }
 
+function RotatePosAroundPoint(positionx, positiony, pointx, pointy, rotation) {
+    const distance = GetDistance(positionx, positiony, pointx, pointy);
+    const new_positionx, new_positiony = MovePosTowards(pointx, pointy, rotation, distance);
+    return new_positionx, new_positiony;
+}
+
 function Random(min, max) {
    return min + dwrand() / (4294967295 / (max - min + 1) + 1);
 }
@@ -1086,10 +1129,20 @@ function DrawLine(originx, originy, destinationx, destinationy, dots, imageID, d
 function DrawRect(positionx, positiony, width, height, dots, imageID, drawFunc, iscript) {
     const half_width = width / 2;
     const half_height = height / 2;
-    DrawLine(positionx - half_width, positiony - half_height, positionx + half_width, positiony - half_height, dots / 4, imageID, drawFunc, iscript);
-    DrawLine(positionx + half_width, positiony - half_height, positionx + half_width, positiony + half_height, dots / 4, imageID, drawFunc, iscript);
-    DrawLine(positionx + half_width, positiony + half_height, positionx - half_width, positiony + half_height, dots / 4, imageID, drawFunc, iscript);
-    DrawLine(positionx - half_width, positiony + half_height, positionx - half_width, positiony - half_height, dots / 4, imageID, drawFunc, iscript);
+    // if (rotation > 0) {
+    //     const pos0x, pos0y = RotatePosAroundPoint(positionx - half_width, positiony - half_height, positionx, positiony, 225 + rotation);
+    //     const pos1x, pos1y = RotatePosAroundPoint(positionx + half_width, positiony - half_height, positionx, positiony, 315 + rotation);
+    //     const pos2x, pos2y = RotatePosAroundPoint(positionx + half_width, positiony + half_height, positionx, positiony, 45 + rotation);
+    //     const pos3x, pos3y = RotatePosAroundPoint(positionx - half_width, positiony + half_height, positionx, positiony, 135 + rotation);
+    //     DrawLine(pos0x, pos0y, pos1x, pos1y, dots / 4, imageID, drawFunc, iscript);
+    //     DrawLine(pos1x, pos1y, pos2x, pos2y, dots / 4, imageID, drawFunc, iscript);
+    //     DrawLine(pos2x, pos2y, pos3x, pos3y, dots / 4, imageID, drawFunc, iscript);
+    //     DrawLine(pos3x, pos3y, pos0x, pos0y, dots / 4, imageID, drawFunc, iscript);
+    // } else {
+        DrawLine(positionx - half_width, positiony - half_height, positionx + half_width, positiony - half_height, dots / 4, imageID, drawFunc, iscript);
+        DrawLine(positionx + half_width, positiony - half_height, positionx + half_width, positiony + half_height, dots / 4, imageID, drawFunc, iscript);
+        DrawLine(positionx + half_width, positiony + half_height, positionx - half_width, positiony + half_height, dots / 4, imageID, drawFunc, iscript);
+        DrawLine(positionx - half_width, positiony + half_height, positionx - half_width, positiony - half_height, dots / 4, imageID, drawFunc, iscript);
 }
 
 function ClearTextLines(from_line, to_line) {
@@ -2264,6 +2317,7 @@ function UpdateNPCs() {
 
 // @bm onPluginStart
 function onPluginStart() {
+    randomize();
     SetupStringArrays();
     StoreSpawnPositions();
     SpawnInitialItemUnits();
@@ -2412,26 +2466,41 @@ function afterTriggerExec() {
                     p_homepos_y[playerID] = sigil_y[p_current_sigil[playerID]];
                 }
 
-            } else if (p_on_sigil[playerID] == 0 && m_main[playerID] > 0) {
+            } else if (p_on_sigil[playerID] == 0 && m_main[playerID] == MENU_MAIN_SIGIL) {
                 m_main[playerID] = 0;
                 ClearTextLines(0, 9);
             }
 
-            // WORLD INTERACTIONS
+            // @bm WORLD INTERACTIONS
             if (p_on_world_interaction[playerID] && IsAlive(playerID)) {
                 const index = p_on_world_interaction[playerID] - 1;
-                /*
-                BIRD PILLAR
-                    North: "Where the frost-kissed feathers of the snow owl catch the first light, darkness stirs in silent anticipation."
-                    East: "With the rising sun, the crane takes flight, casting shadows that guide the unborn to awaken in the warmth of the dawn."
-                    South: "In the fiery embrace of the midday sun, the phoenix soars, signaling the faithful to embrace the radiant energy of the sky."
-                    West: "As the day bids farewell and the heron glides towards the horizon, a secret is whispered by the western winds."
-                
-                WOLF PILLAR
-
-                FISH PILLAR
-                
-                 */
+                if (m_main[playerID] == 0 && keypress_f[playerID] > 0) {
+                    m_main[playerID] = MENU_MAIN_FIELD_PILLAR;
+                } else if (m_main[playerID] == MENU_MAIN_FIELD_PILLAR) {
+                    if (keypress_1[playerID]) {
+                        if (field_puzzle_state[index] >= 4) field_puzzle_state[index] = 1;
+                        else field_puzzle_state[index]++;
+                        world_interaction_visual_timer = 1;
+                    }
+                    if (field_puzzle_state_solution[index] == 1) {
+                        DisplayTextAt(0, "\x09\x09\x09\x02The inscription reads: \x04\"Where the frost-kissed feathers of the snow owl catch the first light,");
+                        DisplayTextAt(1, "\x09\x09\x09\x04darkness stirs in silent anticipation.\"");
+                    } else if (field_puzzle_state_solution[index] == 2) {
+                        DisplayTextAt(0, "\x09\x09\x09\x02The inscription reads: \x04\"With the rising sun, the crane takes flight,");
+                        DisplayTextAt(1, "\x09\x09\x09\x04casting shadows that guide the unborn to awaken in the warmth of the dawn.\"");
+                    } else if (field_puzzle_state_solution[index] == 3) {
+                        DisplayTextAt(0, "\x09\x09\x09\x02The inscription reads: \x04\"In the fiery embrace of the midday sun, the phoenix soars,");
+                        DisplayTextAt(1, "\x09\x09\x09\x04signaling the faithful to embrace the radiant energy of the sky.\"");
+                    } else if (field_puzzle_state_solution[index] == 4) {
+                        DisplayTextAt(0, "\x09\x09\x09\x02The inscription reads: \x04\"As the day bids farewell and the heron glides towards the horizon,");
+                        DisplayTextAt(1, "\x09\x09\x09\x04a secret is whispered by the western winds.\"");
+                    }
+                    DisplayTextAt(2, "\x0BNull");
+                    DisplayTextAt(3, "\x09\x09\x09\x03Press -<1>- to Spin the attached Stone Handle.");
+                }
+            } else if (p_on_world_interaction[playerID] == 0 && m_main[playerID] == MENU_MAIN_FIELD_PILLAR) {
+                m_main[playerID] = 0;
+                ClearTextLines(0, 3);
             }
 
             // HEALTH
@@ -2489,7 +2558,6 @@ function afterTriggerExec() {
                         CreateImageSpriteAtLocation($P8, L_MAIN, 107, 16, ISCRIPT_NORMAL);
                     }
                     p_shield[playerID] = unit.shield;
-                    // screen.printf("{} armor LOST", armor_lost / 256);
                 }
             }
 
@@ -2670,6 +2738,9 @@ function afterTriggerExec() {
                 }
                 debug_values[6] = p_x[playerID];
                 debug_values[7] = p_y[playerID];
+                debug_values[0] = field_puzzle_state[0];
+                debug_values[1] = field_puzzle_state[1];
+                debug_values[2] = field_puzzle_state[2];
                 eprintf("{} | {} | {} | {} | {} | {} | {} | {}", debug_values[0], debug_values[1], debug_values[2], debug_values[3], debug_values[4], debug_values[5], debug_values[6], debug_values[7]);
             }
         }
@@ -2681,6 +2752,28 @@ function afterTriggerExec() {
     EUDEndPlayerLoop();
 
     UpdateNPCs();
+
+    if (world_interaction_visual_timer == 0) world_interaction_visual_timer = 24;
+    else if (world_interaction_visual_timer > 0) world_interaction_visual_timer--;
+
+    // FIELD PUZZLE
+    if (world_interaction_visual_timer == 0) {
+        for (var i = 0; i < 3; i++) {
+            var player_close = 0;
+            for (var p = 0; p < 6; p++) {
+                if (p_on_world_interaction[p] == i + 1) player_close = 1;
+            }
+            if (player_close) {
+                const x, y = world_interaction_x[i], world_interaction_y[i];
+                const offset = 32;
+                DrawCircle(x, y, 64, 20, IMAGE_NUKE_DOT, 17, ISCRIPT_NORMAL);
+                if (field_puzzle_state[i] == 1) DrawLine(x, y, x, y - 64, 8, IMAGE_LONGBOLT_TRAIL, 17, ISCRIPT_NORMAL);
+                else if (field_puzzle_state[i] == 2) DrawLine(x, y, x + 64, y, 8, IMAGE_LONGBOLT_TRAIL, 17, ISCRIPT_NORMAL);
+                else if (field_puzzle_state[i] == 3) DrawLine(x, y, x, y + 64, 8, IMAGE_LONGBOLT_TRAIL, 17, ISCRIPT_NORMAL);
+                else if (field_puzzle_state[i] == 4) DrawLine(x, y, x - 64, y, 8, IMAGE_LONGBOLT_TRAIL, 17, ISCRIPT_NORMAL);
+            }
+        }
+    }
 
     if (!debug_enabled) {
         if (total_time == 48) {
