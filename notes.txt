@@ -4,10 +4,11 @@ CURRENTLY
 		maybe should do large aoe but damage gets dispersed the more targets there are
 		so its good against a single target does a lot of damage, but multiple it does small damage.
 		zig zag the projectile, square doesnt look good.
+	implementing field puzzle
+		spawn enemies
+		polish effects
 
 TODO
-	implement drawline function
-	make it so your spawn position changes when you visit the first sigil
 	hints at the beginning when you die
 	PROJECTILE SYSTEM: trail images, orbiting opposing image, acceleration, orbit images, projectile target, projectile turn amount towards target etc.
 	computers should anticipate players movement with aoe or aim skills, like maybe should make a prediction of where the player is going to be.
@@ -15,15 +16,42 @@ TODO
 	if you have no armor then you shouldnt dodge, same with if you have full shields
 	remove players flag from unit items if they leave the game.
 
+	VERSION 0.1 CHECK LIST
+			[x] SHORT SWORD		Recover armor when you get a kill
+			[-] LONG SWORD		Damage multiplier for multi kills
+			[-] GREAT SWORD		Damage multiplier for multi kills + knockback
+			[x] SHORT BOW		fast low
+			[-] LONG BOW		normal medium
+			[-] GREAT BOW		slow great
+			[x] FIRE BALL
+			[x] LIGHTNING BLAST
+			[-] BLADE STORM
+			[x] STAR FALL
+			[-] cetus boss fight
+			[-] aldus boss fight
+			[-] breven boss fight
+			[-] find life anointment 1 - field puzzle
+			[-] find life anointment 2 - hidden in aldus cave
+			[-] find life anointment 3
+			[-] find life anointment 4
+			[-] find life anointment 5
+			[-] cetus/aldus cave
+			[-] north cave
+			[-] east cave
+			[-] breven cave
+
+
 BUGS
 	for some reason short sword casts on swap with another weapon
-	MAYBE FIXED sometimes damageunit doesnt seem to properly kill units and they get stuck at 0 hp, seems really inconsistent and doesnt happen at all sometimes
-	MAYBE FIXED randomly getting 1 exp
-	might be a bug where you're getting shields broken after death because of some var not being set or something
-	heard the angel wing sound at the bottom of the mountain when I wasnt even close to the angel
-	fireball seems to mess up star fall tome
+	??? sometimes damageunit doesnt seem to properly kill units and they get stuck at 0 hp, seems really inconsistent and doesnt happen at all sometimes
+	??? randomly getting 1 exp
+	??? might be a bug where you're getting shields broken after death because of some var not being set or something
+	??? heard the angel wing sound at the bottom of the mountain when I wasnt even close to the angel
+	??? fireball seems to mess up star fall tome
 	unit gets stuck when swapping items
-	dash thinks theres a collision when theres not.
+	??? dash thinks theres a collision when theres not.
+	??? armor not replenishing if you get a kill with lightning blast
+	??? guardian angel NPC index doesnt kill itself when it doesnt exist leading to erratic behaviour
 
 	
 IDEAS
@@ -59,29 +87,10 @@ IDEAS
 		i hope to find forgiveness.
 		all is as god wills it.
 	
-	attributes that can be changed
-		health
-		health regen
-		movement speed
-		ability cost
-		knight sword damage
 	angles
 	 	1.4063deg = 1 SC direction
 		11.25deg = 8 SC direction
 		22.5deg = 16 SC direction
-
-	NAME NAME
-		Description
-		-<1>- Equip/Take
-		-<2>- 
-
-	BITS
-		0 = 1
-		1 = 2
-		2 = 4
-		3 = 8
-		4 = 16
-		5 = 32
 	
 	what if the maze had randomized teleporters
 	what if when you reach certain amounts of kills you get proficiency in killing certain monsters
@@ -90,10 +99,7 @@ IDEAS
 	secondarys should drop from the first bosses
 	what if blood moon happens every 5 or 10 days
 	what if blood moon starts with a meteor dropping and the impact site is some random event.
-	North: "Where the frost-kissed feathers of the snow owl catch the first light, darkness stirs in silent anticipation."
-    East: "With the rising sun, the crane takes flight, casting shadows that guide the unborn to awaken in the warmth of the dawn."
-    South: "In the fiery embrace of the midday sun, the phoenix soars, signaling the faithful to embrace the radiant energy of the sky."
-    West: "As the day bids farewell and the heron glides towards the horizon, a secret is whispered by the western winds."
+	what if strength makes you faster with big weapons and dexterity makes you faster with small weapons
 
 GAMEPLAY
 	players should choose loadout at the beginning of the match
