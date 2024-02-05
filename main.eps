@@ -28,6 +28,7 @@ const U_UTILITY = 128;
 const U_MARKER = 7; // P10 = WEAPON, P11 = ARMOR, P12 = SPECIAL
 const U_EXPERIENCE = 220;
 const U_CHECKHEIGHT = 9;
+const U_CHECK_TERRAIN_COLLIDER = 54; // 42
 const U_PATHABLE = 0;
 const U_LIFEPICKUP = 106;
 
@@ -372,6 +373,10 @@ function SetupSystemUnits() {
     cunit_pathable = CUnit.from_read(EPD(0x628438));
     CreateUnitWithProperties(1, U_PATHABLE, L_CHECK, $P8, UnitProperty(invincible = true));
     GiveUnits(1, U_PATHABLE, $P8, L_ANYWHERE, $P12);
+    const cunit_checkterrain = CUnit.from_read(EPD(0x628438));
+    CreateUnitWithProperties(1, U_CHECK_TERRAIN_COLLIDER, L_CHECK, $P8, UnitProperty(invincible = true));
+    GiveUnits(1, U_CHECK_TERRAIN_COLLIDER, $P8, L_ANYWHERE, $P12);
+    cunit_checkterrain.orderID = 116;
 }
 
 function SetupWorldInteractions() {
@@ -1236,23 +1241,36 @@ function PosIsPathable(positionx, positiony, distance_tolerance) {
     return 0;
 }
 
+function PosHasTerrainCollider(positionx, positiony) {
+    setloc(L_MAIN, positionx, positiony);
+    MoveUnit(All, U_CHECK_TERRAIN_COLLIDER, $P12, L_ANYWHERE, L_MAIN);
+    if (Bring($P12, AtLeast, 1, U_CHECK_TERRAIN_COLLIDER, L_MAIN)) {
+        MoveUnit(All, U_CHECK_TERRAIN_COLLIDER, $P12, L_ANYWHERE, L_CHECK);
+        return 0;
+    }
+    MoveUnit(All, U_CHECK_TERRAIN_COLLIDER, $P12, L_ANYWHERE, L_CHECK);
+    return 1;
+}
+
 var col_posx = 0;
 var col_posy = 0;
 var col_enemies = 0;
 var col_allies = 0;
-var col_terrain = 0; // check if the posx, posy is unpathable.
+var col_pathable = 0; // check if the posx, posy is unpathable.
+var col_terrain = 0;
 var col_shape = 0; // determines if the check will be for circle or square. Shape only works for units. 
 var col_shape_size = 0; // width of the square, or diameter of the circle.
 var col_max_results = 0; // should probably increase max results in the future and make it a constant
 const col_results_unit = EUDArray(8); // unit pointers
 const col_results_unit_activei = EUDArray(8); // index position of the unit in the active units array, this is for deleting it from the active units array if it dies.
-var col_results_unit_i = 0; // keeps track of how many things have been added to the results array
+var col_results_unit_amount = 0; // keeps track of how many things have been added to the results array
+var col_results_pathable = 0;
 var col_results_terrain = 0;
 function AddUnitToColResults(value, indexfromactive) {
-    if (col_results_unit_i < col_max_results) {
-        col_results_unit[col_results_unit_i] = value;
-        col_results_unit_activei[col_results_unit_i] = indexfromactive;
-        col_results_unit_i++;
+    if (col_results_unit_amount < col_max_results) {
+        col_results_unit[col_results_unit_amount] = value;
+        col_results_unit_activei[col_results_unit_amount] = indexfromactive;
+        col_results_unit_amount++;
         return 0;
     } else {
         return 1;
@@ -1264,13 +1282,15 @@ function ResetCheckCollision() {
     col_posy = 0;
     col_enemies = 0;
     col_allies = 0;
+    col_pathable = 0;
     col_terrain = 0;
     col_shape = 0;
     col_shape_size = 0;
     col_max_results = 0;
     for (var i = 0; i < 8; i++) col_results_unit[i] = 0;
     for (var i = 0; i < 8; i++) col_results_unit_activei[i] = 0;
-    col_results_unit_i = 0;
+    col_results_unit_amount = 0;
+    col_results_pathable = 0;
     col_results_terrain = 0;
 }
 // @bm CheckCollision
@@ -1314,9 +1334,18 @@ function CheckCollision(playerID) {
             }
         }
     }
+    if (col_pathable) {
+        if (!PosIsPathable(col_posx, col_posy, col_shape_size)) {
+            col_results_pathable = 1;
+            result_exists = 1;
+        } else col_results_pathable = 0;
+        if (col_results_pathable) DisplayTextAll("pathable collision");
+    }
     if (col_terrain) {
-        if (!PosIsPathable(col_posx, col_posy, col_shape_size)) col_results_terrain = 1;
-        else col_results_terrain = 0;
+        if (PosHasTerrainCollider(col_posx, col_posy)) {
+            col_results_terrain = 1;
+            result_exists = 1;
+        } else col_results_terrain = 0;
         if (col_results_terrain) DisplayTextAll("terrain collision");
     }
     return result_exists;
@@ -1519,7 +1548,7 @@ function UpdateProjectiles() {
             col_posy = pro_posy[i];
             col_enemies = pro_collide_enemies[i];
             col_allies = pro_collide_allies[i];
-            col_terrain = pro_collide_terrain[i];
+            col_pathable = pro_collide_terrain[i];
             col_shape = pro_collide_shape[i];
             col_shape_size = pro_collide_size[i];
             col_max_results = 1;
@@ -1692,6 +1721,98 @@ function UpdateEvents() {
             if (event_time[i] >= event_maxtime[i]) {
                 ResetEvent(i);
             }
+        }
+    }
+}
+
+const UNIT_PHYSICS_POOL = 50;
+const uphys_time = EUDArray(UNIT_PHYSICS_POOL);
+const uphys_cunit = EUDArray(UNIT_PHYSICS_POOL);
+const uphys_posx = EUDArray(UNIT_PHYSICS_POOL);
+const uphys_posy = EUDArray(UNIT_PHYSICS_POOL);
+const uphys_angle = EUDArray(UNIT_PHYSICS_POOL);
+const uphys_velocity = EUDArray(UNIT_PHYSICS_POOL);
+const uphys_dampening = EUDArray(UNIT_PHYSICS_POOL);
+const uphys_dampening_start = EUDArray(UNIT_PHYSICS_POOL);
+function ResetUnitPhysics(i) {
+    uphys_time[i] = 0;
+    uphys_cunit[i] = 0;
+    uphys_posx[i] = 0;
+    uphys_posy[i] = 0;
+    uphys_angle[i] = 0;
+    uphys_velocity[i] = 0;
+    uphys_dampening[i] = 0;
+    uphys_dampening_start[i] = 0;
+}
+
+var queue_uphys_time = 0;
+var queue_uphys_cunit = 0;
+var queue_uphys_posx = 0;
+var queue_uphys_posy = 0;
+var queue_uphys_angle = 0;
+var queue_uphys_velocity = 0;
+var queue_uphys_dampening = 0;
+var queue_uphys_dampening_start = 0;
+function ResetUnitPhysicsQueue() {
+    queue_uphys_time = 0;
+    queue_uphys_cunit = 0;
+    queue_uphys_posx = 0;
+    queue_uphys_posy = 0;
+    queue_uphys_angle = 0;
+    queue_uphys_velocity = 0;
+    queue_uphys_dampening = 0;
+    queue_uphys_dampening_start = 0;
+}
+
+function CreateUnitPhysics() {
+    for (var i = 0; i < UNIT_PHYSICS_POOL; i++) {
+        if (uphys_time[i] == 0) {
+            uphys_time[i] = 1;
+            uphys_cunit[i] = queue_uphys_cunit;
+            uphys_posx[i] = queue_uphys_posx;
+            uphys_posy[i] = queue_uphys_posy;
+            uphys_angle[i] = queue_uphys_angle;
+            uphys_velocity[i] = queue_uphys_velocity;
+            uphys_dampening[i] = queue_uphys_dampening;
+            uphys_dampening_start[i] = queue_uphys_dampening_start + 1;
+            ResetUnitPhysicsQueue();
+            break;
+        }
+    }
+}
+
+function UpdateUnitPhysics() {
+    for (var i = 0; i < UNIT_PHYSICS_POOL; i++) {
+        if (uphys_time[i] > 0) {
+            const unit = CUnit(uphys_cunit[i]);
+            if (unit.orderID == 0 || unit.hp == 0) { // delete the index if the unit doesnt exist
+                ResetUnitPhysics(i);
+                continue;
+            }
+            // check collision
+            col_posx, col_posy = MovePosTowards(uphys_posx[i], uphys_posy[i], uphys_angle[i], uphys_velocity[i]);
+            col_terrain = 1;
+            col_shape_size = 32;
+            CheckCollision(0);
+            if (col_results_terrain) {
+                ResetUnitPhysics(i);
+                continue;
+            }
+            if (uphys_time[i] >= uphys_dampening_start[i]) { // process dampening
+                if (uphys_velocity[i] <= uphys_dampening[i]) uphys_velocity[i] = 0;
+                else if (uphys_velocity[i] > 0) uphys_velocity[i] -= uphys_dampening[i];
+                if (uphys_velocity[i] == 0) {
+                    ResetUnitPhysics(i);
+                    continue;
+                }
+            }
+            setloc(L_MAIN, uphys_posx[i], uphys_posy[i]);
+            setloc(L_0X0, col_posx, col_posy);
+            uphys_posx[i], uphys_posy[i] = col_posx, col_posy;
+            MoveUnit(1, unit.unitID, unit.playerID, L_MAIN, L_0X0);
+            ResetCheckCollision();
+            uphys_time[i]++;
+            if (uphys_time[i] >= 48) ResetUnitPhysics(i);
         }
     }
 }
@@ -1972,15 +2093,38 @@ function UpdateWeaponState(playerID) {
                         queue_pro_maxtime = 3;
                         queue_pro_angle = weapon_angle[i];
                         queue_pro_velocity = 18;
+                        queue_pro_effect0_start = 1;
+                        queue_pro_effect0 = IMAGE_BURST_LASER;
+                        queue_pro_effect0_drawfunc = 17;
+                        queue_pro_effect0_iscript = ISCRIPT_FAST;
                         queue_pro_effect1_start = 2;
-                        queue_pro_effect1 = IMAGE_BURST_LASER;
+                        queue_pro_effect1 = IMAGE_NEUTRON;
                         queue_pro_effect1_drawfunc = 17;
                         queue_pro_effect1_iscript = ISCRIPT_FAST;
-                        queue_pro_effect2 = IMAGE_NEUTRON;
-                        // queue_pro_effect2_drawfunc = 16;
+                        queue_pro_effect2 = IMAGE_EXPL_BLUE_SMALL;
                         queue_pro_effect2_start = 3;
                         queue_pro_effect2_iscript = ISCRIPT_FAST;
                         CreateProjectile();
+                        // knockback
+                        col_posx, col_posy = MovePosTowards(unit_x, unit_y, weapon_angle[i], 16);
+                        col_enemies = 1;
+                        col_max_results = 4;
+                        col_shape_size = 64;
+                        const collision_happened = CheckCollision(playerID);
+                        if (collision_happened) {
+                            for (var cu = 0; cu < 8; cu++) {
+                                if (col_results_unit[cu] > 0) {
+                                    queue_uphys_cunit = col_results_unit[cu];
+                                    queue_uphys_posx, queue_uphys_posy = col_posx, col_posy;
+                                    queue_uphys_angle = weapon_angle[i];
+                                    queue_uphys_velocity = 25;
+                                    queue_uphys_dampening = 2;
+                                    queue_uphys_dampening_start = 4;
+                                    CreateUnitPhysics();
+                                }
+                            }
+                        }
+                        ResetCheckCollision();
                         weapon_angle[i] -= 22;
                     }
                 }
@@ -2250,10 +2394,10 @@ function UpdateUtilityState(playerID) {
                 }
                 if (utility_state[i] > 1) {
                     col_posx, col_posy = MovePosTowards(utility_x[i], utility_y[i], utility_angle[i], 24);
-                    col_terrain = 1;
+                    col_pathable = 1;
                     col_shape_size = 8;
                     CheckCollision(playerID);
-                    if (col_results_terrain == 0) {
+                    if (col_results_pathable == 0) {
                         utility_x[i], utility_y[i] = col_posx, col_posy;
                         setloc(L_MAIN, utility_x[i], utility_y[i]);
                         TeleportHeroPos(playerID, utility_x[i], utility_y[i]); // This should be made to account for computer units in the future
@@ -2844,6 +2988,7 @@ function afterTriggerExec() {
                 if (p_death_state[playerID] >= 72) {
                     p_death_state[playerID] = 0;
                     SpawnHero(playerID);
+                    CenterView(L_CHECK);
                     if (IsUserCP()) {
                         screen.printf("\x13\x1FHint: \x02{:s}", GetStringHint(p_current_death_hint));
                         p_current_death_hint++;
@@ -2863,6 +3008,10 @@ function afterTriggerExec() {
 
             // @bm debug_enabled
             if (debug_enabled) {
+                // const x, y = GetLocationPoint(L_MOUSE[playerID]);
+                // if (total_time > 72 && PosHasTerrainCollider(x, y)) {
+                //     CreateImageSpriteAtLocation($P8, L_MOUSE[playerID], IMAGE_ZERG_AIR_DEATH_SMALL, 0, ISCRIPT_FAST);
+                // }
                 if (p_on_sigil[playerID]) {
                     HealPlayer(playerID, unit, 256);
                 }
@@ -2879,6 +3028,7 @@ function afterTriggerExec() {
     EUDEndPlayerLoop();
 
     UpdateNPCs();
+    UpdateUnitPhysics();
 
     if (world_interaction_visual_timer == 0) world_interaction_visual_timer = 24;
     else if (world_interaction_visual_timer > 0) world_interaction_visual_timer--;

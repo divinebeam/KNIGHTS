@@ -15,6 +15,8 @@ TODO
 	display stats on upgrade icons on unit
 	if you have no armor then you shouldnt dodge, same with if you have full shields
 	remove players flag from unit items if they leave the game.
+	maybe all the systems would be better off updating after the player cycle instead of before.
+	maybe in the future have to guarantee that check terrain collider unit cannot unburrow
 
 	VERSION 0.1 CHECK LIST
 			[x] SHORT SWORD		Recover armor when you get a kill
