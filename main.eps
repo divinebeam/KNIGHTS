@@ -19,6 +19,7 @@ const U_HERO = [61, 62, 64, 12, 60, 86];
 const U_CHIMERA = 37;
 const U_HILL_SPINT = 38;
 const U_GUARDIAN_ANGEL = 68;
+const U_TWISTED_KNIGHT = 51;
 const U_ANY = 229;
 const U_KAKARU = 94;
 const U_SCOURGE = 47;
@@ -246,7 +247,7 @@ const chunk_buffer = EUDArray(8);
 const active_units = EUDArray(ACTIVE_UNITS_MAX * 6);
 var active_units_update = 0;
 // @bm DEBUG MODE
-var debug_enabled = 1;
+var debug_enabled = 0;
 const debug_values = EUDArray(8);
 var time = 0;
 var total_time = 0;
@@ -493,7 +494,7 @@ function GetHealthRegen(playerID) { // 2 per frame = 0.1875 per second
     }
     return regen;
 }
-
+// @bm GetWeaponCooldown
 function GetWeaponCooldown(item_id) {
     if (item_id == WEAPON_SHORTSWORD) return 96;
     else if (item_id == WEAPON_LONGSWORD) return 48; // 156
@@ -527,7 +528,7 @@ function GetWeaponDamage(item_id, state, playerID) { // in the future could make
         else if (item_id == WEAPON_FIREBALL) damage = 50;
         else if (item_id == WEAPON_ANCIENT_TOME_OF_STARFALL) damage = 5000;
         else if (item_id == WEAPON_LONGSWORD) damage = 50;
-        else if (item_id == WEAPON_GREATSWORD) damage = 50;
+        else if (item_id == WEAPON_GREATSWORD) damage = 35;
         else if (item_id == WEAPON_LONGBOW) damage = 50;
         else if (item_id == WEAPON_GREATBOW) damage = 50;
         else if (item_id == WEAPON_LIGHTNINGBLAST) damage = 50;
@@ -544,7 +545,7 @@ function GetWeaponLifeCost(item_id, playerID) {
     else if (item_id == WEAPON_ANCIENT_TOME_OF_STARFALL) life_cost = 99 * 256;
     return life_cost;
 }
-
+// @bm CheckForWeaponTrigger
 function CheckForWeaponTrigger(playerID, unit: CUnit, item_id) {
     var is_player = 0;
     var weapon_was_triggered = 0;
@@ -559,10 +560,12 @@ function CheckForWeaponTrigger(playerID, unit: CUnit, item_id) {
         if (player_attack_clicked) weapon_was_triggered = 1;
         else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.groundWeaponCooldown == 7) weapon_was_triggered = 1;
         else if (playerID == $P7 && unit.unitID == U_HILL_SPINT && unit.orderID != 3) weapon_was_triggered = 1;
+        else if (playerID == $P7 && unit.unitID == U_TWISTED_KNIGHT && unit.orderID != 3) weapon_was_triggered = 1;
     }
     else if (item_id == WEAPON_FIREBALL) {
         if (player_attack_clicked) weapon_was_triggered = 1;
         else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.groundWeaponCooldown == 7) weapon_was_triggered = 1;
+        else if (playerID == $P7 && unit.unitID == U_TWISTED_KNIGHT && unit.groundWeaponCooldown == 2) weapon_was_triggered = 1;
     }
     else if (item_id == WEAPON_ANCIENT_TOME_OF_STARFALL) {
         if (player_attack_clicked) weapon_was_triggered = 1;
@@ -574,7 +577,7 @@ function CheckForWeaponTrigger(playerID, unit: CUnit, item_id) {
     }
     else if (item_id == WEAPON_GREATSWORD) {
         if (is_player && p_just_attacked[playerID] > 0) weapon_was_triggered = 1;
-        else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.orderID != 3) weapon_was_triggered = 1;
+        else if (playerID == $P7 && unit.unitID == U_TWISTED_KNIGHT && unit.groundWeaponCooldown == 2) weapon_was_triggered = 1;
     }
     else if (item_id == WEAPON_LONGBOW) {
         if (player_attack_clicked) weapon_was_triggered = 1;
@@ -587,6 +590,7 @@ function CheckForWeaponTrigger(playerID, unit: CUnit, item_id) {
     else if (item_id == WEAPON_LIGHTNINGBLAST) {
         if (player_attack_clicked) weapon_was_triggered = 1;
         else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.orderID != 3) weapon_was_triggered = 1;
+        else if (playerID == $P7 && unit.unitID == U_TWISTED_KNIGHT && unit.orderID != 3) weapon_was_triggered = 1;
     }
     else if (item_id == WEAPON_BLADESTORM) {
         if (player_attack_clicked) weapon_was_triggered = 1;
@@ -907,6 +911,10 @@ function SpawnUnitsAtChunk(chunkX, chunkY) {
                 if (new_unit.unitID == U_GUARDIAN_ANGEL) {
                     MakeUnitNPC(new_unit, new_unit.unitID);
                     AttachWeaponToUnit(new_unit, WEAPON_ANCIENT_TOME_OF_STARFALL);
+                }
+                if (new_unit.unitID == U_TWISTED_KNIGHT) {
+                    AttachWeaponToUnit(new_unit, WEAPON_GREATSWORD);
+                    debug_values[0] = new_unit;
                 }
                 // if (new_unit.unitID == U_HILL_SPINT) {
                 //     AttachWeaponToUnit(new_unit, WEAPON_SHORTBOW);
@@ -1364,14 +1372,12 @@ function CheckCollision(playerID) {
             col_results_pathable = 1;
             result_exists = 1;
         } else col_results_pathable = 0;
-        if (col_results_pathable) DisplayTextAll("pathable collision");
     }
     if (col_terrain) {
         if (PosHasTerrainCollider(col_posx, col_posy)) {
             col_results_terrain = 1;
             result_exists = 1;
         } else col_results_terrain = 0;
-        if (col_results_terrain) DisplayTextAll("terrain collision");
     }
     return result_exists;
 }
@@ -1793,10 +1799,7 @@ function ResetUnitPhysicsQueue() {
 // @bm CreateUnitPhysics
 function CreateUnitPhysics() {
     const unit = CUnit(queue_uphys_cunit);
-    if (unit.unknown0x26 > 0) {
-        DisplayTextAll("Unit already has physics.");
-        return;
-    }
+    if (unit.unknown0x26 > 0) return;
     for (var i = 0; i < UNIT_PHYSICS_POOL; i++) {
         if (uphys_time[i] == 0) {
             unit.unknown0x26 = 1;
@@ -1829,7 +1832,6 @@ function UpdateUnitPhysics() {
             const collision_happened = CheckCollision(0);
             if (collision_happened) {
                 ResetUnitPhysics(i);
-                DisplayTextAll("disabled physics object because of collision");
                 continue;
             }
             if (uphys_time[i] >= uphys_dampening_start[i]) { // process dampening
@@ -2141,8 +2143,6 @@ function UpdateWeaponState(playerID) {
                         CreateProjectile();
                         // knockback
                         col_posx, col_posy = MovePosTowards(unit_x, unit_y, weapon_angle[i], 24);
-                        setloc(L_MAIN, col_posx, col_posy);
-                        CreateImageSpriteAtLocation(playerID, L_MAIN, IMAGE_ZERG_AIR_DEATH_SMALL, 0, ISCRIPT_FAST);
                         col_enemies = 1;
                         col_max_results = 4;
                         col_shape = 0;
@@ -2156,8 +2156,8 @@ function UpdateWeaponState(playerID) {
                                     queue_uphys_posx, queue_uphys_posy = found_unit.posX, found_unit.posY;
                                     queue_uphys_angle = weapon_angle[i];
                                     queue_uphys_velocity = 25;
-                                    queue_uphys_dampening = 2;
-                                    queue_uphys_dampening_start = 4;
+                                    queue_uphys_dampening = 4;
+                                    queue_uphys_dampening_start = 1;
                                     CreateUnitPhysics();
                                 }
                             }
@@ -2843,10 +2843,12 @@ function afterTriggerExec() {
                 if (EnemiesAtLoc(L_3X3) && p_shield_recover[playerID] == 0) p_shield_recover[playerID] = 1;
                 else if (!EnemiesAtLoc(L_3X3) && p_shield_recover[playerID] > 0) {
                     p_shield_recover[playerID] = 0;
-                    HealShieldPlayer(playerID, unit, p_shield_max[playerID]);
-                    CreateImageSpriteAtLocation($P8, L_3X3, 377, 0, ISCRIPT_NORMAL);
-                    PlayWAV("staredit/wav/dodge.ogg");
                     p_shield[playerID] = p_shield_max[playerID];
+                    if (unit.shield < p_shield_max[playerID]) {
+                        HealShieldPlayer(playerID, unit, p_shield_max[playerID]);
+                        CreateImageSpriteAtLocation($P8, L_3X3, 377, 0, ISCRIPT_NORMAL);
+                        PlayWAV("staredit/wav/dodge.ogg");
+                    }
                 }
                 if (unit.shield == p_shield_max[playerID] && p_shield_broken[playerID] > 0) p_shield_broken[playerID] = 0;
                 else if (p_shield_broken[playerID] > 0) unit.shield = 0;
@@ -2963,8 +2965,8 @@ function afterTriggerExec() {
                 p_exp_current[playerID] += exp_just_gained;
                 if (p_exp_current[playerID] >= p_exp_goal[playerID]) {
                     exp_just_gained = p_exp_current[playerID] - p_exp_goal[playerID];
-                    p_exp_current[playerID] += exp_just_gained;
                     LevelUp(playerID, p_cunit[playerID]);
+                    p_exp_current[playerID] += exp_just_gained;
                 }
                 screen.printf("\x12\x1F+{} Exp \x04({} | {})\x09\x09", p_exp_buffer[playerID], p_exp_current[playerID], p_exp_goal[playerID]);
                 PlayWAV("staredit/wav/gain_exp.ogg");
@@ -3034,23 +3036,27 @@ function afterTriggerExec() {
             }
 
             // HUD
-            if (hud_value_timer[playerID] > 0) {
-                hud_value_timer[playerID]--;
-                if (m_main[playerID] == 0) {
-                    screen.printfAt(0, "{:s}{}", hud_value_string[playerID], hud_value[playerID]);
-                    if (hud_value_timer[playerID] == 0) DisplayTextAt(0, "\x0BNull");
-                }
-            }
+            // if (hud_value_timer[playerID] > 0) {
+            //     hud_value_timer[playerID]--;
+            //     if (m_main[playerID] == 0) {
+            //         screen.printfAt(0, "{:s}{}", hud_value_string[playerID], hud_value[playerID]);
+            //         if (hud_value_timer[playerID] == 0) DisplayTextAt(0, "\x0BNull");
+            //     }
+            // }
+            // display damage on weapon icon
+            const unit_damage_string = Db(512);
+            sprintf(unit_damage_string, "\x04Unit Damage: \x02{}", p_damage[playerID]);
+            const weapon_damage_string = Db(512);
+            sprintf(weapon_damage_string, "\x04{:s} Damage: \x08{}", GetStringItemName(weapon_id[playerID], U_WEAPON), GetWeaponDamage(weapon_id[playerID], 0, playerID));
+            settblf(284, 0, "{:s}\n{:s}\n\x0C", unit_damage_string, weapon_damage_string);
 
             // @bm debug_enabled
             if (debug_enabled) {
-                // const x, y = GetLocationPoint(L_MOUSE[playerID]);
-                // if (total_time > 72 && PosHasTerrainCollider(x, y)) {
-                //     CreateImageSpriteAtLocation($P8, L_MOUSE[playerID], IMAGE_ZERG_AIR_DEATH_SMALL, 0, ISCRIPT_FAST);
-                // }
                 if (p_on_sigil[playerID]) {
                     HealPlayer(playerID, unit, 256);
                 }
+                const debug_unit = CUnit(debug_values[0]);
+                debug_values[1] = debug_unit.groundWeaponCooldown;
                 debug_values[6] = p_x[playerID];
                 debug_values[7] = p_y[playerID];
                 eprintf("{} | {} | {} | {} | {} | {} | {} | {}", debug_values[0], debug_values[1], debug_values[2], debug_values[3], debug_values[4], debug_values[5], debug_values[6], debug_values[7]);
