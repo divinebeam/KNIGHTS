@@ -130,6 +130,27 @@ EUDRegisterObjectToNamespace("key_f", keypress_f);
 
 const strings_loot_interactions = EUDArray(10);
 
+/*
+    cunit data
+    unknown0x26     whether the unit has active physics or not
+    unknown0x52
+    unknown0x66
+    unknown0x86
+    unknown0x8C
+    unknown0x106
+    unusedTimer
+
+    0x26 (BYTE)     unknown0x26     supported
+    0x52 (WORD)     unknown0x52     supported
+    0x66 (WORD)     unknown0x66     supported
+    0x86 (BYTE)     unknown0x86     supported
+    0x8C (WORD)     unknown0x8C     supported
+    0xE8 (DWORD)    --
+    0x106 (BYTE)    unknown0x106    supported
+    0x125 (BYTE)    unusedTimer     supported
+    0x132 (WORD)    unknown0x132    unsupported
+ */
+
 // @bm PLAYER VARS
 const p_cunit = PVariable(); // holds the cunit pointer of the players unit
 const p_x = PVariable(); // coordinates of the unit
@@ -253,6 +274,7 @@ function IsUnitItem(unitType) {
 }
 
 function isAlly(p: TrgPlayer, tgp: TrgPlayer) {
+    if (p == tgp) return 1;
     const q, r = div(tgp, 4);
     const epd = EPD(0x58D634) + q + (3 * p);
     var bitmask;
@@ -881,6 +903,7 @@ function SpawnUnitsAtChunk(chunkX, chunkY) {
             if (monster_spawn_type[i] > 0) {
                 setloc(L_MAIN, monster_spawn_x[i], monster_spawn_y[i]);
                 const new_unit = CreateCUnit(monster_spawn_type[i], $P7, L_MAIN);
+                new_unit.unknown0x26 = 0; // set unit physics flag to 0
                 if (new_unit.unitID == U_GUARDIAN_ANGEL) {
                     MakeUnitNPC(new_unit, new_unit.unitID);
                     AttachWeaponToUnit(new_unit, WEAPON_ANCIENT_TOME_OF_STARFALL);
@@ -1325,6 +1348,8 @@ function CheckCollision(playerID) {
             for (var u = check_from; u < check_to; u++) {
                 if (active_units[u] > 0) {
                     const unit = CUnit(active_units[u]);
+                    if (col_enemies == 0 && !isAlly(playerID, unit.playerID)) continue;
+                    if (col_allies == 0 && isAlly(playerID, unit.playerID)) continue;
                     if (unit.hp > 0 && GetDistance(unit.posX, unit.posY, col_posx, col_posy) <= col_shape_size) {
                         result_exists = 1;
                         const full = AddUnitToColResults(active_units[u], u);
@@ -1735,6 +1760,8 @@ const uphys_velocity = EUDArray(UNIT_PHYSICS_POOL);
 const uphys_dampening = EUDArray(UNIT_PHYSICS_POOL);
 const uphys_dampening_start = EUDArray(UNIT_PHYSICS_POOL);
 function ResetUnitPhysics(i) {
+    const unit = CUnit(uphys_cunit[i]);
+    unit.unknown0x26 = 0;
     uphys_time[i] = 0;
     uphys_cunit[i] = 0;
     uphys_posx[i] = 0;
@@ -1763,10 +1790,16 @@ function ResetUnitPhysicsQueue() {
     queue_uphys_dampening = 0;
     queue_uphys_dampening_start = 0;
 }
-
+// @bm CreateUnitPhysics
 function CreateUnitPhysics() {
+    const unit = CUnit(queue_uphys_cunit);
+    if (unit.unknown0x26 > 0) {
+        DisplayTextAll("Unit already has physics.");
+        return;
+    }
     for (var i = 0; i < UNIT_PHYSICS_POOL; i++) {
         if (uphys_time[i] == 0) {
+            unit.unknown0x26 = 1;
             uphys_time[i] = 1;
             uphys_cunit[i] = queue_uphys_cunit;
             uphys_posx[i] = queue_uphys_posx;
@@ -1785,17 +1818,18 @@ function UpdateUnitPhysics() {
     for (var i = 0; i < UNIT_PHYSICS_POOL; i++) {
         if (uphys_time[i] > 0) {
             const unit = CUnit(uphys_cunit[i]);
-            if (unit.orderID == 0 || unit.hp == 0) { // delete the index if the unit doesnt exist
+            if (unit.orderID == 0 || unit.hp == 0 || uphys_cunit[i] == 0) { // delete the index if the unit doesnt exist
                 ResetUnitPhysics(i);
                 continue;
             }
             // check collision
-            col_posx, col_posy = MovePosTowards(uphys_posx[i], uphys_posy[i], uphys_angle[i], uphys_velocity[i]);
+            col_posx, col_posy = MovePosTowards(unit.posX, unit.posY, uphys_angle[i], uphys_velocity[i]);
             col_terrain = 1;
             col_shape_size = 32;
-            CheckCollision(0);
-            if (col_results_terrain) {
+            const collision_happened = CheckCollision(0);
+            if (collision_happened) {
                 ResetUnitPhysics(i);
+                DisplayTextAll("disabled physics object because of collision");
                 continue;
             }
             if (uphys_time[i] >= uphys_dampening_start[i]) { // process dampening
@@ -1806,7 +1840,7 @@ function UpdateUnitPhysics() {
                     continue;
                 }
             }
-            setloc(L_MAIN, uphys_posx[i], uphys_posy[i]);
+            setloc(L_MAIN, unit.posX, unit.posY);
             setloc(L_0X0, col_posx, col_posy);
             uphys_posx[i], uphys_posy[i] = col_posx, col_posy;
             MoveUnit(1, unit.unitID, unit.playerID, L_MAIN, L_0X0);
@@ -2082,7 +2116,7 @@ function UpdateWeaponState(playerID) {
                     const damage = GetWeaponDamage(weapon_id[i], weapon_state[i], playerID);
                     weapon_x[i], weapon_y[i] = MovePosTowards(unit_x, unit_y, unit_angle, 48);
                     DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 176, damage, 8);
-                    weapon_angle[i] = unit_angle + 90;
+                    weapon_angle[i] = AddAngles(unit_angle, 90);
                     PlaySword();
                     display_damage = damage;
                 }
@@ -2106,16 +2140,20 @@ function UpdateWeaponState(playerID) {
                         queue_pro_effect2_iscript = ISCRIPT_FAST;
                         CreateProjectile();
                         // knockback
-                        col_posx, col_posy = MovePosTowards(unit_x, unit_y, weapon_angle[i], 16);
+                        col_posx, col_posy = MovePosTowards(unit_x, unit_y, weapon_angle[i], 24);
+                        setloc(L_MAIN, col_posx, col_posy);
+                        CreateImageSpriteAtLocation(playerID, L_MAIN, IMAGE_ZERG_AIR_DEATH_SMALL, 0, ISCRIPT_FAST);
                         col_enemies = 1;
                         col_max_results = 4;
-                        col_shape_size = 64;
+                        col_shape = 0;
+                        col_shape_size = 32;
                         const collision_happened = CheckCollision(playerID);
                         if (collision_happened) {
                             for (var cu = 0; cu < 8; cu++) {
                                 if (col_results_unit[cu] > 0) {
+                                    const found_unit = CUnit(col_results_unit[cu]);
                                     queue_uphys_cunit = col_results_unit[cu];
-                                    queue_uphys_posx, queue_uphys_posy = col_posx, col_posy;
+                                    queue_uphys_posx, queue_uphys_posy = found_unit.posX, found_unit.posY;
                                     queue_uphys_angle = weapon_angle[i];
                                     queue_uphys_velocity = 25;
                                     queue_uphys_dampening = 2;
@@ -2125,7 +2163,7 @@ function UpdateWeaponState(playerID) {
                             }
                         }
                         ResetCheckCollision();
-                        weapon_angle[i] -= 22;
+                        weapon_angle[i] = AddAngles(weapon_angle[i], -22);
                     }
                 }
                 if (weapon_state[i] > 0) weapon_state[i]++;
@@ -2988,12 +3026,10 @@ function afterTriggerExec() {
                 if (p_death_state[playerID] >= 72) {
                     p_death_state[playerID] = 0;
                     SpawnHero(playerID);
-                    CenterView(L_CHECK);
                     if (IsUserCP()) {
                         screen.printf("\x13\x1FHint: \x02{:s}", GetStringHint(p_current_death_hint));
                         p_current_death_hint++;
                     }
-                    
                 }
             }
 

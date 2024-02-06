@@ -4,9 +4,8 @@ CURRENTLY
 		maybe should do large aoe but damage gets dispersed the more targets there are
 		so its good against a single target does a lot of damage, but multiple it does small damage.
 		zig zag the projectile, square doesnt look good.
-	implementing field puzzle
-		spawn enemies
-		polish effects
+	implementing knockback
+		possible that when I check for collision and stuff it is filling up results with a single unit
 
 TODO
 	hints at the beginning when you die
