@@ -4,8 +4,8 @@ CURRENTLY
 		maybe should do large aoe but damage gets dispersed the more targets there are
 		so its good against a single target does a lot of damage, but multiple it does small damage.
 		zig zag the projectile, square doesnt look good.
-	implementing knockback
-		possible that when I check for collision and stuff it is filling up results with a single unit
+	implementing info display on unit icons
+		make it local, display shield stuff, etc.
 
 TODO
 	hints at the beginning when you die
@@ -19,8 +19,8 @@ TODO
 
 	VERSION 0.1 CHECK LIST
 			[x] SHORT SWORD		Recover armor when you get a kill
-			[-] LONG SWORD		Damage multiplier for multi kills
-			[-] GREAT SWORD		Damage multiplier for multi kills + knockback
+			[x] LONG SWORD		Damage multiplier for multi kills
+			[x] GREAT SWORD		Damage multiplier for multi kills + knockback
 			[x] SHORT BOW		fast low
 			[-] LONG BOW		normal medium
 			[-] GREAT BOW		slow great
@@ -43,14 +43,11 @@ TODO
 
 
 BUGS
-	for some reason short sword casts on swap with another weapon
-	??? sometimes damageunit doesnt seem to properly kill units and they get stuck at 0 hp, seems really inconsistent and doesnt happen at all sometimes
 	??? randomly getting 1 exp
 	??? might be a bug where you're getting shields broken after death because of some var not being set or something
 	??? heard the angel wing sound at the bottom of the mountain when I wasnt even close to the angel
 	??? fireball seems to mess up star fall tome
 	unit gets stuck when swapping items
-	??? dash thinks theres a collision when theres not.
 	??? armor not replenishing if you get a kill with lightning blast
 	??? guardian angel NPC index doesnt kill itself when it doesnt exist leading to erratic behaviour
 
@@ -153,6 +150,10 @@ GAMEPLAY
 			LIGHTNING BLAST
 			BLADE STORM
 			STAR FALL
+
+		MECHANICS
+			Kill Fortitude		Instantly recover armor when you get a kill.
+			Kill Frenzy			Damage increase for consecutive kills during frenzy time.
 
 			
 FIRST AREA
