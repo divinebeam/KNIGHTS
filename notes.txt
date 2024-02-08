@@ -1,9 +1,5 @@
 
 CURRENTLY
-	implementing lightning blast
-		maybe should do large aoe but damage gets dispersed the more targets there are
-		so its good against a single target does a lot of damage, but multiple it does small damage.
-		zig zag the projectile, square doesnt look good.
 	implementing info display on unit icons
 		make it local, display shield stuff, etc.
 
@@ -16,6 +12,8 @@ TODO
 	remove players flag from unit items if they leave the game.
 	maybe all the systems would be better off updating after the player cycle instead of before.
 	maybe in the future have to guarantee that check terrain collider unit cannot unburrow
+	could make the multiple queue values of projectiles into arrays
+	in the future I could make it so that projectile timed properties could be set to some huge time so that the first ones can be used with no problem
 
 	VERSION 0.1 CHECK LIST
 			[x] SHORT SWORD		Recover armor when you get a kill
@@ -25,7 +23,7 @@ TODO
 			[-] LONG BOW		normal medium
 			[-] GREAT BOW		slow great
 			[x] FIRE BALL
-			[x] LIGHTNING BLAST
+			[X] LIGHTNING BLAST
 			[-] BLADE STORM
 			[x] STAR FALL
 			[-] cetus boss fight

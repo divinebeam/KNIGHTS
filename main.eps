@@ -250,7 +250,7 @@ const chunk_buffer = EUDArray(8);
 const active_units = EUDArray(ACTIVE_UNITS_MAX * 6);
 var active_units_update = 0;
 // @bm DEBUG MODE
-var debug_enabled = 0;
+var debug_enabled = 1;
 const debug_values = EUDArray(8);
 var time = 0;
 var total_time = 0;
@@ -1202,6 +1202,12 @@ function EquipItem(item_id, unitType, playerID) {
     }
 }
 
+function SetLevelString(playerID) {
+    if (IsUserCP()) {
+        settblf(1302, 0, "\x04Level \x1F{}\x0C", p_level_current[playerID]);
+    }
+}
+
 function SetHeroDefaults(playerID) {
     p_level_current[playerID] = 1;
     p_exp_goal[playerID] = 150;
@@ -1209,6 +1215,7 @@ function SetHeroDefaults(playerID) {
     p_damage[playerID] = PLAYER_DEFAULT_DAMAGE;
     p_attributepoints[playerID] = PLAYER_DEFAULT_ATTRIBUTE;
     SetMaxHP(playerID, PLAYER_DEFAULT_HP * 256);
+    SetLevelString(playerID);
 }
 
 function DrawCircle(positionx, positiony, diameter, dots, imageID, drawFunc, iscript) {
@@ -1437,6 +1444,12 @@ const pro_effect2 = EUDArray(PROJECTILE_POOL);
 const pro_effect2_start = EUDArray(PROJECTILE_POOL);
 const pro_effect2_drawfunc = EUDArray(PROJECTILE_POOL);
 const pro_effect2_iscript = EUDArray(PROJECTILE_POOL);
+const pro_anglemod0 = EUDArray(PROJECTILE_POOL);
+const pro_anglemod0_start = EUDArray(PROJECTILE_POOL);
+const pro_anglemod1 = EUDArray(PROJECTILE_POOL);
+const pro_anglemod1_start = EUDArray(PROJECTILE_POOL);
+const pro_anglemod2 = EUDArray(PROJECTILE_POOL);
+const pro_anglemod2_start = EUDArray(PROJECTILE_POOL);
 const pro_weapon_id = EUDArray(PROJECTILE_POOL);
 const pro_collide_enemies = EUDArray(PROJECTILE_POOL);
 const pro_collide_allies = EUDArray(PROJECTILE_POOL);
@@ -1473,6 +1486,12 @@ function ResetProjectile(i) {
     pro_effect2_start[i] = 0;
     pro_effect2_drawfunc[i] = 0;
     pro_effect2_iscript[i] = 0;
+    pro_anglemod0[i] = 0;
+    pro_anglemod0_start[i] = 0;
+    pro_anglemod1[i] = 0;
+    pro_anglemod1_start[i] = 0;
+    pro_anglemod2[i] = 0;
+    pro_anglemod2_start[i] = 0;
     pro_weapon_id[i] = 0;
     pro_collide_enemies[i] = 0;
     pro_collide_allies[i] = 0;
@@ -1510,6 +1529,8 @@ var queue_pro_effect2 = 0;
 var queue_pro_effect2_start = 0;
 var queue_pro_effect2_drawfunc = 0;
 var queue_pro_effect2_iscript = 0;
+const queue_pro_anglemod = EUDArray(3);
+const queue_pro_anglemod_start = EUDArray(3);
 var queue_pro_weapon_id = 0;
 var queue_pro_collide_enemies = 0;
 var queue_pro_collide_allies = 0;
@@ -1543,6 +1564,10 @@ function ResetProjectileQueue() {
     queue_pro_effect2_start = 0;
     queue_pro_effect2_drawfunc = 0;
     queue_pro_effect2_iscript = 0;
+    for (var i = 0; i < 3; i++) {
+        queue_pro_anglemod[i] = 0;
+        queue_pro_anglemod_start[i] = 0;
+    }
     queue_pro_weapon_id = 0;
     queue_pro_collide_enemies = 0;
     queue_pro_collide_allies = 0;
@@ -1580,6 +1605,12 @@ function CreateProjectile() {
             pro_effect2_start[i] = queue_pro_effect2_start + 2;
             pro_effect2_drawfunc[i] = queue_pro_effect2_drawfunc;
             pro_effect2_iscript[i] = queue_pro_effect2_iscript;
+            pro_anglemod0[i] = queue_pro_anglemod[0];
+            pro_anglemod0_start[i] = queue_pro_anglemod_start[0];
+            pro_anglemod1[i] = queue_pro_anglemod[1];
+            pro_anglemod1_start[i] = queue_pro_anglemod_start[1];
+            pro_anglemod2[i] = queue_pro_anglemod[2];
+            pro_anglemod2_start[i] = queue_pro_anglemod_start[2];
             pro_weapon_id[i] = queue_pro_weapon_id;
             pro_collide_enemies[i] = queue_pro_collide_enemies;
             pro_collide_allies[i] = queue_pro_collide_allies;
@@ -1596,6 +1627,9 @@ function UpdateProjectiles() {
     for (var i = 0; i < PROJECTILE_POOL; i++) {
         if (pro_time[i] > 0) {
             pro_time[i] += 1;
+            if (pro_time[i] >= pro_anglemod0_start[i] && pro_time[i] < pro_anglemod1_start[i]) pro_angle[i] = AddAngles(pro_angle[i], pro_anglemod0[i]);
+            else if (pro_time[i] >= pro_anglemod1_start[i] && pro_time[i] < pro_anglemod2_start[i]) pro_angle[i] = AddAngles(pro_angle[i], pro_anglemod1[i]);
+            else if (pro_time[i] >= pro_anglemod2_start[i]) pro_angle[i] = AddAngles(pro_angle[i], pro_anglemod2[i]);
             pro_angle[i] = AddAngles(pro_angle[i], pro_angular_velocity[i]);
             const new_posx, new_posy = MovePosTowards(pro_posx[i], pro_posy[i], pro_angle[i], pro_velocity[i]);
             pro_posx[i] = new_posx;
@@ -2326,6 +2360,7 @@ function UpdateWeaponState(playerID) {
                     // DrawCircle(weapon_x[i], weapon_y[i], 80, 20, IMAGE_PHOTON_BLASTERS, 16, ISCRIPT_NORMAL);
                     DrawCircle(weapon_x[i], weapon_y[i], 80, 20, IMAGE_GAUSS_RIFLE_HIT, 16, ISCRIPT_GAUSS_RIFLE_HIT);
                     const iterations = 1;
+                    var current_parameter_set = Random(0, 3);
                     for (var j = 0; j < iterations; j++) {
                         queue_pro_owner = playerID;
                         queue_pro_weapon_id = weapon_id[i];
@@ -2339,9 +2374,31 @@ function UpdateWeaponState(playerID) {
                         queue_pro_effect1_start = 4;
                         queue_pro_effect2 = IMAGE_LIGHTNING2;
                         queue_pro_effect2_start = queue_pro_maxtime;
+                        if (current_parameter_set == 0) {
+                            queue_pro_anglemod[0] = 30  + Random(-5, 5);
+                            queue_pro_anglemod[1] = -30 + Random(-5, 5);
+                            queue_pro_anglemod[2] = 30 + Random(-5, 5);
+                        } else if (current_parameter_set == 1) {
+                            queue_pro_anglemod[0] = -30  + Random(-5, 5);
+                            queue_pro_anglemod[1] = 30 + Random(-5, 5);
+                            queue_pro_anglemod[2] = -30 + Random(-5, 5);
+                        } else if (current_parameter_set == 2) {
+                            queue_pro_anglemod[0] = 10  + Random(-5, 5);
+                            queue_pro_anglemod[1] = -50 + Random(-5, 5);
+                            queue_pro_anglemod[2] = 25 + Random(-5, 5);
+                        } else if (current_parameter_set == 3) {
+                            queue_pro_anglemod[0] = -15  + Random(-5, 5);
+                            queue_pro_anglemod[1] = 55 + Random(-5, 5);
+                            queue_pro_anglemod[2] = -25 + Random(-5, 5);
+                        }
+                        queue_pro_anglemod_start[0] = 2;
+                        queue_pro_anglemod_start[1] = 4;
+                        queue_pro_anglemod_start[2] = 6;
                         queue_pro_collide_enemies = 1;
                         queue_pro_collide_size = 64;
                         CreateProjectile();
+                        current_parameter_set++;
+                        if (current_parameter_set > 3) current_parameter_set = 0;
                     }
                 }
                 if (weapon_state[i] > 0) weapon_state[i]++;
@@ -2514,6 +2571,7 @@ function LevelUp(playerID, unit: CUnit) {
     p_attributepoints[playerID] += 1;
     p_exp_current[playerID] = 0;
     p_exp_goal[playerID] = 300 + 150 * p_level_current[playerID];
+    SetLevelString(playerID);
     unit.killCount = p_level_current[playerID];
     screen.printf("LEVEL UP - Level {}", p_level_current[playerID]);
     PlayWAV("staredit/wav/levelup.ogg");
@@ -2872,7 +2930,7 @@ function afterTriggerExec() {
             }
 
             // SHIELDS/ARMOR
-            if (IsAlive(playerID) && p_shield_max[playerID] > 0) {
+            if (IsAlive(playerID)) {
                 CenterLocHero(L_16X16, playerID);
                 if (unit.shield != p_shield_max[playerID] && !EnemiesAtLoc(L_16X16)) {
                     HealShieldPlayer(playerID, unit, 256);
