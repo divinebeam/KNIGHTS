@@ -2,6 +2,7 @@
 CURRENTLY
 	implementing info display on unit icons
 		make it local, display shield stuff, etc.
+	implementing juyet quest
 
 TODO
 	hints at the beginning when you die

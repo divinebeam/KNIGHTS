@@ -387,7 +387,7 @@ function GetStringHint(id) {
 function GetStringWorldInteractionPrompt(id) {
     switch(id) {
         case 0, 1, 2: return Db("\x13\x04Press \x03-<F>- \x04to Examine the Pillar.");
-        case 3: return Db("hint");
+        case 3: return Db("\x13\x04Press \x03-<F>- \x04to Read a note left in the grass.");
         case 4: return Db("hint");
         case 5: return Db("hint");
         case 6: return Db("hint");
@@ -417,9 +417,10 @@ function SetupSystemUnits() {
 }
 
 function SetupWorldInteractions() {
-    world_interaction_x[0], world_interaction_y[0] = 3160, 1840; world_interaction_size[0] = 128;
+    world_interaction_x[0], world_interaction_y[0] = 3160, 1840; world_interaction_size[0] = 128; // field puzzle
     world_interaction_x[1], world_interaction_y[1] = 3176, 2800; world_interaction_size[1] = 128;
     world_interaction_x[2], world_interaction_y[2] = 1976, 2672; world_interaction_size[2] = 128;
+    world_interaction_x[3], world_interaction_y[3] = 2656, 2350; world_interaction_size[3] = 64;// juyet's note at the field sigil
     // randomize solutions
     var solution1_used = 0;
     var solution2_used = 0;
@@ -2878,29 +2879,44 @@ function afterTriggerExec() {
             // @bm WORLD INTERACTIONS
             if (p_on_world_interaction[playerID] && IsAlive(playerID)) {
                 const index = p_on_world_interaction[playerID] - 1;
-                if (m_main[playerID] == 0 && keypress_f[playerID] > 0) {
-                    m_main[playerID] = MENU_MAIN_FIELD_PILLAR;
-                } else if (m_main[playerID] == MENU_MAIN_FIELD_PILLAR) {
-                    if (keypress_1[playerID]) {
-                        if (field_puzzle_state[index] >= 4) field_puzzle_state[index] = 1;
-                        else field_puzzle_state[index]++;
-                        world_interaction_visual_timer = 1;
+                if (index <= 2) {
+                    if (m_main[playerID] == 0 && keypress_f[playerID] > 0) {
+                        m_main[playerID] = MENU_MAIN_FIELD_PILLAR;
+                    } else if (m_main[playerID] == MENU_MAIN_FIELD_PILLAR) {
+                        if (keypress_1[playerID]) {
+                            if (field_puzzle_state[index] >= 4) field_puzzle_state[index] = 1;
+                            else field_puzzle_state[index]++;
+                            world_interaction_visual_timer = 1;
+                        }
+                        if (field_puzzle_state_solution[index] == 1) {
+                            DisplayTextAt(0, "\x09\x09\x09\x02The inscription reads: \x04\"Where the frost-kissed feathers of the snow owl catch the first light,");
+                            DisplayTextAt(1, "\x09\x09\x09\x04darkness stirs in silent anticipation.\"");
+                        } else if (field_puzzle_state_solution[index] == 2) {
+                            DisplayTextAt(0, "\x09\x09\x09\x02The inscription reads: \x04\"With the rising sun, the crane takes flight,");
+                            DisplayTextAt(1, "\x09\x09\x09\x04casting shadows that guide the unborn to awaken in the warmth of the dawn.\"");
+                        } else if (field_puzzle_state_solution[index] == 3) {
+                            DisplayTextAt(0, "\x09\x09\x09\x02The inscription reads: \x04\"In the fiery embrace of the midday sun, the phoenix soars,");
+                            DisplayTextAt(1, "\x09\x09\x09\x04signaling the faithful to embrace the radiant energy of the sky.\"");
+                        } else if (field_puzzle_state_solution[index] == 4) {
+                            DisplayTextAt(0, "\x09\x09\x09\x02The inscription reads: \x04\"As the day bids farewell and the heron glides towards the horizon,");
+                            DisplayTextAt(1, "\x09\x09\x09\x04a secret is whispered by the western winds.\"");
+                        }
+                        DisplayTextAt(2, "\x0BNull");
+                        DisplayTextAt(3, "\x09\x09\x09\x03Press -<1>- to Spin the attached Stone Handle.");
                     }
-                    if (field_puzzle_state_solution[index] == 1) {
-                        DisplayTextAt(0, "\x09\x09\x09\x02The inscription reads: \x04\"Where the frost-kissed feathers of the snow owl catch the first light,");
-                        DisplayTextAt(1, "\x09\x09\x09\x04darkness stirs in silent anticipation.\"");
-                    } else if (field_puzzle_state_solution[index] == 2) {
-                        DisplayTextAt(0, "\x09\x09\x09\x02The inscription reads: \x04\"With the rising sun, the crane takes flight,");
-                        DisplayTextAt(1, "\x09\x09\x09\x04casting shadows that guide the unborn to awaken in the warmth of the dawn.\"");
-                    } else if (field_puzzle_state_solution[index] == 3) {
-                        DisplayTextAt(0, "\x09\x09\x09\x02The inscription reads: \x04\"In the fiery embrace of the midday sun, the phoenix soars,");
-                        DisplayTextAt(1, "\x09\x09\x09\x04signaling the faithful to embrace the radiant energy of the sky.\"");
-                    } else if (field_puzzle_state_solution[index] == 4) {
-                        DisplayTextAt(0, "\x09\x09\x09\x02The inscription reads: \x04\"As the day bids farewell and the heron glides towards the horizon,");
-                        DisplayTextAt(1, "\x09\x09\x09\x04a secret is whispered by the western winds.\"");
-                    }
-                    DisplayTextAt(2, "\x0BNull");
-                    DisplayTextAt(3, "\x09\x09\x09\x03Press -<1>- to Spin the attached Stone Handle.");
+                } else if (index == 3 && keypress_f[playerID] > 0) {
+                    // DisplayTextAt(0, 
+                    //     "\x09\x09\x09\x02The note reads: \x04Hey, if you're reading this, I've been captured by some idiotic lost soul.\n".
+                    //     "\x09\x09\x09\x04I'm likely trapped in the cave to the south. I can help you with some things if I'm free...\n".
+                    //     "\x09\x09\x09\x04Up to you though, no rush... I guess I'll find out what you think soon enough.\n".
+                    //     "\x09\x09\x09\x02Signed: \x1BJuyet The Restless Spirit\n".
+                    // );
+                    // DisplayTextAt(0, 
+                    //     "\x09\x09\x09\x02Text Text Text\n"
+                    //     "\x09\x09\x09\x04Text Text Text\n"
+                    //     "\x09\x09\x09\x04Text Text Text\n"
+                    //     "\x09\x09\x09\x02Text Text Text\n"
+                    // );
                 }
             } else if (p_on_world_interaction[playerID] == 0 && m_main[playerID] == MENU_MAIN_FIELD_PILLAR) {
                 m_main[playerID] = 0;
