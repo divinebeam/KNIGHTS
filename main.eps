@@ -525,7 +525,7 @@ function GetWeaponCooldown(item_id) {
     else if (item_id == WEAPON_LIGHTNINGBLAST) return 120;
     else if (item_id == WEAPON_BLADESTORM) return 48;
     else if (item_id == WEAPON_ANCIENT_TOME_OF_STARFALL) return 24;
-    else if (item_id == WEAPON_CRIMSON_LONG_SWORD) return 156;
+    else if (item_id == WEAPON_CRIMSON_LONG_SWORD) return 40; // 156
 }
 
 function GetWeaponDamage(item_id, state, playerID) { // in the future could make unit an argument so that can have different damage based on unitid
@@ -707,6 +707,13 @@ function GetAreaAtPos(positionx, positiony) {
     if (IsPosWithinRect(positionx, positiony, 1664, 1920, 897, 1024)) return AREA_GATE_MOUNTAIN;
     if (IsPosWithinRect(positionx, positiony, 1620, 3740, 1632, 3040)) return AREA_FIELD;
     if (IsPosWithinRect(positionx, positiony, 64, 770, 1250, 1860)) return AREA_CETUS_LAIR;
+    return 0;
+}
+
+function PlayersAtArea(areaID) {
+    foreach(player : EUDLoopPlayer()) {
+        if (GetAreaAtPos(p_x[player], p_y[player]) == areaID) return 1;
+    }
     return 0;
 }
 
@@ -993,6 +1000,7 @@ function RedeemUnitExp(playerID, unitType) {
 }
 // @bm DamageUnit
 function DamageUnit(playerID, unit: CUnit, damage, index) {
+    if (unit.hp == 0 || unit.orderID == 0) return 0;
     var target_state = 1;
     var damage_remaining = damage * 256;
     if (unit.shield > 0) {
@@ -1465,6 +1473,7 @@ const pro_anglemod1_start = EUDArray(PROJECTILE_POOL);
 const pro_anglemod2 = EUDArray(PROJECTILE_POOL);
 const pro_anglemod2_start = EUDArray(PROJECTILE_POOL);
 const pro_weapon_id = EUDArray(PROJECTILE_POOL);
+const pro_target_cunit = EUDArray(PROJECTILE_POOL);
 const pro_collide_enemies = EUDArray(PROJECTILE_POOL);
 const pro_collide_allies = EUDArray(PROJECTILE_POOL);
 const pro_collide_terrain = EUDArray(PROJECTILE_POOL);
@@ -1507,6 +1516,7 @@ function ResetProjectile(i) {
     pro_anglemod2[i] = 0;
     pro_anglemod2_start[i] = 0;
     pro_weapon_id[i] = 0;
+    pro_target_cunit[i] = 0;
     pro_collide_enemies[i] = 0;
     pro_collide_allies[i] = 0;
     pro_collide_terrain[i] = 0;
@@ -1546,6 +1556,7 @@ var queue_pro_effect2_iscript = 0;
 const queue_pro_anglemod = EUDArray(3);
 const queue_pro_anglemod_start = EUDArray(3);
 var queue_pro_weapon_id = 0;
+var queue_pro_target_cunit = 0;
 var queue_pro_collide_enemies = 0;
 var queue_pro_collide_allies = 0;
 var queue_pro_collide_terrain = 0;
@@ -1583,6 +1594,7 @@ function ResetProjectileQueue() {
         queue_pro_anglemod_start[i] = 0;
     }
     queue_pro_weapon_id = 0;
+    queue_pro_target_cunit = 0;
     queue_pro_collide_enemies = 0;
     queue_pro_collide_allies = 0;
     queue_pro_collide_terrain = 0;
@@ -1626,6 +1638,7 @@ function CreateProjectile() {
             pro_anglemod2[i] = queue_pro_anglemod[2];
             pro_anglemod2_start[i] = queue_pro_anglemod_start[2];
             pro_weapon_id[i] = queue_pro_weapon_id;
+            pro_target_cunit[i] = queue_pro_target_cunit;
             pro_collide_enemies[i] = queue_pro_collide_enemies;
             pro_collide_allies[i] = queue_pro_collide_allies;
             pro_collide_terrain[i] = queue_pro_collide_terrain;
@@ -1645,6 +1658,12 @@ function UpdateProjectiles() {
             else if (pro_time[i] >= pro_anglemod1_start[i] && pro_time[i] < pro_anglemod2_start[i]) pro_angle[i] = AddAngles(pro_angle[i], pro_anglemod1[i]);
             else if (pro_time[i] >= pro_anglemod2_start[i]) pro_angle[i] = AddAngles(pro_angle[i], pro_anglemod2[i]);
             pro_angle[i] = AddAngles(pro_angle[i], pro_angular_velocity[i]);
+            // TARGET CUNIT
+            if (pro_target_cunit[i] > 0) {
+                const target_unit = CUnit(pro_target_cunit[i]);
+                pro_angle[i] = GetAngle(pro_posx[i], pro_posy[i], target_unit.posX, target_unit.posY);
+            }
+
             const new_posx, new_posy = MovePosTowards(pro_posx[i], pro_posy[i], pro_angle[i], pro_velocity[i]);
             pro_posx[i] = new_posx;
             pro_posy[i] = new_posy;
@@ -1961,8 +1980,6 @@ function DoDamageAtPos(positionx, positiony, playerID, shape, size, damage, maxt
     if (result_exists) {
         var calculated_damage = damage;
         if (damage_type == 1 && col_results_unit_amount > 1) calculated_damage = damage / col_results_unit_amount;
-        debug_values[0] = damage;
-        debug_values[1] = calculated_damage;
         for (var result_i = 0; result_i < col_max_results; result_i++) {
             if (col_results_unit[result_i] > 0) {
                 const target = CUnit(col_results_unit[result_i]);
@@ -2019,6 +2036,7 @@ function UpdateSightRange(playerID) {
     if (time_state == 1) target_value = PLAYER_DEFAULT_SIGHT - 4;
     if (p_indoors[playerID] && time_state == 0) target_value = 2;
     else if (p_indoors[playerID]) target_value = 1;
+    if (GetAreaAtPos(p_x[playerID], p_y[playerID]) == AREA_CETUS_LAIR) target_value = PLAYER_DEFAULT_SIGHT;
     bwrite(0x65FD00 + 13624 + U_HERO[playerID] * 1, target_value);
 }
 
@@ -2491,8 +2509,13 @@ function UpdateWeaponState(playerID) {
                     else if (effect_d > 1) visual_amount = 1;
                     if (visual_amount > 1) DrawCircle(weapon_x[i], weapon_y[i], effect_d, visual_amount, IMAGE_NUKE_DOT, 17, ISCRIPT_NORMAL);
                 }
-                if (weapon_state[i] == 12) weapon_angle[i] = unit_angle + 90;
-                if (weapon_state[i] == 19) weapon_angle[i] = unit_angle - 90;
+                if (weapon_state[i] == 12) {
+                    weapon_angle[i] = unit_angle + 90;
+                    PlayWavAtPos("staredit/wav/large_sword0.ogg", unit_x, unit_y, 512);
+                } else if (weapon_state[i] == 19) {
+                    weapon_angle[i] = unit_angle - 90;
+                    PlayWavAtPos("staredit/wav/large_sword0.ogg", unit_x, unit_y, 512);
+                }
                 // swing 1
                 if (weapon_state[i] >= 12 && weapon_state[i] <= 15) {
                     for (var j = 0; j < 2; j++) {
@@ -2804,7 +2827,28 @@ function UpdateNPCs() {
                 }
                 if (npc_state3[i] > 0) npc_state3[i]--;
             } else if (npc_id[i] == NPC_CETUS) {
-
+                debug_values[0] = npc_state0[i];
+                // npc_state0 - combat loop
+                if (PlayersAtArea(AREA_CETUS_LAIR) && npc_state0[i] == 0) {
+                    npc_state0[i] = 1;
+                    PlayWavAtPos("staredit/wav/boss_incoming.ogg", npc_x[i], npc_y[i], 960);
+                } else if (!PlayersAtArea(AREA_CETUS_LAIR) && npc_state0[i] > 0) {
+                    npc_state0[i] = 0;
+                }
+                if (npc_state0[i] > 0) {
+                    if (npc_state0[i] <= 144 && npc_state0[i] % 2 == 0) {
+                        queue_pro_posx, queue_pro_posy = MovePosTowards(npc_x[i], npc_y[i], Random(0, 359), 320);
+                        queue_pro_maxtime = 12;
+                        queue_pro_velocity = 20;
+                        queue_pro_effect2 = IMAGE_PHOTON_BLASTERS;
+                        queue_pro_effect2_drawfunc = 17;
+                        queue_pro_effect2_iscript = ISCRIPT_FAST;
+                        queue_pro_target_cunit = npc_cunit[i];
+                        CreateProjectile();
+                    }
+                    npc_state0[i]++;
+                    if (npc_state0[i] >= 720) npc_state0[i] = 1;
+                }
             }
         }
     }
