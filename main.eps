@@ -21,6 +21,7 @@ const U_HILL_SPINT = 38;
 const U_GUARDIAN_ANGEL = 68;
 const U_TWISTED_KNIGHT = 51;
 const U_LOST_KNIGHT = 74;
+const U_ANANSI = 40;
 const U_ANY = 229;
 const U_KAKARU = 94;
 const U_SCOURGE = 47;
@@ -514,7 +515,7 @@ function GetHealthRegen(playerID) { // 2 per frame = 0.1875 per second
     return regen;
 }
 // @bm GetWeaponCooldown
-function GetWeaponCooldown(item_id) {
+function GetWeaponCooldown(item_id, playerID) {
     if (item_id == WEAPON_SHORTSWORD) return 96;
     else if (item_id == WEAPON_LONGSWORD) return 156;
     else if (item_id == WEAPON_GREATSWORD) return 204;
@@ -525,7 +526,7 @@ function GetWeaponCooldown(item_id) {
     else if (item_id == WEAPON_LIGHTNINGBLAST) return 120;
     else if (item_id == WEAPON_BLADESTORM) return 48;
     else if (item_id == WEAPON_ANCIENT_TOME_OF_STARFALL) return 24;
-    else if (item_id == WEAPON_CRIMSON_LONG_SWORD) return 40; // 156
+    else if (item_id == WEAPON_CRIMSON_LONG_SWORD) return 156;
 }
 
 function GetWeaponDamage(item_id, state, playerID) { // in the future could make unit an argument so that can have different damage based on unitid
@@ -1745,7 +1746,7 @@ function UpdateProjectileCollisions() {
             }
             // CRIMSON LONG SWORD
             if (pro_weapon_id[i] == WEAPON_CRIMSON_LONG_SWORD) {
-                const target_state = DamageUnit(pro_owner[i], pro_collision_unit[i], 40, ACTIVE_UNITS_MAX + 1);
+                const target_state = DamageUnit(pro_owner[i], pro_collision_unit[i], 1, ACTIVE_UNITS_MAX + 1);
                 pro_collide_enemies[i] = 0;
             }
         }
@@ -2156,7 +2157,7 @@ function UpdateWeaponState(playerID) {
             if (weapon_cooldown[i] > 0) weapon_cooldown[i]--;
             var weapon_triggered = CheckForWeaponTrigger(playerID, unit, weapon_id[i]);
             if (weapon_triggered && weapon_cooldown[i] == 0) {
-                weapon_cooldown[i] = GetWeaponCooldown(weapon_id[i]);
+                weapon_cooldown[i] = GetWeaponCooldown(weapon_id[i], playerID);
                 weapon_state[i] = 1;
             }
 
@@ -2845,6 +2846,13 @@ function UpdateNPCs() {
                         queue_pro_effect2_iscript = ISCRIPT_FAST;
                         queue_pro_target_cunit = npc_cunit[i];
                         CreateProjectile();
+                    } else if (npc_state0[i] == 145) {
+                        DrawCircle(416, 1568, 320, 16, IMAGE_ZERG_AIR_DEATH_LARGE, 0, ISCRIPT_FAST);
+                        setloc(L_MAIN, 416, 1568);
+                        CenterLoc(L_16X16, 416, 1568);
+                        CreateUnitCircle(U_ANANSI, $P7, L_MAIN, 320, 16);
+                        Order(U_ANANSI, $P7, L_16X16, Patrol, L_16X16);
+                        PlayWavAtPos("sound\Bullet\ZQuHit02.wav", npc_x[i], npc_y[i], 960);
                     }
                     npc_state0[i]++;
                     if (npc_state0[i] >= 720) npc_state0[i] = 1;
