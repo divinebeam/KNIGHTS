@@ -253,7 +253,7 @@ const chunk_buffer = EUDArray(8);
 const active_units = EUDArray(ACTIVE_UNITS_MAX * 6);
 var active_units_update = 0;
 // @bm DEBUG MODE
-var debug_enabled = 1;
+var debug_enabled = 0;
 const debug_values = EUDArray(8);
 var time = 0;
 var total_time = 0;
@@ -979,7 +979,7 @@ const included = EUDArray(6);
 function RedeemUnitExp(playerID, unitType) {
     var amount_players_nearby = 0;
     var exp_to_gain = 0;
-    if (unitType == U_CHIMERA) exp_to_gain += 30;
+    if (unitType == U_CHIMERA) exp_to_gain += 35;
     else if (unitType == U_HILL_SPINT) exp_to_gain += 80;
     else if (unitType == U_LOST_KNIGHT) exp_to_gain += 500;
     else if (unitType == U_TWISTED_KNIGHT) exp_to_gain += 200;
@@ -2878,6 +2878,7 @@ function UpdateNPCs() {
                             queue_pro_effect2_type = 1;
                             CreateProjectile();
                         }
+                        PlayWavAtPos("staredit/wav/boss_death0.ogg", npc_x[i], npc_y[i], 960);
                     } else if (npc_state1[i] > 48 && npc_state1[i] % 4 == 0) {
                         queue_pro_posx, queue_pro_posy = npc_x[i], npc_y[i];
                         queue_pro_maxtime = 12;
@@ -2888,6 +2889,7 @@ function UpdateNPCs() {
                         queue_pro_effect2_iscript = ISCRIPT_NORMAL;
                         CreateProjectile();
                     }
+                    if (npc_state1[i] == 72) PlayWavAtPos("staredit/wav/boss_destroyed.ogg", npc_x[i], npc_y[i], 960);
                     npc_state1[i]++;
                     if (npc_state1[i] >= 216) {
                         ResetNPCIndex(i);
@@ -2918,6 +2920,7 @@ function onPluginStart() {
                 EquipItem(ARMOR_SHATTERED_KNIGHTS, U_ARMOR, playerID);
                 EquipItem(WEAPON_CRIMSON_LONG_SWORD, U_WEAPON, playerID);
                 EquipItem(UTILITY_DASH, U_UTILITY, playerID);
+                SetMaxHP(playerID, 500 * 256);
                 // GetVision($P7);
             }
             PlaySong(0);

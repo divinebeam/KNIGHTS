@@ -8,6 +8,8 @@ CURRENTLY
 		second attack
 		reset when no players
 		heal
+		cant leave lair
+		cant despawn
 	need to implement some sort of flag system to make it so units cant be double damaged by the same weapon
 	store flags for weapon array positions?
 
