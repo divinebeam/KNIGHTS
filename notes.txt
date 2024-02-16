@@ -26,6 +26,9 @@ TODO
 	in the future I could make it so that projectile timed properties could be set to some huge time so that the first ones can be used with no problem
 	in the future make it so that damage at position can have multiple shapes
 	make it so that units can have "hit by weapon" flags to keep things from doing double damage.
+	need to implement heals of some sort
+	harvesting plants?
+	make it so that when the day resets, enemies cant spawn right on top of you and fuck you up.
 
 	VERSION 0.1 CHECK LIST
 			[x] SHORT SWORD		Recover armor when you get a kill
@@ -41,8 +44,8 @@ TODO
 			[-] cetus boss fight
 			[-] aldus boss fight
 			[-] breven boss fight
-			[-] find life anointment 1 - field puzzle
-			[-] find life anointment 2 - hidden in aldus cave
+			[x] find life anointment 1 - field puzzle
+			[x] find life anointment 2 - hidden in aldus cave
 			[-] find life anointment 3 - hidden next to the water below the mountain.
 			[-] find life anointment 4
 			[-] find life anointment 5
@@ -53,13 +56,14 @@ TODO
 
 
 BUGS
-	??? randomly getting 1 exp
 	??? might be a bug where you're getting shields broken after death because of some var not being set or something
-	??? heard the angel wing sound at the bottom of the mountain when I wasnt even close to the angel
-	??? fireball seems to mess up star fall tome
 	unit gets stuck when swapping items
 	??? armor not replenishing if you get a kill with lightning blast
 	??? guardian angel NPC index doesnt kill itself when it doesnt exist leading to erratic behaviour
+	cetus death sound happened when he despawned
+	players damage is displayed on other players units
+	players damage is displayed on lost knight?
+	dt behaves erratically and doesnt target immediately because of flingy control or something. Really irritating and unpredictable.
 
 	
 IDEAS
@@ -108,6 +112,10 @@ IDEAS
 	what if blood moon happens every 5 or 10 days
 	what if blood moon starts with a meteor dropping and the impact site is some random event.
 	what if strength makes you faster with big weapons and dexterity makes you faster with small weapons
+	what if trolls or giants or golems had ground pound abilities, or ground spike abilities.
+	what if sometimes caves can be invaded with hordes of creatures all at once
+	what if the end boss is basically the players fighting on top of a hill against endless waves of enemies and when you finally die you ascend
+		maybe theres a kill count and players can compete to get the most kills before dying
 
 GAMEPLAY
 	players should choose loadout at the beginning of the match

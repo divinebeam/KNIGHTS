@@ -980,6 +980,7 @@ function RedeemUnitExp(playerID, unitType) {
     var amount_players_nearby = 0;
     var exp_to_gain = 0;
     if (unitType == U_CHIMERA) exp_to_gain += 35;
+    else if (unitType == U_ANANSI) exp_to_gain += 20;
     else if (unitType == U_HILL_SPINT) exp_to_gain += 80;
     else if (unitType == U_LOST_KNIGHT) exp_to_gain += 500;
     else if (unitType == U_TWISTED_KNIGHT) exp_to_gain += 200;
@@ -2879,6 +2880,8 @@ function UpdateNPCs() {
                             CreateProjectile();
                         }
                         PlayWavAtPos("staredit/wav/boss_death0.ogg", npc_x[i], npc_y[i], 960);
+                        setloc(L_MAIN, npc_x[i], npc_y[i]);
+                        CreateUnitDeathAtLocation(U_KAKARU, $P8, L_MAIN);
                     } else if (npc_state1[i] > 48 && npc_state1[i] % 4 == 0) {
                         queue_pro_posx, queue_pro_posy = npc_x[i], npc_y[i];
                         queue_pro_maxtime = 12;
@@ -2983,6 +2986,7 @@ function afterTriggerExec() {
                     unit.currentSpeed1 = 0; // Unit stuck because of flingy movement fix.
                     unit.currentSpeed2 = 0;
                 }
+                unit.orderTimer = 0;
             }
             if (unit_is_moving && IsAlive(playerID)) {
                 const x, y = GetChunkAtPos(p_x[playerID], p_y[playerID]);
