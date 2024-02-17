@@ -4,7 +4,6 @@ CURRENTLY
 		make it local, display shield stuff, etc.
 	implementing juyet quest
 	implementing cetus
-		cant leave lair
 		cant despawn
 		players cant leave lair
 		display boss hp
@@ -27,6 +26,7 @@ TODO
 	need to implement heals of some sort
 	harvesting plants?
 	make it so that when the day resets, enemies cant spawn right on top of you and fuck you up.
+	show cooldowns
 
 	VERSION 0.1 CHECK LIST
 			[x] SHORT SWORD		Recover armor when you get a kill
