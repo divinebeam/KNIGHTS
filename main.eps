@@ -68,6 +68,13 @@ const IMAGE_BURST_LASER = 447;
 const IMAGE_NEUTRON = 964;
 const IMAGE_GAUSS_RIFLE_HIT = 527;
 const IMAGE_NUKE_DEATH = 428;
+const IMAGE_VENOM_HIT = 508;
+const IMAGE_GEYSER_SMOKE1 = 430;
+const IMAGE_GEYSER_SMOKE2 = 431;
+const IMAGE_GEYSER_SMOKE3 = 432;
+const IMAGE_GEYSER_SMOKE4 = 433;
+const IMAGE_GEYSER_SMOKE5 = 434;
+const IMAGE_SPORES_OVERLAY = 514;
 
 const FULL_DAY_LENGTH = 8640;
 const BRIGHTNESS_DEFAULT = 31;
@@ -1032,6 +1039,11 @@ function DamageUnit(playerID, unit: CUnit, damage, index) {
         Order(unit.unitID, $P7, L_0X0, Attack, L_MAIN);
     }
     return target_state;
+}
+
+function HealUnit(unit: CUnit, amount, maximum) {
+    if (unit.hp + amount >= maximum) unit.hp = maximum;
+    else unit.hp += amount;
 }
 
 function HealPlayer(playerID, unit: CUnit, amount) {
@@ -2518,11 +2530,11 @@ function UpdateWeaponState(playerID) {
                 else if (weapon_state[i] == 19) weapon_angle[i] = unit_angle - 90;
                 if (weapon_state[i] == 13) {
                     weapon_x[i], weapon_y[i] = MovePosTowards(unit_x, unit_y, unit_angle, 32);
-                    DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 128, 500, 5, 0);
+                    DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 128, 50, 5, 0);
                     PlayWavAtPos("staredit/wav/large_sword0.ogg", unit_x, unit_y, 512);
                 } else if (weapon_state[i] == 20) {
                     weapon_x[i], weapon_y[i] = MovePosTowards(unit_x, unit_y, unit_angle, 32);
-                    DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 128, 500, 5, 0);
+                    DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 128, 60, 5, 0);
                     PlayWavAtPos("staredit/wav/large_sword0.ogg", unit_x, unit_y, 512);
                 }
                 // swing 1
@@ -2665,7 +2677,7 @@ function UpdateUtilityState(playerID) {
                         utility_state[i] = 12;
                     }
                     setloc(L_MAIN, utility_x[i], utility_y[i]);
-                    CreateImageSpriteAtLocation(playerID, L_MAIN, IMAGE_EXPL_BLUE_SMALL, 6, ISCRIPT_FAST);
+                    CreateImageSpriteAtLocation($P8, L_MAIN, IMAGE_EXPL_BLUE_SMALL, 6, ISCRIPT_FAST);
                     ResetCheckCollision();
                 }
                 if (utility_state[i] > 0) utility_state[i]++;
@@ -2834,18 +2846,20 @@ function UpdateNPCs() {
             } else if (npc_id[i] == NPC_CETUS) {
                 debug_values[0] = npc_state0[i];
                 debug_values[1] = npc_state1[i];
+                const lair_x, lair_y = 384, 1568;
                 // npc_state0 - combat loop
                 if (PlayersAtArea(AREA_CETUS_LAIR) && npc_state0[i] == 0) {
                     npc_state0[i] = 1;
                     PlayWavAtPos("staredit/wav/boss_incoming.ogg", npc_x[i], npc_y[i], 960);
                 } else if (!PlayersAtArea(AREA_CETUS_LAIR) && npc_state0[i] > 0) {
                     npc_state0[i] = 0;
+                    unit.hp = 600 * 256;
                 }
                 if (npc_state0[i] > 0 && unit_is_alive) {
-                    if (npc_state0[i] <= 120 && npc_state0[i] % 24 == 0) {
+                    if ((npc_state0[i] <= 120 && npc_state0[i] % 24 == 0) || (npc_state0[i] >= 288 && npc_state0[i] <= 408 && npc_state0[i] % 24 == 0)) {
                         PlayWavAtPos("staredit/wav/boss_charge.ogg", npc_x[i], npc_y[i], 960);
                     }
-                    if (npc_state0[i] <= 144 && npc_state0[i] % 2 == 0) {
+                    if (npc_state0[i] <= 144 && npc_state0[i] % 2 == 0) { // charge up first summon (0 - 6 seconds)
                         queue_pro_posx, queue_pro_posy = MovePosTowards(npc_x[i], npc_y[i], Random(0, 359), 320);
                         queue_pro_maxtime = 12;
                         queue_pro_velocity = 20;
@@ -2854,13 +2868,48 @@ function UpdateNPCs() {
                         queue_pro_effect2_iscript = ISCRIPT_FAST;
                         queue_pro_target_cunit = npc_cunit[i];
                         CreateProjectile();
-                    } else if (npc_state0[i] == 145) {
-                        DrawCircle(384, 1568, 448, 12, IMAGE_ZERG_AIR_DEATH_LARGE, 0, ISCRIPT_FAST);
-                        setloc(L_MAIN, 384, 1568);
-                        CenterLoc(L_16X16, 384, 1568);
+                    } else if (npc_state0[i] == 145) { // do first summon (on 6 seconds)
+                        DrawCircle(lair_x, lair_y, 448, 12, IMAGE_ZERG_AIR_DEATH_LARGE, 0, ISCRIPT_FAST);
+                        setloc(L_MAIN, lair_x, lair_y);
+                        CenterLoc(L_16X16, lair_x, lair_y);
                         CreateUnitCircle(U_ANANSI, $P7, L_MAIN, 448, 12);
                         Order(U_ANANSI, $P7, L_16X16, Patrol, L_16X16);
                         PlayWavAtPos("sound\Bullet\ZQuHit02.wav", npc_x[i], npc_y[i], 960);
+                    } else if (npc_state0[i] >= 288 && npc_state0[i] <= 432 && npc_state0[i] % 2 == 0) { // charge up second summon (12 - 18 seconds)
+                        queue_pro_posx, queue_pro_posy = MovePosTowards(npc_x[i], npc_y[i], Random(0, 359), 320);
+                        queue_pro_maxtime = 12;
+                        queue_pro_velocity = 20;
+                        queue_pro_effect2 = IMAGE_PHOTON_BLASTERS;
+                        queue_pro_effect2_drawfunc = 17;
+                        queue_pro_effect2_iscript = ISCRIPT_FAST;
+                        queue_pro_target_cunit = npc_cunit[i];
+                        CreateProjectile();
+                    } else if (npc_state0[i] == 433) { // do second summon (on 18 seconds)
+                        DrawCircle(lair_x, lair_y, 448, 12, IMAGE_ZERG_AIR_DEATH_LARGE, 0, ISCRIPT_FAST);
+                        setloc(L_MAIN, lair_x, lair_y);
+                        CenterLoc(L_16X16, lair_x, lair_y);
+                        CreateUnitCircle(U_CHIMERA, $P7, L_MAIN, 448, 12);
+                        Order(U_CHIMERA, $P7, L_16X16, Patrol, L_16X16);
+                        PlayWavAtPos("sound\Bullet\ZQuHit02.wav", npc_x[i], npc_y[i], 960);
+                    } else if (npc_state0[i] >= 576 && npc_state0[i] % 12 == 0) { // consume chimeras in the lair after 24 seconds
+                        CenterLoc(L_16X16, lair_x, lair_y);
+                        if (Bring($P7, AtLeast, 1, U_CHIMERA, L_16X16)) {
+                            HealUnit(npc_cunit[i], 20 * 256, 600 * 256);
+                            PlayWavAtPos("sound\Bullet\ZHyFir00.wav", lair_x, lair_y, 960);
+                            MoveLocation(L_MAIN, U_CHIMERA, $P7, L_16X16);
+                            KillUnitAt(1, U_CHIMERA, L_MAIN, $P7);
+                            queue_pro_posx, queue_pro_posy = GetLocationPoint(L_MAIN);
+                            queue_pro_maxtime = 16;
+                            queue_pro_velocity = 12;
+                            queue_pro_effect1 = IMAGE_SPORES_OVERLAY;
+                            queue_pro_effect1_iscript = ISCRIPT_FAST;
+                            queue_pro_effect1_drawfunc = 6;
+                            queue_pro_effect2_start = 7;
+                            queue_pro_effect2 = IMAGE_SPORES_OVERLAY;
+                            queue_pro_effect2_iscript = ISCRIPT_FAST;
+                            queue_pro_target_cunit = npc_cunit[i];
+                            CreateProjectile();
+                        }
                     }
                     npc_state0[i]++;
                     if (npc_state0[i] >= 720) npc_state0[i] = 1;
@@ -2879,9 +2928,10 @@ function UpdateNPCs() {
                             queue_pro_effect2_type = 1;
                             CreateProjectile();
                         }
-                        PlayWavAtPos("staredit/wav/boss_death0.ogg", npc_x[i], npc_y[i], 960);
                         setloc(L_MAIN, npc_x[i], npc_y[i]);
                         CreateUnitDeathAtLocation(U_KAKARU, $P8, L_MAIN);
+                    } else if (npc_state1[i] == 24) {
+                        PlayWavAtPos("staredit/wav/boss_death0.ogg", npc_x[i], npc_y[i], 960);
                     } else if (npc_state1[i] > 48 && npc_state1[i] % 4 == 0) {
                         queue_pro_posx, queue_pro_posy = npc_x[i], npc_y[i];
                         queue_pro_maxtime = 12;
@@ -2890,7 +2940,13 @@ function UpdateNPCs() {
                         queue_pro_angular_velocity = Random(-10, 10);
                         queue_pro_effect2 = IMAGE_ZERG_AIR_DEATH_SMALL;
                         queue_pro_effect2_iscript = ISCRIPT_NORMAL;
+                        if (npc_state1[i] % 12 == 0) {
+                            queue_pro_effect2_drawfunc = 17;
+                        }
                         CreateProjectile();
+                        PlayWavAtPos("sound\Zerg\Guardian\ZGuDth00.WAV", npc_x[i], npc_y[i], 960);
+                        setloc(L_MAIN, npc_x[i], npc_y[i]);
+                        CreateImageSpriteAtLocation($P7, L_MAIN, IMAGE_ZERG_AIR_DEATH_LARGE, 0, ISCRIPT_NORMAL);
                     }
                     if (npc_state1[i] == 72) PlayWavAtPos("staredit/wav/boss_destroyed.ogg", npc_x[i], npc_y[i], 960);
                     npc_state1[i]++;
@@ -2942,8 +2998,8 @@ function afterTriggerExec() {
     if (time_state_changed && time_state == 0) {
         RemoveUnit(U_CHIMERA, $P7);
         RemoveUnit(U_HILL_SPINT, $P7);
+        RemoveUnit(U_ANANSI, $P7);
         RemoveUnit(U_GUARDIAN_ANGEL, $P7);
-        RemoveUnit(U_LOST_KNIGHT, $P7);
         RemoveUnit(U_TWISTED_KNIGHT, $P7);
         var reset_count = 0;
         for (var i = 0; i < 256; i++) {
@@ -2987,6 +3043,7 @@ function afterTriggerExec() {
                     unit.currentSpeed2 = 0;
                 }
                 unit.orderTimer = 0;
+                unit.orderQueueTimer = 0;
             }
             if (unit_is_moving && IsAlive(playerID)) {
                 const x, y = GetChunkAtPos(p_x[playerID], p_y[playerID]);
@@ -3154,6 +3211,9 @@ function afterTriggerExec() {
                     const armor_lost = p_shield[playerID] - unit.shield;
                     const amount_recovered = GetArmorToughnessDeduction(playerID, armor_lost);
                     HealShieldPlayer(playerID, unit, amount_recovered); // toughness from resilience
+                    // const recovered_whole, recovered_frac = GetWholeAndFraction((amount_recovered * 10000) / 256);
+                    // screen.printf("\x06{}! \x02+{}.{}", armor_lost / 256, recovered_whole, recovered_frac);
+                    // screen.printf("\x06{}!", (armor_lost - amount_recovered) / 256);
                     if (unit_took_health_damage && p_shield[playerID] >= 256) {
                         p_shield_broken[playerID] = 1;
                         // DisplayText("\x13\x06-! ARMOR BROKEN !-");
