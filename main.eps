@@ -2914,7 +2914,7 @@ function UpdateNPCs() {
                     } else if (npc_state0[i] >= 576 && npc_state0[i] % 12 == 0) { // consume chimeras in the lair after 24 seconds
                         CenterLoc(L_16X16, lair_x, lair_y);
                         if (Bring($P7, AtLeast, 1, U_CHIMERA, L_16X16)) {
-                            HealUnit(npc_cunit[i], 20 * 256, 600 * 256);
+                            HealUnit(npc_cunit[i], 10 * 256, 600 * 256);
                             PlayWavAtPos("sound\Bullet\ZHyFir00.wav", lair_x, lair_y, 960);
                             MoveLocation(L_MAIN, U_CHIMERA, $P7, L_16X16);
                             KillUnitAt(1, U_CHIMERA, L_MAIN, $P7);
@@ -2968,9 +2968,23 @@ function UpdateNPCs() {
                         setloc(L_MAIN, npc_x[i], npc_y[i]);
                         CreateImageSpriteAtLocation($P7, L_MAIN, IMAGE_ZERG_AIR_DEATH_LARGE, 0, ISCRIPT_NORMAL);
                     }
-                    if (npc_state1[i] == 72) PlayWavAtPos("staredit/wav/boss_destroyed.ogg", npc_x[i], npc_y[i], 960);
+                    // if (npc_state1[i] == 72) PlayWavAtPos("staredit/wav/boss_destroyed.ogg", npc_x[i], npc_y[i], 960);
                     npc_state1[i]++;
                     if (npc_state1[i] >= 216) {
+                        for (var j = 0; j < 8; j++) {
+                            queue_pro_posx, queue_pro_posy = npc_x[i], npc_y[i];
+                            queue_pro_maxtime = 12;
+                            queue_pro_angle = (j + 1) * 45;
+                            queue_pro_velocity = 25;
+                            queue_pro_angular_velocity = Random(-10, 10);
+                            queue_pro_effect2 = IMAGE_ZERG_AIR_DEATH_SMALL;
+                            queue_pro_effect2_iscript = ISCRIPT_NORMAL;
+                            queue_pro_effect2_drawfunc = 17;
+                            CreateProjectile();
+                        }
+                        PlayWavAtPos("staredit/wav/boss_destroyed.ogg", npc_x[i], npc_y[i], 960);
+                        setloc(L_MAIN, npc_x[i], npc_y[i]);
+                        CreateItemUnit(U_WEAPON, WEAPON_CRIMSON_LONG_SWORD, L_MAIN, 1);
                         ResetNPCIndex(i);
                     }
                 }
@@ -3012,7 +3026,7 @@ function onPluginStart() {
                 EquipItem(WEAPON_CRIMSON_LONG_SWORD, U_WEAPON, playerID);
                 EquipItem(UTILITY_DASH, U_UTILITY, playerID);
                 SetMaxHP(playerID, 500 * 256);
-                // GetVision($P7);
+                GetVision($P7);
             }
             PlaySong(0);
         }
@@ -3433,7 +3447,7 @@ function afterTriggerExec() {
                 sprintf(unit_damage_string, "\x04Unit Damage: \x02{}", p_damage[playerID]);
                 const weapon_damage_string = Db(512);
                 sprintf(weapon_damage_string, "\x04{:s} Damage: \x08{}", GetStringItemName(weapon_id[playerID], U_WEAPON), GetWeaponDamage(weapon_id[playerID], 0, playerID));
-                settblf(284, 0, "{:s}\n{:s}\n\x0C", unit_damage_string, weapon_damage_string);
+                settblf(300, 0, "{:s}\n{:s}\n\x0C", unit_damage_string, weapon_damage_string);
             }
 
             // @bm debug_enabled

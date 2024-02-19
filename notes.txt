@@ -4,9 +4,7 @@ CURRENTLY
 		make it local, display shield stuff, etc.
 	implementing juyet quest
 	implementing cetus
-		cant despawn
 		players cant leave lair
-		display boss hp
 	need to implement some sort of flag system to make it so units cant be double damaged by the same weapon
 	store flags for weapon array positions?
 
