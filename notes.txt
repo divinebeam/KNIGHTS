@@ -49,6 +49,7 @@ TODO
 			[-] north cave
 			[-] east cave
 			[-] breven cave
+			[-] basic consumables
 
 
 BUGS
@@ -197,3 +198,27 @@ STORY
 	Which they are, but the details are left out. The floating island which the game takes place on has captured creatures from the stars that get are controlled
 	by greater warriors watching the players from above. The rank you're given at the end of your trial determines where you are placed in the heavenly battle.
 	If you successfully remove the "thorn" from the land you are chosen and you will ascend to join the heavenly battle as a glorious warrior.
+
+MATERIALS
+	Plant Fiber
+	Gartle Leaves
+	Targus Root
+	Weeping Hood
+
+	Iron Ore
+	Mithril Ore
+	Adamantium Ore
+	Gold Ore
+
+	Sapphire
+	Emerald
+	Ruby
+	Diamond
+
+	Leather
+	Bone
+
+	Spirit Of Vengeance
+	Spirit Of Remorse
+	Spirit Of Tranquility
+	Spirit Of Divinity
