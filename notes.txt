@@ -29,6 +29,7 @@ TODO
 	harvesting plants?
 	make it so that when the day resets, enemies cant spawn right on top of you and fuck you up.
 	show cooldowns
+	refactor looted flags since farty showed me a better way to do it.
 
 	VERSION 0.1 CHECK LIST
 			[x] SHORT SWORD		Recover armor when you get a kill

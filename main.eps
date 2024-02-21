@@ -28,6 +28,7 @@ const U_SCOURGE = 47;
 const U_WEAPON = 129;
 const U_ARMOR = 219;
 const U_UTILITY = 128;
+const U_CONSUMABLE = 227;
 const U_MARKER = 7; // P9 = UTILITY, P10 = WEAPON, P11 = ARMOR, P12 = SPECIAL
 const U_EXPERIENCE = 220;
 const U_CHECKHEIGHT = 9;
@@ -303,7 +304,8 @@ function IsUnitItem(unitType) {
         unitType == U_WEAPON ||
         unitType == U_ARMOR ||
         unitType == U_LIFEPICKUP ||
-        unitType == U_UTILITY
+        unitType == U_UTILITY ||
+        unitType == U_CONSUMABLE
     ) {
         return 1;
     }
@@ -370,6 +372,13 @@ function GetStringItemName(item_id, unitID) {
             case 0: return Db("Nothing");
             case UTILITY_DASH: return Db("Tome Of Dash");
         }
+    } else if (unitID == U_CONSUMABLE) {
+        switch(item_id) {
+            case 0: return Db("Nothing");
+            case CONSUMABLE_BANDAGE: return Db("Bandage");
+            case CONSUMABLE_ELIXER_OF_LIFE: return Db("Elixer Of Life");
+            case CONSUMABLE_FUSE_BOMB: return Db("Fuse Bomb");
+        }
     }
 }
 
@@ -398,6 +407,13 @@ function GetStringItemDescription(item_id, unitID) {
         switch(item_id) {
             case 0: return Db("Nothing");
             case UTILITY_DASH: return Db("Powerful charge that throws the user forward.");
+        }
+    } else if (unitID == U_CONSUMABLE) {
+        switch(item_id) {
+            case 0: return Db("Nothing");
+            case CONSUMABLE_BANDAGE: return Db("Heals 25 Life over some period of time.");
+            case CONSUMABLE_ELIXER_OF_LIFE: return Db("Heals 25 Life instantly.");
+            case CONSUMABLE_FUSE_BOMB: return Db("Violently explodes after some period of time.");
         }
     }
 }
@@ -445,6 +461,25 @@ function GetStringWorldInteractionPrompt(id) {
 function SetupStringArrays() {
     strings_loot_interactions[0] = Db("\x03-<1>- \x04to Equip.");
     strings_loot_interactions[1] = Db("\x03-<1>- \x04to Equip and swap with: ");
+}
+
+function MenuIsOpen(playerID) {
+    if (
+        m_main[playerID] > 0 ||
+        p_current_item_unit[playerID] > 0
+    ) {
+        return 1;
+    }
+    return 0;
+}
+
+function GetInputBeltKeypress(playerID) {
+    const check_from = playerID * 10;
+    const check_to = check_from + 10;
+    for (var i = check_from; i < check_to; i++) {
+        if (keypress_belt[i] > 0) return i;
+    }
+    return -1;
 }
 
 function SetupSystemUnits() {
@@ -932,8 +967,17 @@ function StoreHarvestPositions() {
 }
 
 function SpawnInitialItemUnits() {
-    foreach(unit : EUDLoopCUnit()) {
-        if (unit.playerID == $P9) {
+    foreach(unit : EUDLoopCUnit()) {  // TODO: refactor the if statements in the future to not be retarded?
+        if (unit.playerID == $P8) {
+            if (unit.unitType == U_MARKER) {
+                const consumable_item_id = unit.hp / 256;
+                setloc(L_MAIN, unit.posX, unit.posY);
+                RemoveUnitAt(1, U_MARKER, L_MAIN, $P8);
+                const new_unit = CUnit(CreateCUnit(U_CONSUMABLE, $P8, L_MAIN));
+                new_unit.energy = consumable_item_id;
+                new_unit.shield = GetSumOfActivePlayerBits();
+            }
+        } else if (unit.playerID == $P9) {
             if (unit.unitType == U_MARKER) {
                 const utility_item_id = unit.hp / 256;
                 setloc(L_MAIN, unit.posX, unit.posY);
@@ -3478,6 +3522,10 @@ function afterTriggerExec() {
                     } else {
                         screen.printfAt(2, "\x09\x09\x09\x09\x09\x09\x09\x09\x02{:s}", strings_loot_interactions[0]);
                     }
+                    // check for player input
+                    if (item_unit_type == U_CONSUMABLE) {
+                        
+                    }
                     if (keypress_1[playerID]) {
                         item_unit.shield = ModifyItemLootedStatus(playerID, item_looted_status);
                         if (item_unit.shield == 0) { // remove the unit if the loot status returns 0
@@ -3499,7 +3547,7 @@ function afterTriggerExec() {
             }
 
             // CONSUMABLES
-            if (IsAlive(playerID) && m_main[playerID] == 0) {
+            if (IsAlive(playerID) && !MenuIsOpen(playerID)) {
                 const check_from = playerID * 10;
                 const check_to = check_from + 10;
                 for (var i = check_from; i < check_to; i++) {
@@ -3513,7 +3561,7 @@ function afterTriggerExec() {
                         }
                         if (was_used && p_belt_amount[i] > 0) {
                             p_belt_amount[i]--;
-                            screen.printf("\x13\x04{} Remaining", p_belt_amount[i]);
+                            screen.printf("\x13\x04{} Remaining", p_belt_amount[i], GetStringItemName(p_belt_equipped[i], U_CONSUMABLE));
                             // make this text more specific and maybe confined to 1 line
                         }
                     }
