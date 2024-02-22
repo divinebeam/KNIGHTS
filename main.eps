@@ -233,6 +233,7 @@ const p_material_hood_amount = PVariable();
 const p_cons_bandage_state = PVariable();
 const p_belt_equipped = EUDArray(60);
 const p_belt_amount = EUDArray(60);
+const p_entered_lair = PVariable();
 
 const MAX_NPC_UNITS = 30;
 const npc_x = EUDArray(MAX_NPC_UNITS);
@@ -267,6 +268,7 @@ const utility_angle = EUDArray(MAX_UTILITY_OBJECTS);
 
 const m_main = PVariable();
 const m_page = PVariable();
+const m_disable_delay = PVariable(); // this makes it so the menu disables stuff for some time after its closed.
 
 const screen = StringBuffer();
 const monster_spawn_type = EUDArray(MAX_MONSTER_SPAWNS);
@@ -466,7 +468,8 @@ function SetupStringArrays() {
 function MenuIsOpen(playerID) {
     if (
         m_main[playerID] > 0 ||
-        p_current_item_unit[playerID] > 0
+        p_current_item_unit[playerID] > 0 ||
+        m_disable_delay[playerID] > 0
     ) {
         return 1;
     }
@@ -1249,6 +1252,11 @@ function PosToSquare(positionx, positiony, width) {
     return limit_left, limit_right, limit_top, limit_bottom;
 }
 
+function ResetHeroPosition(playerID, positionx, positiony) {
+    p_x_old[playerID], p_y_old[playerID] = positionx, positiony;
+    p_x[playerID], p_y[playerID] = positionx, positiony;
+}
+
 function GetSpawnPosition(playerID) {
     if (playerID == 0) return 1984, 1184;
     else if (playerID == 1) return 2048, 1120;
@@ -1267,7 +1275,7 @@ function SpawnHero(playerID) {
     p_cunit[playerID] = CreateCUnit(U_HERO[playerID], playerID, L_MAIN);
     CenterView(L_MAIN);
     const unit = CUnit(p_cunit[playerID]);
-    unit.killCount = p_level_current[playerID];
+    ResetHeroPosition(playerID, unit.posX, unit.posY);
 }
 
 function SetMaxHP(playerID, value) {
@@ -2870,7 +2878,6 @@ function LevelUp(playerID, unit: CUnit) {
     p_exp_current[playerID] = 0;
     p_exp_goal[playerID] = 300 + 150 * p_level_current[playerID];
     SetLevelString(playerID);
-    unit.killCount = p_level_current[playerID];
     screen.printf("LEVEL UP - Level {}", p_level_current[playerID]);
     PlayWAV("staredit/wav/levelup.ogg");
     CreateUnitDeathAtLocation($U("Protoss Observer"), $P8, L_MAIN);
@@ -3031,6 +3038,9 @@ function UpdateNPCs() {
                 if (PlayersAtArea(AREA_CETUS_LAIR) && npc_state0[i] == 0) {
                     npc_state0[i] = 1;
                     PlayWavAtPos("staredit/wav/boss_incoming.ogg", npc_x[i], npc_y[i], 960);
+                    CenterLoc(L_16X16, lair_x, lair_y);
+                    RemoveUnitAt(All, U_ANANSI, L_16X16, $P7);
+                    RemoveUnitAt(All, U_CHIMERA, L_16X16, $P7);
                 } else if (!PlayersAtArea(AREA_CETUS_LAIR) && npc_state0[i] > 0) {
                     npc_state0[i] = 0;
                     unit.hp = 600 * 256;
@@ -3052,7 +3062,7 @@ function UpdateNPCs() {
                         DrawCircle(lair_x, lair_y, 448, 12, IMAGE_ZERG_AIR_DEATH_LARGE, 0, ISCRIPT_FAST);
                         setloc(L_MAIN, lair_x, lair_y);
                         CenterLoc(L_16X16, lair_x, lair_y);
-                        CreateUnitCircle(U_ANANSI, $P7, L_MAIN, 448, 12);
+                        CreateUnitCircle(U_ANANSI, $P7, L_MAIN, 448, 10);
                         Order(U_ANANSI, $P7, L_16X16, Patrol, L_16X16);
                         PlayWavAtPos("sound\Bullet\ZQuHit02.wav", npc_x[i], npc_y[i], 960);
                     } else if (npc_state0[i] >= 288 && npc_state0[i] <= 432 && npc_state0[i] % 2 == 0) { // charge up second summon (12 - 18 seconds)
@@ -3068,7 +3078,7 @@ function UpdateNPCs() {
                         DrawCircle(lair_x, lair_y, 448, 12, IMAGE_ZERG_AIR_DEATH_LARGE, 0, ISCRIPT_FAST);
                         setloc(L_MAIN, lair_x, lair_y);
                         CenterLoc(L_16X16, lair_x, lair_y);
-                        CreateUnitCircle(U_CHIMERA, $P7, L_MAIN, 448, 12);
+                        CreateUnitCircle(U_CHIMERA, $P7, L_MAIN, 448, 10);
                         Order(U_CHIMERA, $P7, L_16X16, Patrol, L_16X16);
                         PlayWavAtPos("sound\Bullet\ZQuHit02.wav", npc_x[i], npc_y[i], 960);
                     } else if (npc_state0[i] >= 576 && npc_state0[i] % 12 == 0) { // consume chimeras in the lair after 24 seconds
@@ -3184,11 +3194,11 @@ function onPluginStart() {
             if (debug_enabled) {
                 p_attributepoints[playerID] = 20;
                 EquipItem(ARMOR_SHATTERED_KNIGHTS, U_ARMOR, playerID);
-                EquipItem(WEAPON_CRIMSON_LONG_SWORD, U_WEAPON, playerID);
-                EquipItem(UTILITY_DASH, U_UTILITY, playerID);
-                SetMaxHP(playerID, 500 * 256);
+                EquipItem(WEAPON_SHORTSWORD, U_WEAPON, playerID);
+                // EquipItem(UTILITY_DASH, U_UTILITY, playerID);
+                SetMaxHP(playerID, 140 * 256);
                 GetVision($P7);
-                EquipBelt(CONSUMABLE_BANDAGE, playerID, 0, 3);
+                // EquipBelt(CONSUMABLE_BANDAGE, playerID, 0, 3);
                 EquipBelt(CONSUMABLE_BANDAGE, playerID, 1, 3);
                 EquipBelt(CONSUMABLE_BANDAGE, playerID, 2, 3);
                 EquipBelt(CONSUMABLE_BANDAGE, playerID, 3, 3);
@@ -3233,6 +3243,7 @@ function afterTriggerExec() {
             var unit_is_moving = 0;
             p_just_attacked[playerID] = 0;
             p_order_input[playerID] = 0;
+            if (m_disable_delay[playerID] > 0) m_disable_delay[playerID]--;
             var unit_is_indoors = 0;
             var unit_took_health_damage = 0;
             if (p_interaction_prompt_delay[playerID] > 0) p_interaction_prompt_delay[playerID]--;
@@ -3248,6 +3259,19 @@ function afterTriggerExec() {
                 if (p_x[playerID] == p_x_old[playerID] && p_y[playerID] == p_y_old[playerID]) {
                     unit_is_moving = 0;
                 } else {
+                    // confine movement for lairs
+                    if (p_entered_lair[playerID] > 0) {
+                        if (
+                            GetAreaAtPos(p_x[playerID], p_y[playerID]) != p_entered_lair[playerID] && 
+                            GetAreaAtPos(p_x_old[playerID], p_y_old[playerID]) == p_entered_lair[playerID]
+                        ) {
+                            setloc(L_MAIN, p_x[playerID], p_y[playerID]);
+                            CreateImageSpriteAtLocation($P8, L_MAIN, IMAGE_HALLUC_DEATH1, 17, ISCRIPT_NORMAL);
+                            TeleportHeroPos(playerID, p_x_old[playerID], p_y_old[playerID]);
+                            p_x[playerID], p_y[playerID] = p_x_old[playerID], p_y_old[playerID];
+                        }
+                    }
+                    // update coordinates
                     p_x_old[playerID] = p_x[playerID];
                     p_y_old[playerID] = p_y[playerID];
                     unit_is_moving = 1;
@@ -3258,6 +3282,9 @@ function afterTriggerExec() {
                 }
                 unit.orderTimer = 0;
                 unit.orderQueueTimer = 0;
+                if (p_entered_lair[playerID] == 0 && GetAreaAtPos(p_x[playerID], p_y[playerID]) == AREA_CETUS_LAIR) {
+                    p_entered_lair[playerID] = AREA_CETUS_LAIR;
+                }
             }
             if (unit_is_moving && IsAlive(playerID)) {
                 const x, y = GetChunkAtPos(p_x[playerID], p_y[playerID]);
@@ -3507,6 +3534,7 @@ function afterTriggerExec() {
                 if (GetDistance(p_x[playerID], p_y[playerID], item_x, item_y) > CLOSE_LOOT_MENU_DISTANCE) {
                     ClearTextLines(0, 2);
                     p_current_item_unit[playerID] = 0;
+                    m_disable_delay[playerID] = 12;
                 } else {
                     const item_name = GetStringItemName(item_id, item_unit_type);
                     const item_description = GetStringItemDescription(item_id, item_unit_type);
