@@ -40,13 +40,13 @@ TODO
 			[X] LIGHTNING BLAST
 			[-] BLADE STORM
 			[x] STAR FALL
-			[-] cetus boss fight
+			[x] cetus boss fight
 			[-] aldus boss fight
 			[-] breven boss fight
 			[x] find life anointment 1 - field puzzle
 			[x] find life anointment 2 - hidden in aldus cave
 			[-] find life anointment 3 - hidden next to the water below the mountain.
-			[-] find life anointment 4
+			[-] find life anointment 4 - hidden in cetus cave
 			[-] find life anointment 5
 			[-] cetus/aldus cave
 			[-] north cave
