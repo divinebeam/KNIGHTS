@@ -105,6 +105,7 @@ const PLAYER_DEFAULT_SHIELD = 0;
 const PLAYER_DEFAULT_DAMAGE = 6;
 const PLAYER_DEFAULT_ATTRIBUTE = 1;
 const PLAYER_LIFE_PICKUP_INCREASE = 20 * 256;
+const PLAYER_MAX_BELT_SLOTS = 9;
 
 const WEAPON_SHORTSWORD = 1;
 const WEAPON_LONGSWORD = 2;
@@ -132,7 +133,7 @@ const MATERIAL_GARTLE_LEAVES = 2;
 const MATERIAL_TARGUS_ROOT = 3;
 const MATERIAL_WEEPING_HOOD = 4;
 
-const keypress_belt = EUDArray(60);
+const keypress_belt = EUDArray(PLAYER_MAX_BELT_SLOTS * 6);
 const keypress_1 = PVariable();
 const keypress_2 = PVariable();
 const keypress_3 = PVariable();
@@ -231,9 +232,9 @@ const p_material_gartle_amount = PVariable();
 const p_material_targus_amount = PVariable();
 const p_material_hood_amount = PVariable();
 const p_cons_bandage_state = PVariable();
-const p_belt_equipped = EUDArray(60);
-const p_belt_amount = EUDArray(60);
-const p_belt_unlocked = EUDArray(60);
+const p_belt_equipped = EUDArray(PLAYER_MAX_BELT_SLOTS * 6);
+const p_belt_amount = EUDArray(PLAYER_MAX_BELT_SLOTS * 6);
+const p_belt_unlocked = EUDArray(PLAYER_MAX_BELT_SLOTS * 6);
 const p_belt_amount_max = PVariable();
 const p_entered_lair = PVariable();
 
@@ -478,9 +479,29 @@ function MenuIsOpen(playerID) {
     return 0;
 }
 
+function BeltIsFull(playerID) {
+    const check_from = playerID * PLAYER_MAX_BELT_SLOTS;
+    const check_to = check_from + PLAYER_MAX_BELT_SLOTS;
+    for (var i = check_from; i < check_to; i++) {
+        if (p_belt_amount[i] < p_belt_amount_max[playerID] && p_belt_unlocked[i]) return 0;
+        else if (!p_belt_unlocked[i]) return 1;
+    }
+    return 1;
+}
+
+function GetBeltSlotItemID(playerID, slotID) {
+    const index = (playerID * PLAYER_MAX_BELT_SLOTS) + slotID;
+    return p_belt_equipped[index];
+}
+
+function GetBeltSlotAmount(playerID, slotID) { // slotID should be 0 - 8
+    const index = (playerID * PLAYER_MAX_BELT_SLOTS) + slotID;
+    return p_belt_amount[index];
+}
+
 function GetInputBeltKeypress(playerID) {
-    const check_from = playerID * 10;
-    const check_to = check_from + 10;
+    const check_from = playerID * PLAYER_MAX_BELT_SLOTS;
+    const check_to = check_from + PLAYER_MAX_BELT_SLOTS;
     for (var i = check_from; i < check_to; i++) {
         if (keypress_belt[i] > 0) return i;
     }
@@ -510,7 +531,7 @@ function GetItemInteractionIDs(itemID, itemUnitID) {
 }
 
 function SetupBeltDefaults() {
-    for (var i = 0; i < 60; i++) {
+    for (var i = 0; i < PLAYER_MAX_BELT_SLOTS * 6; i++) {
         p_belt_amount_max[i] = 3;
     }
 }
@@ -1010,6 +1031,7 @@ function SpawnInitialItemUnits() {
                 const new_unit = CUnit(CreateCUnit(U_CONSUMABLE, $P8, L_MAIN));
                 new_unit.energy = consumable_item_id;
                 new_unit.shield = GetSumOfActivePlayerBits();
+                new_unit.unknown0x86 = 5;
             }
         } else if (unit.playerID == $P9) {
             if (unit.unitType == U_MARKER) {
@@ -1320,7 +1342,7 @@ function CalculateMaxShield(playerID) {
     p_shield_max[playerID] = 0;
     if (p_armor[playerID] == ARMOR_SHATTERED_KNIGHTS) p_shield_max[playerID] += 100 * 256;
 }
-
+// @bm EquipItem
 function EquipItem(item_id, unitType, playerID) {
     if (unitType == U_WEAPON) {
         weapon_id[playerID] = item_id;
@@ -1333,14 +1355,16 @@ function EquipItem(item_id, unitType, playerID) {
 }
 
 function EquipBelt(itemID, playerID, beltSlot, amount) {
-    const slot = (playerID * 10) + beltSlot;
+    const slot = (playerID * PLAYER_MAX_BELT_SLOTS) + beltSlot;
     p_belt_equipped[slot] = itemID;
     p_belt_amount[slot] = amount;
 }
 
 function EquipBeltAvailable(itemID, playerID, amount) {
-    const check_from = playerID * 10;
-    const check_to = check_from + 10;
+    var new_amount = amount;
+    if (new_amount == 0) new_amount = 1;
+    const check_from = playerID * PLAYER_MAX_BELT_SLOTS;
+    const check_to = check_from + PLAYER_MAX_BELT_SLOTS;
     var chosen_slot = check_from;
     var slot_number = 1;
     var stacked = 0;
@@ -1356,12 +1380,28 @@ function EquipBeltAvailable(itemID, playerID, amount) {
     var chosen_equipped = p_belt_equipped[chosen_slot];
     var chosen_amount = p_belt_amount[chosen_slot];
     if (stacked) {
-        EquipBelt(itemID, playerID, chosen_slot, chosen_amount + amount);
-        chosen_amount, chosen_equipped = 0;
+        if (chosen_amount + new_amount > p_belt_amount_max[playerID]) { // if the new stack exceeds belt max
+            const amount_equipped = p_belt_amount_max[playerID] - chosen_amount;
+            EquipBelt(itemID, playerID, chosen_slot, p_belt_amount_max[playerID]);
+            chosen_amount = (chosen_amount + new_amount) - p_belt_amount_max[playerID];
+            new_amount = amount_equipped;
+        } else { // if the stack is less or equal to belt max
+            EquipBelt(itemID, playerID, chosen_slot, chosen_amount + new_amount);
+            chosen_amount, chosen_equipped = 0, 0;
+        }
     } else {
-        EquipBelt(itemID, playerID, chosen_slot, amount);
+        if (new_amount > p_belt_amount_max[playerID]) {
+            chosen_amount = new_amount - p_belt_amount_max[playerID];
+            new_amount = p_belt_amount_max[playerID];
+            chosen_equipped = itemID;
+        }
+        EquipBelt(itemID, playerID, chosen_slot, new_amount);
     }
-    return slot_number, chosen_slot, chosen_equipped, chosen_amount;
+    return slot_number, chosen_equipped, chosen_amount, new_amount;
+    // slot number is the actual number key on the keyboard of the slot that the item was sent to.
+    // chosen equipped is the item id of the item that was in the slot previously
+    // chosen amount is the amount that was in the slot previously
+    // amount equipped is the amount of NEW item equipped.
 }
 
 function SetLevelString(playerID) {
@@ -1378,7 +1418,7 @@ function SetHeroDefaults(playerID) {
     p_attributepoints[playerID] = PLAYER_DEFAULT_ATTRIBUTE;
     SetMaxHP(playerID, PLAYER_DEFAULT_HP * 256);
     SetLevelString(playerID);
-    const index = playerID * 10;
+    const index = playerID * PLAYER_MAX_BELT_SLOTS;
     p_belt_unlocked[index + 0] = 1;
     p_belt_unlocked[index + 1] = 1;
     p_belt_unlocked[index + 2] = 1;
@@ -2915,8 +2955,8 @@ function UpdateUtilityState(playerID) {
 }
 
 function UpdateBeltKeypresses(playerID) {
-    const check_from = playerID * 10;
-    const check_to = check_from + 10;
+    const check_from = playerID * PLAYER_MAX_BELT_SLOTS;
+    const check_to = check_from + PLAYER_MAX_BELT_SLOTS;
     var iterations = 0;
     for (var i = check_from; i < check_to; i++) {
         if (iterations == 0) keypress_belt[i] = keypress_1[playerID];
@@ -2928,7 +2968,6 @@ function UpdateBeltKeypresses(playerID) {
         else if (iterations == 6) keypress_belt[i] = keypress_7[playerID];
         else if (iterations == 7) keypress_belt[i] = keypress_8[playerID];
         else if (iterations == 8) keypress_belt[i] = keypress_9[playerID];
-        else if (iterations == 9) keypress_belt[i] = keypress_0[playerID];
         iterations++;
     }
 }
@@ -3590,6 +3629,7 @@ function afterTriggerExec() {
                 const item_unit = CUnit(p_current_item_unit[playerID]);
                 const item_id = item_unit.energy;
                 const item_looted_status = item_unit.shield;
+                const item_amount = item_unit.unknown0x86;
                 const item_unit_type = item_unit.unitID;
                 const item_x, item_y = item_unit.posX, item_unit.posY;
                 if (GetDistance(p_x[playerID], p_y[playerID], item_x, item_y) > CLOSE_LOOT_MENU_DISTANCE) {
@@ -3606,7 +3646,8 @@ function afterTriggerExec() {
                     const equipped_name = GetStringItemName(equipped_id, item_unit_type);
                     ResetAuxiliaryArray();
                     aux_array[0], aux_array[1], aux_array[2] = GetItemInteractionIDs(item_id, item_unit_type);
-                    screen.printfAt(0, "\x09\x09\x09\x09\x09\x09\x04--+ \x1F{:s}", item_name);
+                    if (item_amount <= 1) screen.printfAt(0, "\x09\x09\x09\x09\x09\x09\x04--+ \x1F{:s}", item_name);
+                    else if (item_amount > 1) screen.printfAt(0, "\x09\x09\x09\x09\x09\x09\x04--+ \x1F{:s} \x04x{}", item_name, item_amount);
                     screen.printfAt(1, "\x09\x09\x09\x09\x09\x09\x09\x09\x02{:s}", item_description);
                     var action_equipped = 0;
                     var action_equipped_available_belt = 0;
@@ -3650,24 +3691,32 @@ function afterTriggerExec() {
                         screen.printf("\x13\x04Equipped \x1F{:s}", item_name);
                         PlayWAV("staredit/wav/equip_weapon.ogg");
                     } else if (action_equipped_available_belt) {
-                        const current_slot_number, current_slot_array_index, current_item_id, current_amount = EquipBeltAvailable(item_id, playerID, 1);
+                        if (BeltIsFull(playerID) && item_amount > p_belt_amount_max[playerID]) {
+                            // special case for if the incoming amount is greater than the belt max and the belt is full. The system has to create 2 dropped items.
+                            const slot0_id = GetBeltSlotItemID(playerID, 0);
+                            const slot0_amount = GetBeltSlotAmount(playerID, 0);
+                            setloc(L_MAIN, p_x[playerID], p_y[playerID]);
+                            CreateItemUnit(item_unit_type, slot0_id, L_MAIN, 0, slot0_amount);
+                            screen.printf("\x13\x06Dropped \x1F{:s} \x04x{}", GetStringItemName(slot0_id, item_unit_type), slot0_amount);
+                        }
+                        const current_slot_number, current_item_id, current_amount, amount_equipped = EquipBeltAvailable(item_id, playerID, item_amount);
                         PlayWAV("staredit/wav/equip_weapon.ogg");
                         if (current_item_id > 0 && current_amount > 0) {
                             setloc(L_MAIN, p_x[playerID], p_y[playerID]);
                             CreateItemUnit(item_unit_type, current_item_id, L_MAIN, 0, current_amount);
-                            screen.printf("\x13\x06Dropped \x1F{:s}", GetStringItemName(current_item_id, item_unit_type));
+                            screen.printf("\x13\x06Dropped \x1F{:s} \x04x{}", GetStringItemName(current_item_id, item_unit_type), current_amount);
                         }
                         p_current_item_unit[playerID] = 0;
                         ClearTextLines(0, 4);
-                        screen.printf("\x13\x04Equipped \x1F{:s} \x04to Belt Slot \x07<{}>", item_name, current_slot_number);
+                        screen.printf("\x13\x04Equipped \x1F{:s} \x04x{} to Belt Slot \x07<{}>", item_name, amount_equipped, current_slot_number);
                     }
                 }
             }
 
             // CONSUMABLES
             if (IsAlive(playerID) && !MenuIsOpen(playerID)) {
-                const check_from = playerID * 10;
-                const check_to = check_from + 10;
+                const check_from = playerID * PLAYER_MAX_BELT_SLOTS;
+                const check_to = check_from + PLAYER_MAX_BELT_SLOTS;
                 for (var i = check_from; i < check_to; i++) {
                     if (keypress_belt[i] && p_belt_equipped[i] > 0) {
                         var was_used = 0;
@@ -3798,10 +3847,10 @@ function afterTriggerExec() {
                 }
                 debug_values[6] = p_x[playerID];
                 debug_values[7] = p_y[playerID];
-                debug_values[0] = p_material_fiber_amount[playerID];
-                debug_values[1] = p_material_gartle_amount[playerID];
-                debug_values[2] = p_material_targus_amount[playerID];
-                debug_values[3] = p_material_hood_amount[playerID];
+                debug_values[0] = GetBeltSlotAmount(playerID, 0);
+                debug_values[1] = GetBeltSlotAmount(playerID, 1);
+                debug_values[2] = GetBeltSlotAmount(playerID, 2);
+                debug_values[3] = BeltIsFull(playerID);
                 eprintf("{} | {} | {} | {} | {} | {} | {} | {}", debug_values[0], debug_values[1], debug_values[2], debug_values[3], debug_values[4], debug_values[5], debug_values[6], debug_values[7]);
             }
         }

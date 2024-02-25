@@ -9,6 +9,7 @@ CURRENTLY
 		crafting
 		equipping to belt slots
 		using from belt slots
+		dealing with equipping consumables greater than the current max.
 
 TODO
 	hints at the beginning when you die
@@ -28,6 +29,7 @@ TODO
 	make it so that when the day resets, enemies cant spawn right on top of you and fuck you up.
 	show cooldowns
 	refactor looted flags since farty showed me a better way to do it.
+	for dropping item units should make a "dropped item buffer" where items can exist and are constantly spammed to drop and only drop once they can.
 
 	VERSION 0.1 CHECK LIST
 			[x] SHORT SWORD		Recover armor when you get a kill
