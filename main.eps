@@ -503,9 +503,9 @@ function GetInputBeltKeypress(playerID) {
     const check_from = playerID * PLAYER_MAX_BELT_SLOTS;
     const check_to = check_from + PLAYER_MAX_BELT_SLOTS;
     for (var i = check_from; i < check_to; i++) {
-        if (keypress_belt[i] > 0) return i;
+        if (keypress_belt[i] > 0) return i + 1;
     }
-    return -1;
+    return 0;
 }
 
 function GetItemInteractionIDs(itemID, itemUnitID) {
@@ -1354,10 +1354,36 @@ function EquipItem(item_id, unitType, playerID) {
     }
 }
 
-function EquipBelt(itemID, playerID, beltSlot, amount) {
+function SetBeltSlot(itemID, playerID, beltSlot, amount) {
     const slot = (playerID * PLAYER_MAX_BELT_SLOTS) + beltSlot;
     p_belt_equipped[slot] = itemID;
     p_belt_amount[slot] = amount;
+}
+
+function EquipBeltSlot(itemID, playerID, beltSlot, amount) {
+    const slot = (playerID * PLAYER_MAX_BELT_SLOTS) + beltSlot;
+    var new_amount = amount;
+    var previous_item_id = p_belt_equipped[slot];
+    var previous_amount = p_belt_amount[slot];
+    if (previous_item_id == itemID && previous_amount < p_belt_amount_max[playerID]) {
+        if (previous_amount + new_amount > p_belt_amount_max[playerID]) { // if the new stack exceeds belt max
+            const amount_equipped = p_belt_amount_max[playerID] - previous_amount;
+            SetBeltSlot(itemID, playerID, slot, p_belt_amount_max[playerID]);
+            previous_amount = (previous_amount + new_amount) - p_belt_amount_max[playerID];
+            new_amount = amount_equipped;
+        } else { // if the stack is less or equal to belt max
+            SetBeltSlot(itemID, playerID, slot, previous_amount + new_amount);
+            previous_amount, previous_item_id = 0, 0;
+        }
+    } else {
+        if (new_amount > p_belt_amount_max[playerID]) {
+            previous_amount = new_amount - p_belt_amount_max[playerID];
+            new_amount = p_belt_amount_max[playerID];
+            previous_item_id = itemID;
+        }
+        SetBeltSlot(itemID, playerID, slot, new_amount);
+    }
+    return beltSlot + 1, previous_item_id, previous_amount, new_amount;
 }
 
 function EquipBeltAvailable(itemID, playerID, amount) {
@@ -1382,11 +1408,11 @@ function EquipBeltAvailable(itemID, playerID, amount) {
     if (stacked) {
         if (chosen_amount + new_amount > p_belt_amount_max[playerID]) { // if the new stack exceeds belt max
             const amount_equipped = p_belt_amount_max[playerID] - chosen_amount;
-            EquipBelt(itemID, playerID, chosen_slot, p_belt_amount_max[playerID]);
+            SetBeltSlot(itemID, playerID, chosen_slot, p_belt_amount_max[playerID]);
             chosen_amount = (chosen_amount + new_amount) - p_belt_amount_max[playerID];
             new_amount = amount_equipped;
         } else { // if the stack is less or equal to belt max
-            EquipBelt(itemID, playerID, chosen_slot, chosen_amount + new_amount);
+            SetBeltSlot(itemID, playerID, chosen_slot, chosen_amount + new_amount);
             chosen_amount, chosen_equipped = 0, 0;
         }
     } else {
@@ -1395,7 +1421,7 @@ function EquipBeltAvailable(itemID, playerID, amount) {
             new_amount = p_belt_amount_max[playerID];
             chosen_equipped = itemID;
         }
-        EquipBelt(itemID, playerID, chosen_slot, new_amount);
+        SetBeltSlot(itemID, playerID, chosen_slot, new_amount);
     }
     return slot_number, chosen_equipped, chosen_amount, new_amount;
     // slot number is the actual number key on the keyboard of the slot that the item was sent to.
@@ -3298,12 +3324,12 @@ function onPluginStart() {
                 // EquipItem(UTILITY_DASH, U_UTILITY, playerID);
                 SetMaxHP(playerID, 140 * 256);
                 GetVision($P7);
-                // EquipBelt(CONSUMABLE_BANDAGE, playerID, 0, 3);
-                // EquipBelt(CONSUMABLE_BANDAGE, playerID, 1, 3);
-                // EquipBelt(CONSUMABLE_BANDAGE, playerID, 2, 3);
-                // EquipBelt(CONSUMABLE_BANDAGE, playerID, 3, 3);
-                // EquipBelt(CONSUMABLE_BANDAGE, playerID, 4, 3);
-                // EquipBelt(CONSUMABLE_BANDAGE, playerID, 5, 3);
+                // EquipBeltSlot(CONSUMABLE_BANDAGE, playerID, 0, 3);
+                // EquipBeltSlot(CONSUMABLE_BANDAGE, playerID, 1, 3);
+                // EquipBeltSlot(CONSUMABLE_BANDAGE, playerID, 2, 3);
+                // EquipBeltSlot(CONSUMABLE_BANDAGE, playerID, 3, 3);
+                // EquipBeltSlot(CONSUMABLE_BANDAGE, playerID, 4, 3);
+                // EquipBeltSlot(CONSUMABLE_BANDAGE, playerID, 5, 3);
             }
             PlaySong(0);
         }
@@ -3672,12 +3698,13 @@ function afterTriggerExec() {
                             screen.printfAt(2 + i, "\x09\x09\x09\x09\x09\x09\x09\x09\x03-<G>- \x04to Drag.");
                         }
                     }
-                    if (action_equipped || action_equipped_available_belt) {
+                    if (action_equipped || action_equipped_available_belt || action_equipped_specific_belt) {
                         item_unit.shield = ModifyItemLootedStatus(playerID, item_looted_status);
                         if (item_unit.shield == 0) { // remove the unit if the loot status returns 0
                             setloc(L_MAIN, item_x, item_y);
                             RemoveUnitAt(1, item_unit_type, L_MAIN, $P8);
                         }
+                        m_disable_delay[playerID] = 12;
                     }
                     if (action_equipped) {
                         if (equipped_id > 0) {
@@ -3690,16 +3717,22 @@ function afterTriggerExec() {
                         ClearTextLines(0, 4);
                         screen.printf("\x13\x04Equipped \x1F{:s}", item_name);
                         PlayWAV("staredit/wav/equip_weapon.ogg");
-                    } else if (action_equipped_available_belt) {
-                        if (BeltIsFull(playerID) && item_amount > p_belt_amount_max[playerID]) {
+                    } else if (action_equipped_available_belt || action_equipped_specific_belt > 0) {
+                        var target_slot = action_equipped_specific_belt - 1;
+                        if (
+                            (BeltIsFull(playerID) && item_amount > p_belt_amount_max[playerID]) || 
+                            (action_equipped_specific_belt > 0 && GetBeltSlotAmount(playerID, target_slot) >= p_belt_amount_max[playerID] && item_amount > p_belt_amount_max[playerID])
+                        ) {
                             // special case for if the incoming amount is greater than the belt max and the belt is full. The system has to create 2 dropped items.
-                            const slot0_id = GetBeltSlotItemID(playerID, 0);
-                            const slot0_amount = GetBeltSlotAmount(playerID, 0);
+                            const target_slot_id = GetBeltSlotItemID(playerID, target_slot);
+                            const target_slot_amount = GetBeltSlotAmount(playerID, target_slot);
                             setloc(L_MAIN, p_x[playerID], p_y[playerID]);
-                            CreateItemUnit(item_unit_type, slot0_id, L_MAIN, 0, slot0_amount);
-                            screen.printf("\x13\x06Dropped \x1F{:s} \x04x{}", GetStringItemName(slot0_id, item_unit_type), slot0_amount);
+                            CreateItemUnit(item_unit_type, target_slot_id, L_MAIN, target_slot, target_slot_amount);
+                            screen.printf("\x13\x06Dropped \x1F{:s} \x04x{}", GetStringItemName(target_slot_id, item_unit_type), target_slot_amount);
                         }
-                        const current_slot_number, current_item_id, current_amount, amount_equipped = EquipBeltAvailable(item_id, playerID, item_amount);
+                        var current_slot_number, current_item_id, current_amount, amount_equipped = 0, 0, 0, 0;
+                        if (action_equipped_specific_belt > 0) current_slot_number, current_item_id, current_amount, amount_equipped = EquipBeltSlot(item_id, playerID, action_equipped_specific_belt - 1, item_amount);
+                        else current_slot_number, current_item_id, current_amount, amount_equipped = EquipBeltAvailable(item_id, playerID, item_amount);
                         PlayWAV("staredit/wav/equip_weapon.ogg");
                         if (current_item_id > 0 && current_amount > 0) {
                             setloc(L_MAIN, p_x[playerID], p_y[playerID]);
@@ -3708,7 +3741,7 @@ function afterTriggerExec() {
                         }
                         p_current_item_unit[playerID] = 0;
                         ClearTextLines(0, 4);
-                        screen.printf("\x13\x04Equipped \x1F{:s} \x04x{} to Belt Slot \x07<{}>", item_name, amount_equipped, current_slot_number);
+                        screen.printf("\x13\x04Equipped \x1F{:s} \x04x{} to \x07BELT SLOT {}", item_name, amount_equipped, current_slot_number);
                     }
                 }
             }
@@ -3728,7 +3761,7 @@ function afterTriggerExec() {
                         }
                         if (was_used && p_belt_amount[i] > 0) {
                             p_belt_amount[i]--;
-                            screen.printf("\x13\x04{} Remaining", p_belt_amount[i], GetStringItemName(p_belt_equipped[i], U_CONSUMABLE));
+                            screen.printf("\x13\x04{} \x1F{:s} \x04Remaining", p_belt_amount[i], GetStringItemName(p_belt_equipped[i], U_CONSUMABLE));
                             // make this text more specific and maybe confined to 1 line
                         }
                     }
