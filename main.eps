@@ -438,6 +438,17 @@ function GetStringMaterialName(materialID) {
     }
 }
 
+function GetStringIngredients(itemID, itemUnitID) {
+    if (itemUnitID == U_CONSUMABLE) {
+        switch(itemID) {
+            case 0: return Db("Nothing");
+            case CONSUMABLE_BANDAGE: return Db("(Plant Fiber x2)");
+            case CONSUMABLE_ELIXER_OF_LIFE: return Db("(Gartle Leaves x2)");
+            case CONSUMABLE_FUSE_BOMB: return Db("(Plant Fiber x2, Iron Ore x1, Targus Root x1)");
+        }
+    }
+}
+
 function GetStringHint(id) {
     switch(id) {
         case 0: return Db("Don't forget to dodge in combat. Dodging is when you recover your armor by backing away from foes.");
@@ -2401,10 +2412,15 @@ function UpdateSigilMenu(playerID) {
 }
 
 function UpdateCraftingMenu(playerID) {
+    // get input
+    // check for ingredients
+    // display missing ingredients
+    // craft if all the ingredients are present
+    // create the item unit
     DisplayTextAt(0, "\x09\x09\x09\x04CRAFTING --");
-    DisplayTextAt(1, "\x09\x09\x09\x03-<1>- \x04Bandage - \x02Heals 25 Life over time. (Plant Fiber x2)");
-    DisplayTextAt(2, "\x09\x09\x09\x03-<2>- \x04Elixer Of Life - \x02Heals 25 Life instantly. (Gartle Leaves x2)");
-    DisplayTextAt(3, "\x09\x09\x09\x03-<3>- \x04Fuse Bomb - \x02Explodes after some time. (Plant Fiber x2, Iron Ore x1, Targus Root x1)");
+    screen.printfAt(1, "\x09\x09\x09\x03-<1>- \x04{:s} - \x02{:s} {:s}", GetStringItemName(CONSUMABLE_BANDAGE, U_CONSUMABLE), GetStringItemDescription(CONSUMABLE_BANDAGE, U_CONSUMABLE), GetStringIngredients(CONSUMABLE_BANDAGE, U_CONSUMABLE));
+    screen.printfAt(2, "\x09\x09\x09\x03-<2>- \x04{:s} - \x02{:s} {:s}", GetStringItemName(CONSUMABLE_ELIXER_OF_LIFE, U_CONSUMABLE), GetStringItemDescription(CONSUMABLE_ELIXER_OF_LIFE, U_CONSUMABLE), GetStringIngredients(CONSUMABLE_ELIXER_OF_LIFE, U_CONSUMABLE));
+    screen.printfAt(3, "\x09\x09\x09\x03-<3>- \x04{:s} - \x02{:s} {:s}", GetStringItemName(CONSUMABLE_FUSE_BOMB, U_CONSUMABLE), GetStringItemDescription(CONSUMABLE_FUSE_BOMB, U_CONSUMABLE), GetStringIngredients(CONSUMABLE_FUSE_BOMB, U_CONSUMABLE));
 }
 
 function ResetWeaponIndex(index) {
