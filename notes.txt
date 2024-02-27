@@ -99,6 +99,7 @@ IDEAS
 		there, at the end of the world, you are not what you were born, but what you have it in yourself to be.
 		i hope to find forgiveness.
 		all is as god wills it.
+		I am the shadows.
 	
 	angles
 	 	1.4063deg = 1 SC direction
@@ -226,3 +227,8 @@ MATERIALS
 	Spirit Of Remorse
 	Spirit Of Tranquility
 	Spirit Of Divinity
+
+INGREDIENTS
+	Bandage: Plant Fiber x2
+	Elixer of Life: Gartle leaves x2, Plant Fiber x1
+	Fuse Bomb: Plant Fiber x2, Iron Ore x1, Targus Root x1

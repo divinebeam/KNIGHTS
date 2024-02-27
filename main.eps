@@ -83,6 +83,7 @@ const IMAGE_GREEN_FLAME2 = 437;
 const IMAGE_GREEN_FLAME3 = 438;
 const IMAGE_GREEN_FLAME4 = 439;
 
+const MAX_PLAYERS = 6;
 const FULL_DAY_LENGTH = 8640;
 const BRIGHTNESS_DEFAULT = 31;
 const BRIGHTNESS_NIGHT = 25;
@@ -132,6 +133,20 @@ const MATERIAL_PLANT_FIBER = 1;
 const MATERIAL_GARTLE_LEAVES = 2;
 const MATERIAL_TARGUS_ROOT = 3;
 const MATERIAL_WEEPING_HOOD = 4;
+const MATERIAL_IRON_ORE = 5;
+const MATERIAL_MITHRIL_ORE = 6;
+const MATERIAL_ADAMANTIUM_ORE = 7;
+const MATERIAL_GOLD_ORE = 8;
+const MATERIAL_SAPPHIRE = 9;
+const MATERIAL_EMERALD = 10;
+const MATERIAL_RUBY = 11;
+const MATERIAL_DIAMOND = 12;
+const MATERIAL_LEATHER = 13;
+const MATERIAL_BONE = 14;
+const MATERIAL_SPIRIT_VENGEANCE = 15;
+const MATERIAL_SPIRIT_REMORSE = 16;
+const MATERIAL_SPIRIT_TRANQUILITY = 17;
+const MATERIAL_SPIRIT_DIVINITY = 18;
 
 const keypress_belt = EUDArray(PLAYER_MAX_BELT_SLOTS * 6);
 const keypress_1 = PVariable();
@@ -231,6 +246,20 @@ const p_material_fiber_amount = PVariable();
 const p_material_gartle_amount = PVariable();
 const p_material_targus_amount = PVariable();
 const p_material_hood_amount = PVariable();
+const p_material_iron_amount = PVariable();
+const p_material_mithril_amount = PVariable();
+const p_material_adamant_amount = PVariable();
+const p_material_gold_amount = PVariable();
+const p_material_sapphire_amount = PVariable();
+const p_material_emerald_amount = PVariable();
+const p_material_ruby_amount = PVariable();
+const p_material_diamond_amount = PVariable();
+const p_material_leather_amount = PVariable();
+const p_material_bone_amount = PVariable();
+const p_material_vengeance_amount = PVariable();
+const p_material_remorse_amount = PVariable();
+const p_material_tranquility_amount = PVariable();
+const p_material_divinity_amount = PVariable();
 const p_cons_bandage_state = PVariable();
 const p_belt_equipped = EUDArray(PLAYER_MAX_BELT_SLOTS * 6);
 const p_belt_amount = EUDArray(PLAYER_MAX_BELT_SLOTS * 6);
@@ -251,7 +280,7 @@ const npc_state3 = EUDArray(MAX_NPC_UNITS);
 const npc_order_timer = EUDArray(MAX_NPC_UNITS);
 var npc_cetus_exists = 0;
 
-const MAX_WEAPON_OBJECTS = 6 + 50;
+const MAX_WEAPON_OBJECTS = 6 + 30;
 const weapon_cunit = EUDArray(MAX_WEAPON_OBJECTS);
 const weapon_id = EUDArray(MAX_WEAPON_OBJECTS);
 const weapon_state = EUDArray(MAX_WEAPON_OBJECTS);
@@ -260,7 +289,7 @@ const weapon_angle = EUDArray(MAX_WEAPON_OBJECTS);
 const weapon_x = EUDArray(MAX_WEAPON_OBJECTS);
 const weapon_y = EUDArray(MAX_WEAPON_OBJECTS);
 
-const MAX_UTILITY_OBJECTS = 6 + 50;
+const MAX_UTILITY_OBJECTS = 6 + 30;
 const utility_cunit = EUDArray(MAX_UTILITY_OBJECTS);
 const utility_id = EUDArray(MAX_UTILITY_OBJECTS);
 const utility_state = EUDArray(MAX_UTILITY_OBJECTS);
@@ -288,7 +317,7 @@ const chunk_buffer = EUDArray(8);
 const active_units = EUDArray(ACTIVE_UNITS_MAX * 6);
 var active_units_update = 0;
 // @bm DEBUG MODE
-var debug_enabled = 1;
+var debug_enabled = 0;
 const debug_values = EUDArray(8);
 var time = 0;
 var total_time = 0;
@@ -303,7 +332,7 @@ var world_interaction_visual_timer = 0;
 const field_puzzle_state = EUDArray(3);
 const field_puzzle_state_solution = EUDArray(3);
 
-const AUX_ARRAY_SIZE = 50;
+const AUX_ARRAY_SIZE = 20;
 const aux_array = EUDArray(AUX_ARRAY_SIZE);
 function ResetAuxiliaryArray() {
     for (var i = 0; i < AUX_ARRAY_SIZE; i++) aux_array[i] = 0;
@@ -435,6 +464,20 @@ function GetStringMaterialName(materialID) {
         case MATERIAL_GARTLE_LEAVES: return Db("\x18Gartle Leaves");
         case MATERIAL_TARGUS_ROOT: return Db("\x19Targus Root");
         case MATERIAL_WEEPING_HOOD: return Db("\x10Weeping Hood");
+        case MATERIAL_IRON_ORE: return Db("\x10Iron Ore");
+        case MATERIAL_MITHRIL_ORE: return Db("\x10Mithril Ore");
+        case MATERIAL_ADAMANTIUM_ORE: return Db("\x10Adamantium Ore");
+        case MATERIAL_GOLD_ORE: return Db("\x10Gold Ore");
+        case MATERIAL_SAPPHIRE: return Db("\x10Sapphire");
+        case MATERIAL_EMERALD: return Db("\x10Emerald");
+        case MATERIAL_RUBY: return Db("\x10Ruby");
+        case MATERIAL_DIAMOND: return Db("\x10Diamond");
+        case MATERIAL_LEATHER: return Db("\x10Leather");
+        case MATERIAL_BONE: return Db("\x10Bone");
+        case MATERIAL_SPIRIT_VENGEANCE: return Db("\x10Spirit Of Vengeance");
+        case MATERIAL_SPIRIT_REMORSE: return Db("\x10Spirit Of Remorse");
+        case MATERIAL_SPIRIT_TRANQUILITY: return Db("\x10Spirit Of Tranquility");
+        case MATERIAL_SPIRIT_DIVINITY: return Db("\x10Spirit Of Divinity");
     }
 }
 
@@ -542,7 +585,7 @@ function GetItemInteractionIDs(itemID, itemUnitID) {
 }
 
 function SetupBeltDefaults() {
-    for (var i = 0; i < PLAYER_MAX_BELT_SLOTS * 6; i++) {
+    for (var i = 0; i < MAX_PLAYERS; i++) {
         p_belt_amount_max[i] = 3;
     }
 }
@@ -1008,7 +1051,7 @@ function StoreSpawnPositions() {
     }
 }
 
-const MAX_HARVEST_POSITIONS = 300;
+const MAX_HARVEST_POSITIONS = 100;
 const harvest_x = EUDArray(MAX_HARVEST_POSITIONS);
 const harvest_y = EUDArray(MAX_HARVEST_POSITIONS);
 const harvest_type = EUDArray(MAX_HARVEST_POSITIONS);
@@ -1171,7 +1214,6 @@ function CreateImageSpriteAtLocation(playerID, location, imageID, drawFunc, iscr
     dwwrite(0x666778 + 34000 + imageID * 4, prev_iscript); // revert image iscript
 }
 
-const included = EUDArray(6);
 function RedeemUnitExp(playerID, unitType) {
     var amount_players_nearby = 0;
     var exp_to_gain = 0;
@@ -1181,17 +1223,18 @@ function RedeemUnitExp(playerID, unitType) {
     else if (unitType == U_LOST_KNIGHT) exp_to_gain += 500;
     else if (unitType == U_TWISTED_KNIGHT) exp_to_gain += 200;
     if (exp_to_gain == 0) return; // sometimes this function gets accessed without providing anything for unitType argument.
+    ResetAuxiliaryArray();
     for (var i = 0; i < 6; i++) {
-        included[i] = 0;
+        aux_array[i] = 0;
         if (i != playerID && GetDistance(p_x[playerID], p_y[playerID], p_x[i], p_y[i]) <= 640) {
             amount_players_nearby += 1;
-            included[i] = 1;
+            aux_array[i] = 1;
         }
     }
     if (amount_players_nearby > 0) {
         exp_to_gain = (exp_to_gain / (amount_players_nearby + 1)) + 1;
         for (var i = 0; i < 6; i++) {
-            if (included[i] > 0) p_exp_buffer[i] += exp_to_gain;
+            if (aux_array[i] > 0) p_exp_buffer[i] += exp_to_gain;
         }
     }
     p_exp_buffer[playerID] += exp_to_gain;
@@ -1506,15 +1549,6 @@ function ClearTextLines(from_line, to_line) {
     for (var i = from_line; i < to_line + 1; i++) {
         DisplayTextAt(i, "\x0BNull");
     }
-}
-
-const hud_value = PVariable();
-const hud_value_string = PVariable();
-const hud_value_timer = PVariable();
-function SetHudValue(playerID, value, string_var) {
-    hud_value[playerID] = value;
-    hud_value_string[playerID] = string_var;
-    hud_value_timer[playerID] = 72;
 }
 
 function GetHeight(positionx, positiony) {
@@ -2064,110 +2098,6 @@ function UpdateProjectileCollisions() {
     }
 }
 
-const EVENT_POOL = 192;
-const event_posx = EUDArray(EVENT_POOL);
-const event_posy = EUDArray(EVENT_POOL);
-const event_time = EUDArray(EVENT_POOL);
-const event_maxtime = EUDArray(EVENT_POOL);
-const event_size = EUDArray(EVENT_POOL);
-const event_shape = EUDArray(EVENT_POOL);
-const event_heal = EUDArray(EVENT_POOL);
-const event_damage = EUDArray(EVENT_POOL);
-const event_owner = EUDArray(EVENT_POOL);
-const event_maxtargets = EUDArray(EVENT_POOL);
-const event_affect_enemies = EUDArray(EVENT_POOL);
-const event_affect_allies = EUDArray(EVENT_POOL);
-function ResetEvent(i) {
-    event_posx[i] = 0;
-    event_posy[i] = 0;
-    event_time[i] = 0;
-    event_maxtime[i] = 0;
-    event_size[i] = 0;
-    event_shape[i] = 0;
-    event_heal[i] = 0;
-    event_damage[i] = 0;
-    event_owner[i] = 0;
-    event_maxtargets[i] = 0;
-    event_affect_enemies[i] = 0;
-    event_affect_allies[i] = 0;
-}
-
-var queue_event_posx = 0;
-var queue_event_posy = 0;
-var queue_event_time = 0;
-var queue_event_maxtime = 0;
-var queue_event_size = 0;
-var queue_event_shape = 0;
-var queue_event_heal = 0;
-var queue_event_damage = 0;
-var queue_event_owner = 0;
-var queue_event_maxtargets = 0;
-var queue_event_affect_enemies = 0;
-var queue_event_affect_allies = 0;
-function ResetEventQueue() {
-    queue_event_posx = 0;
-    queue_event_posy = 0;
-    queue_event_time = 0;
-    queue_event_maxtime = 0;
-    queue_event_size = 0;
-    queue_event_shape = 0;
-    queue_event_heal = 0;
-    queue_event_damage = 0;
-    queue_event_owner = 0;
-    queue_event_maxtargets = 0;
-    queue_event_affect_enemies = 0;
-    queue_event_affect_allies = 0;
-}
-
-function CreateEvent() {
-    for (var i = 0; i < EVENT_POOL; i++) {
-        if (event_time[i] == 0) {
-            event_time[i] = 1;
-            event_posx[i] = queue_event_posx;
-            event_posy[i] = queue_event_posy;
-            event_maxtime[i] = queue_event_maxtime;
-            event_size[i] = queue_event_size;
-            event_shape[i] = queue_event_shape;
-            event_heal[i] = queue_event_heal;
-            event_damage[i] = queue_event_damage;
-            event_owner[i] = queue_event_owner;
-            event_maxtargets[i] = queue_event_maxtargets;
-            event_affect_enemies[i] = queue_event_affect_enemies;
-            event_affect_allies[i] = queue_event_affect_allies;
-            ResetEventQueue();
-            break;
-        }
-    }
-}
-
-function UpdateEvents() {
-    for (var i = 0; i < EVENT_POOL; i++) {
-        if (event_time[i] > 0) {
-            const playerID = event_owner[i];
-            col_posx = event_posx[i];
-            col_posy = event_posy[i];
-            col_shape_size = event_size[i];
-            col_max_results = event_maxtargets[i]; 
-            col_enemies = event_affect_enemies[i];
-            col_allies = event_affect_allies[i];
-            const result_exists = CheckCollision(playerID);
-            if (result_exists) {
-                for (var result_i = 0; result_i < col_max_results; result_i++) {
-                    if (col_results_unit[result_i] > 0) {
-                        const target = CUnit(col_results_unit[result_i]);
-                        if (event_damage[i] > 0) DamageUnit(playerID, target, event_damage[i], col_results_unit_activei[result_i]);
-                    }
-                }
-            }
-            ResetCheckCollision();
-            event_time[i]++;
-            if (event_time[i] >= event_maxtime[i]) {
-                ResetEvent(i);
-            }
-        }
-    }
-}
-
 const UNIT_PHYSICS_POOL = 50;
 const uphys_time = EUDArray(UNIT_PHYSICS_POOL);
 const uphys_cunit = EUDArray(UNIT_PHYSICS_POOL);
@@ -2411,8 +2341,44 @@ function UpdateSigilMenu(playerID) {
     screen.printfAt(6, "\x09\x09\x09\x04Available Attribute Points: \x1F{}", p_attributepoints[playerID]);
 }
 
+function PlayerHasCraftingIngredients(playerID, itemID, itemUnitID) {
+    var insufficient0 = 0;
+    var insufficient1 = 0;
+    var insufficient2 = 0;
+    var insufficient3 = 0;
+    var has_ingredients = 0;
+    if (itemUnitID == U_CONSUMABLE) {
+        if (itemID == CONSUMABLE_BANDAGE) {
+            if (p_material_fiber_amount[playerID] < 2) insufficient0 = MATERIAL_PLANT_FIBER;
+        } else if (itemID == CONSUMABLE_ELIXER_OF_LIFE) {
+            if (p_material_fiber_amount[playerID] < 1) insufficient0 = MATERIAL_PLANT_FIBER;
+            if (p_material_gartle_amount[playerID] < 2) insufficient1 = MATERIAL_GARTLE_LEAVES;
+        } else if (itemID == CONSUMABLE_FUSE_BOMB) {
+            if (p_material_fiber_amount[playerID] < 2) insufficient0 = MATERIAL_PLANT_FIBER;
+            if (p_material_iron_amount[playerID] < 1) insufficient1 = MATERIAL_IRON_ORE;
+            if (p_material_targus_amount[playerID] < 1) insufficient2 = MATERIAL_TARGUS_ROOT;
+        }
+    }
+    if (insufficient0 == 0 && insufficient1 == 0 && insufficient2 == 0 && insufficient3 == 0) has_ingredients = 1;
+    return has_ingredients, insufficient0, insufficient1, insufficient2, insufficient3;
+}
+
 function UpdateCraftingMenu(playerID) {
     // get input
+    if (keypress_1[playerID]) {
+        ResetAuxiliaryArray();
+        var have_ingredients = 0;
+        have_ingredients, aux_array[0], aux_array[1], aux_array[2], aux_array[3] = PlayerHasCraftingIngredients(playerID, CONSUMABLE_BANDAGE, U_CONSUMABLE);
+        if (have_ingredients) {
+            p_material_fiber_amount[playerID] -= 2;
+            setloc(L_MAIN, p_x[playerID], p_y[playerID]);
+            CreateItemUnit(U_CONSUMABLE, CONSUMABLE_BANDAGE, L_MAIN, 0, 1);
+        } else {
+            for (var i = 0; i < 4; i++) {
+                if (aux_array[i] > 0) screen.printf("\x13\x04Insufficient {:s}", GetStringMaterialName(aux_array[i]));
+            }
+        }
+    }
     // check for ingredients
     // display missing ingredients
     // craft if all the ingredients are present
@@ -2436,7 +2402,7 @@ function ResetWeaponIndex(index) {
 function UpdateWeaponState(playerID) {
     var check_from = 0;
     var check_to = 0;
-    if (playerID >= 0 && playerID <= 5) {
+    if (playerID < 6) {
         check_from = playerID;
         check_to = playerID + 1;
     } else if (playerID == $P7) {
@@ -2642,7 +2608,7 @@ function UpdateWeaponState(playerID) {
                     queue_pro_collide_enemies = 1;
                     queue_pro_collide_size = 64;
                     CreateProjectile();
-                    for (var i = 0; i < 3; i++) {
+                    for (var j = 0; j < 3; j++) {
                         queue_pro_posx = unit_x;
                         queue_pro_posy = unit_y;
                         queue_pro_maxtime = 6;
@@ -3356,10 +3322,9 @@ function afterTriggerExec() {
     UpdateTime();
     UpdateProjectiles();
     UpdateProjectileCollisions();
-    UpdateEvents();
     UpdateSigils();
 
-    // RESET CHUNK SPAWNS
+    // RESET STUFF WHEN NIGHT TURNS TO DAY
     if (time_state_changed && time_state == 0) {
         RemoveUnit(U_CHIMERA, $P7);
         RemoveUnit(U_HILL_SPINT, $P7);
@@ -3374,6 +3339,10 @@ function afterTriggerExec() {
             }
         }
         // screen.printf("reset spawns for {} chunks", reset_count);
+        // reset harvestables
+        for (var i = 0; i < MAX_HARVEST_POSITIONS; i++) {
+            if (harvest_type[i] > 0) harvest_state[i] = GetSumOfActivePlayerBits();
+        }
     }
 
     EUDPlayerLoop()();
@@ -3424,7 +3393,7 @@ function afterTriggerExec() {
                 }
                 unit.orderTimer = 0;
                 unit.orderQueueTimer = 0;
-                if (p_entered_lair[playerID] == 0 && GetAreaAtPos(p_x[playerID], p_y[playerID]) == AREA_CETUS_LAIR) {
+                if (p_entered_lair[playerID] == 0 && GetAreaAtPos(p_x[playerID], p_y[playerID]) == AREA_CETUS_LAIR && npc_cetus_exists) {
                     p_entered_lair[playerID] = AREA_CETUS_LAIR;
                 }
             }
@@ -3486,7 +3455,7 @@ function afterTriggerExec() {
                         RedeemMaterial(playerID, harvest_type[i]);
                         RedeemMaterial(playerID, MATERIAL_PLANT_FIBER);
                         setloc(L_MAIN, harvest_x[i], harvest_y[i]);
-                        CreateUnitDeathAtLocation(89, playerID, L_MAIN);
+                        CreateUnitDeathAtLocation(89, $P7, L_MAIN);
                     }
                 }
             }
@@ -3873,13 +3842,6 @@ function afterTriggerExec() {
             }
 
             // HUD
-            // if (hud_value_timer[playerID] > 0) {
-            //     hud_value_timer[playerID]--;
-            //     if (m_main[playerID] == 0) {
-            //         screen.printfAt(0, "{:s}{}", hud_value_string[playerID], hud_value[playerID]);
-            //         if (hud_value_timer[playerID] == 0) DisplayTextAt(0, "\x0BNull");
-            //     }
-            // }
             // display damage on weapon icon
             if (IsUserCP()) {
                 const unit_damage_string = Db(512);
