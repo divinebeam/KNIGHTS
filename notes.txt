@@ -2,6 +2,7 @@
 CURRENTLY
 	implementing consumables
 		crafting
+	implementing torch
 	implementing info display on unit icons
 		make it local, display shield stuff, etc.
 	implementing juyet quest
@@ -60,17 +61,13 @@ TODO
 
 
 BUGS
-	??? might be a bug where you're getting shields broken after death because of some var not being set or something
 	unit gets stuck when swapping items
-	??? armor not replenishing if you get a kill with lightning blast
-	??? guardian angel NPC index doesnt kill itself when it doesnt exist leading to erratic behaviour
-	cetus death sound happened when he despawned
 	players damage is displayed on other players units
 	players damage is displayed on lost knight?
-	dt behaves erratically and doesnt target immediately because of flingy control or something. Really irritating and unpredictable.
 	2 strength regen but not 1
 	couldnt leave lair after cetus displayed
 	cetus spawned immediately after we killed him
+	desync when picking up life anointment
 
 	
 IDEAS

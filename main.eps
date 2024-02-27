@@ -39,6 +39,7 @@ const U_CHECK_TERRAIN_COLLIDER = 54; // 42
 const U_PATHABLE = 0;
 const U_LIFEPICKUP = 106;
 const U_HARVEST_MARKER = 107; // P9 = GARTLE, P10 = HOOD, P11 = TARGUS
+const U_TORCH = 27; // 27
 
 const NPC_GUARDIAN_ANGEL = 1;
 const NPC_CETUS = 2;
@@ -124,6 +125,7 @@ const WEAPON_ANCIENT_TOME_OF_STARFALL = 10;
 const WEAPON_CRIMSON_LONG_SWORD = 11;
 
 const UTILITY_DASH = 1;
+const UTILITY_TORCH = 2;
 
 const ARMOR_SHATTERED_KNIGHTS = 1;
 // const ARMOR_CRIMSON_ENGRAVED_PLATE = 2;
@@ -321,7 +323,7 @@ const chunk_buffer = EUDArray(8);
 const active_units = EUDArray(ACTIVE_UNITS_MAX * 6);
 var active_units_update = 0;
 // @bm DEBUG MODE
-var debug_enabled = 0;
+const debug_enabled = 1;
 const debug_values = EUDArray(8);
 var time = 0;
 var total_time = 0;
@@ -337,9 +339,13 @@ const field_puzzle_state = EUDArray(3);
 const field_puzzle_state_solution = EUDArray(3);
 
 const AUX_ARRAY_SIZE = 20;
-const aux_array = EUDArray(AUX_ARRAY_SIZE);
+const aux_array = EUDArray(20);
 function ResetAuxiliaryArray() {
-    for (var i = 0; i < AUX_ARRAY_SIZE; i++) aux_array[i] = 0;
+    const actions = py_list();
+    foreach(i : py_range(aux_array.length)) {
+        actions.append(SetMemoryEPD(EPD(aux_array) + i, SetTo, 0));
+    }
+    DoActions(actions);  // 1 trigger 20 actions
 }
 
 function IsUnitItem(unitType) {
@@ -414,6 +420,7 @@ function GetStringItemName(item_id, unitID) {
         switch(item_id) {
             case 0: return Db("Nothing");
             case UTILITY_DASH: return Db("Tome Of Dash");
+            case UTILITY_TORCH: return Db("Torch");
         }
     } else if (unitID == U_CONSUMABLE) {
         switch(item_id) {
@@ -450,6 +457,7 @@ function GetStringItemDescription(item_id, unitID) {
         switch(item_id) {
             case 0: return Db("Nothing");
             case UTILITY_DASH: return Db("Powerful charge that throws the user forward.");
+            case UTILITY_TORCH: return Db("Useful flaming torch for lighting up dark places.");
         }
     } else if (unitID == U_CONSUMABLE) {
         switch(item_id) {
@@ -696,7 +704,7 @@ function CalculateKnightSwordDamage(playerID) {
 }
 
 function GetHealthRegen(playerID) { // 2 per frame = 0.1875 per second
-    var regen = 2 * (p_strength[playerID] / 2); // strength regen
+    var regen = 2 * p_strength[playerID]; // strength regen
     var magic_drain_rate = 4 * p_resilience[playerID]; // magic drain regen
     if (p_life_magic_drained[playerID] >= magic_drain_rate) {
         regen += magic_drain_rate;
@@ -730,31 +738,33 @@ function GetWeaponCooldown(item_id, playerID) {
     else if (item_id == WEAPON_CRIMSON_LONG_SWORD) return 156;
 }
 
-function GetWeaponDamage(item_id, state, playerID) { // in the future could make unit an argument so that can have different damage based on unitid
+function GetWeaponDamage(itemID, state, playerID) { // in the future could make unit an argument so that can have different damage based on unitid
     var damage = 0;
     if (playerID >= 0 && playerID <= 5) {
-        if (item_id == WEAPON_SHORTSWORD) damage = 6 + (1 * p_strength[playerID]);
-        else if (item_id == WEAPON_SHORTBOW) damage = 10 + (2 * p_dexterity[playerID]);
-        else if (item_id == WEAPON_FIREBALL) damage = 4 + (2 * p_resilience[playerID]);
-        else if (item_id == WEAPON_ANCIENT_TOME_OF_STARFALL) damage = 50 + (5 * p_resilience[playerID]);
-        else if (item_id == WEAPON_LONGSWORD) damage = 9 + (1 * p_strength[playerID]);
-        else if (item_id == WEAPON_GREATSWORD) damage = 10 + (2 * p_strength[playerID]);
-        else if (item_id == WEAPON_LONGBOW) damage = 10 + (2 * p_dexterity[playerID]);
-        else if (item_id == WEAPON_GREATBOW) damage = 10 + (2 * p_dexterity[playerID]);
-        else if (item_id == WEAPON_LIGHTNINGBLAST && state == 0) damage = 8 + (2 * p_resilience[playerID]);
-        else if (item_id == WEAPON_LIGHTNINGBLAST && state == 1) damage = 4 + (2 * p_resilience[playerID]);
-        else if (item_id == WEAPON_BLADESTORM) damage = 4 + (2 * p_resilience[playerID]);
+        if (itemID == WEAPON_SHORTSWORD) damage = 6 + (1 * p_strength[playerID]);
+        else if (itemID == WEAPON_SHORTBOW) damage = 10 + (2 * p_dexterity[playerID]);
+        else if (itemID == WEAPON_FIREBALL) damage = 4 + (2 * p_resilience[playerID]);
+        else if (itemID == WEAPON_ANCIENT_TOME_OF_STARFALL) damage = 50 + (5 * p_resilience[playerID]);
+        else if (itemID == WEAPON_LONGSWORD) damage = 9 + (1 * p_strength[playerID]);
+        else if (itemID == WEAPON_GREATSWORD) damage = 10 + (2 * p_strength[playerID]);
+        else if (itemID == WEAPON_LONGBOW) damage = 10 + (2 * p_dexterity[playerID]);
+        else if (itemID == WEAPON_GREATBOW) damage = 10 + (2 * p_dexterity[playerID]);
+        else if (itemID == WEAPON_LIGHTNINGBLAST && state == 0) damage = 8 + (2 * p_resilience[playerID]);
+        else if (itemID == WEAPON_LIGHTNINGBLAST && state == 1) damage = 4 + (2 * p_resilience[playerID]);
+        else if (itemID == WEAPON_BLADESTORM) damage = 4 + (2 * p_resilience[playerID]);
+        else if (itemID == WEAPON_CRIMSON_LONG_SWORD) damage = 30 + p_strength[playerID];
     } else if (playerID == $P7) {
-        if (item_id == WEAPON_SHORTSWORD) damage = 30;
-        else if (item_id == WEAPON_SHORTBOW) damage = 50;
-        else if (item_id == WEAPON_FIREBALL) damage = 50;
-        else if (item_id == WEAPON_ANCIENT_TOME_OF_STARFALL) damage = 1000;
-        else if (item_id == WEAPON_LONGSWORD) damage = 50;
-        else if (item_id == WEAPON_GREATSWORD) damage = 35;
-        else if (item_id == WEAPON_LONGBOW) damage = 50;
-        else if (item_id == WEAPON_GREATBOW) damage = 50;
-        else if (item_id == WEAPON_LIGHTNINGBLAST) damage = 50;
-        else if (item_id == WEAPON_BLADESTORM) damage = 50;
+        if (itemID == WEAPON_SHORTSWORD) damage = 30;
+        else if (itemID == WEAPON_SHORTBOW) damage = 50;
+        else if (itemID == WEAPON_FIREBALL) damage = 50;
+        else if (itemID == WEAPON_ANCIENT_TOME_OF_STARFALL) damage = 1000;
+        else if (itemID == WEAPON_LONGSWORD) damage = 50;
+        else if (itemID == WEAPON_GREATSWORD) damage = 35;
+        else if (itemID == WEAPON_LONGBOW) damage = 50;
+        else if (itemID == WEAPON_GREATBOW) damage = 50;
+        else if (itemID == WEAPON_LIGHTNINGBLAST) damage = 50;
+        else if (itemID == WEAPON_BLADESTORM) damage = 50;
+        else if (itemID == WEAPON_CRIMSON_LONG_SWORD) damage = 50;
     }
     return damage;
 }
@@ -827,31 +837,32 @@ function CheckForWeaponTrigger(playerID, unit: CUnit, item_id) {
     return weapon_was_triggered;
 }
 
-function GetUtilityCooldown(item_id) {
-    if (item_id == UTILITY_DASH) return 24; // 144
+function GetUtilityCooldown(itemID) {
+    if (itemID == UTILITY_DASH) return 24; // 144
+    else if (itemID == UTILITY_TORCH) return 0;
 }
 
-function GetUtilityLifeCost(item_id, playerID) {
+function GetUtilityLifeCost(itemID, playerID) {
     var life_cost = 0;
     if (playerID > 5) return 0;
-    if (item_id == UTILITY_DASH) life_cost = 10 * 256;
+    if (itemID == UTILITY_DASH) life_cost = 10 * 256;
     return life_cost;
 }
 
-function CheckForUtilityTrigger(playerID, unit: CUnit, item_id) {
+function CheckForUtilityTrigger(playerID, unit: CUnit, itemID) {
     var is_player = 0;
     var utility_was_triggered = 0;
     if (playerID < 6) is_player = 1;
-    if (item_id == UTILITY_DASH) {
+    if (itemID == UTILITY_DASH) {
         if (is_player && p_order_input[playerID] == ORDER_PATROL) utility_was_triggered = 1;
     }
     return utility_was_triggered;
 }
 
-function AttachWeaponToUnit(unit_ptr, item_id) {
+function AttachWeaponToUnit(unit_ptr, itemID) {
     for (var i = 6; i < MAX_WEAPON_OBJECTS; i++) {
         if (weapon_id[i] == 0) {
-            weapon_id[i] = item_id;
+            weapon_id[i] = itemID;
             weapon_cunit[i] = unit_ptr;
             break;
         }
@@ -1388,8 +1399,9 @@ function SpawnHero(playerID) {
 function SetMaxHP(playerID, value) {
     p_life[playerID] = value;
     p_life_max[playerID] = value;
-    dwwrite(0x65FD00 + 9808 + U_HERO[playerID] * 4, value);
-    ModifyUnitHitPoints(1, U_HERO[playerID], playerID, L_ANYWHERE, 100);
+    const hero = U_HERO[playerID];
+    dwwrite_epd(EPD(0x662350) + hero, value);
+    ModifyUnitHitPoints(1, hero, playerID, "Anywhere", 100);
 }
 
 function CalculateMaxShield(playerID) {
@@ -2802,10 +2814,12 @@ function UpdateWeaponState(playerID) {
                 else if (weapon_state[i] == 19) weapon_angle[i] = unit_angle - 90;
                 if (weapon_state[i] == 13) {
                     weapon_x[i], weapon_y[i] = MovePosTowards(unit_x, unit_y, unit_angle, 32);
+                    const damage = GetWeaponDamage(weapon_id[i], 0, playerID);
                     DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 128, 50, 5, 0);
                     PlayWavAtPos("staredit/wav/large_sword0.ogg", unit_x, unit_y, 512);
                 } else if (weapon_state[i] == 20) {
                     weapon_x[i], weapon_y[i] = MovePosTowards(unit_x, unit_y, unit_angle, 32);
+                    const damage = GetWeaponDamage(weapon_id[i], 0, playerID);
                     DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 128, 60, 5, 0);
                     PlayWavAtPos("staredit/wav/large_sword0.ogg", unit_x, unit_y, 512);
                 }
@@ -2881,11 +2895,13 @@ function UpdateUtilityState(playerID) {
             var unit_ptr = utility_cunit[i];
             var unit_order_x, unit_order_y = 0, 0;
             var unit_x, unit_y = 0, 0;
+            var unit_angle = 0;
             if (playerID < 6) unit_ptr = p_cunit[playerID];
             const unit = CUnit(unit_ptr);
             if (playerID < 6) {
                 unit_order_x, unit_order_y = p_orderx[playerID], p_ordery[playerID];
                 unit_x, unit_y = p_x[playerID], p_y[playerID];
+                unit_angle = p_angle[playerID];
             } else if (playerID >= 6) {
                 if (unit.hp == 0) {
                     ResetUtilityIndex(i);
@@ -2895,7 +2911,7 @@ function UpdateUtilityState(playerID) {
                 unit_y = unit.posY;
                 unit_order_x = unit.orderTargetX;
                 unit_order_y = unit.orderTargetY;
-                // unit_angle = SCDirectionToDeg(unit.currentDirection1);
+                unit_angle = SCDirectionToDeg(unit.currentDirection1);
             }
             
             // TRIGGER
@@ -2956,6 +2972,15 @@ function UpdateUtilityState(playerID) {
                     Order(U_HERO[playerID], playerID, L_ANYWHERE, Move, L_MAIN);
                     utility_state[i] = 0;
                 }
+            } else if (utility_id[i] == UTILITY_TORCH && playerID < 6) {
+                if (Command(playerID, Exactly, 0, U_TORCH)) {
+                    CreateUnit(1, U_TORCH, L_MAIN, playerID);
+                }
+                CenterLoc(L_MAIN, unit_x, unit_y - 24);
+                MoveUnit(1, U_TORCH, playerID, L_ANYWHERE, L_MAIN);
+            }
+            if (utility_id[i] != UTILITY_TORCH && Command(playerID, AtLeast, 1, U_TORCH)) {
+                RemoveUnit(U_TORCH, playerID);
             }
         }
     }
@@ -2987,6 +3012,7 @@ function LevelUp(playerID, unit: CUnit) {
     SetLevelString(playerID);
     screen.printf("LEVEL UP - Level {}", p_level_current[playerID]);
     PlayWAV("staredit/wav/levelup.ogg");
+    setloc(L_MAIN, p_x[playerID], p_y[playerID]);
     CreateUnitDeathAtLocation($U("Protoss Observer"), $P8, L_MAIN);
     for (var i = 0; i < 8; i++) {
         queue_pro_posx = p_x[playerID];
@@ -3302,7 +3328,7 @@ function onPluginStart() {
                 p_attributepoints[playerID] = 20;
                 EquipItem(ARMOR_SHATTERED_KNIGHTS, U_ARMOR, playerID);
                 EquipItem(WEAPON_SHORTSWORD, U_WEAPON, playerID);
-                // EquipItem(UTILITY_DASH, U_UTILITY, playerID);
+                EquipItem(UTILITY_DASH, U_UTILITY, playerID);
                 SetMaxHP(playerID, 140 * 256);
                 GetVision($P7);
                 // EquipBeltSlot(CONSUMABLE_BANDAGE, playerID, 0, 3);
@@ -3392,8 +3418,9 @@ function afterTriggerExec() {
                 }
                 unit.orderTimer = 0;
                 unit.orderQueueTimer = 0;
-                if (p_entered_lair[playerID] == 0 && GetAreaAtPos(p_x[playerID], p_y[playerID]) == AREA_CETUS_LAIR && npc_cetus_exists) {
-                    p_entered_lair[playerID] = AREA_CETUS_LAIR;
+                if (GetAreaAtPos(p_x[playerID], p_y[playerID]) == AREA_CETUS_LAIR) {
+                    if (p_entered_lair[playerID] == 0 && npc_cetus_exists) p_entered_lair[playerID] = AREA_CETUS_LAIR;
+                    else if (p_entered_lair[playerID] > 0 && !npc_cetus_exists) p_entered_lair[playerID] = 0;
                 }
             }
             if (unit_is_moving && IsAlive(playerID)) {
@@ -3629,6 +3656,7 @@ function afterTriggerExec() {
                     p_just_attacked[playerID] = 1;
                     unit.groundWeaponCooldown -= GetAttackSpeed(playerID);
                     const target = unit.orderTargetUnit;
+                    const target_loot_status = target.shield;
                     var target_is_valid = 1;
                     // LOOTING
                     if (IsUnitItem(target.unitID)) {
@@ -3645,9 +3673,9 @@ function afterTriggerExec() {
                             p_current_item_unit[playerID] = target;
                             PlayWAV("staredit/wav/check_item.ogg");
                         }
-                        if (target.unitID == U_LIFEPICKUP) {
+                        if (target.unitID == U_LIFEPICKUP && !UnitItemHasBeenLooted(playerID, target_loot_status)) {
                             p_current_item_unit[playerID] = 0;
-                            target.shield = ModifyItemLootedStatus(playerID, target.shield);
+                            target.shield = ModifyItemLootedStatus(playerID, target_loot_status);
                             SetMaxHP(playerID, p_life_max[playerID] + PLAYER_LIFE_PICKUP_INCREASE);
                         }
                         if (target.shield == 0) { // remove the unit if the loot status returns 0
@@ -3845,8 +3873,8 @@ function afterTriggerExec() {
                     CreateImageSpriteAtLocation($P8, L_MAIN, IMAGE_PLAGUE_CLOUD, 0, ISCRIPT_LONGFAST);
                     CenterView(L_MAIN);
                     DisplayText("\x13\x06- YOU DIED -");
+                    RemoveUnit(U_EXPERIENCE, playerID);
                     if (p_exp_current[playerID] > 0) {
-                        RemoveUnit(U_EXPERIENCE, playerID);
                         CreateUnitWithProperties(1, U_EXPERIENCE, L_MAIN, playerID, UnitProperty(invincible = true));
                         p_exp_lost[playerID] = p_exp_current[playerID];
                         p_exp_lost_timer[playerID] = 2880;
@@ -3882,10 +3910,6 @@ function afterTriggerExec() {
                 }
                 debug_values[6] = p_x[playerID];
                 debug_values[7] = p_y[playerID];
-                debug_values[0] = GetBeltSlotAmount(playerID, 0);
-                debug_values[1] = GetBeltSlotAmount(playerID, 1);
-                debug_values[2] = GetBeltSlotAmount(playerID, 2);
-                debug_values[3] = BeltIsFull(playerID);
                 eprintf("{} | {} | {} | {} | {} | {} | {} | {}", debug_values[0], debug_values[1], debug_values[2], debug_values[3], debug_values[4], debug_values[5], debug_values[6], debug_values[7]);
             }
         }
