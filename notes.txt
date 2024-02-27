@@ -29,6 +29,9 @@ TODO
 	refactor looted flags since farty showed me a better way to do it.
 	for dropping item units should make a "dropped item buffer" where items can exist and are constantly spammed to drop and only drop once they can.
 	in the future belt system could remember your preference of where to put items by not deleting depleted item ids from the slots, could use that info to direct the auto equip.
+	refactor to check PVariable values as little as possible. Do not abuse array[index] as much as possible.
+	refactor in main player loop to get PVariable array values once and then use const or var throughout the loop.
+	mission objectives should have some controls
 
 	VERSION 0.1 CHECK LIST
 			[x] SHORT SWORD		Recover armor when you get a kill
@@ -65,6 +68,9 @@ BUGS
 	players damage is displayed on other players units
 	players damage is displayed on lost knight?
 	dt behaves erratically and doesnt target immediately because of flingy control or something. Really irritating and unpredictable.
+	2 strength regen but not 1
+	couldnt leave lair after cetus displayed
+	cetus spawned immediately after we killed him
 
 	
 IDEAS

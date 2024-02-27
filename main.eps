@@ -1,3 +1,6 @@
+import py_sys;
+sys.setrecursionlimit(2000);
+
 // @bm CONSTANTS
 const L_ANYWHERE = $L("Anywhere");
 const L_MAIN = $L("main");
@@ -266,6 +269,7 @@ const p_belt_amount = EUDArray(PLAYER_MAX_BELT_SLOTS * 6);
 const p_belt_unlocked = EUDArray(PLAYER_MAX_BELT_SLOTS * 6);
 const p_belt_amount_max = PVariable();
 const p_entered_lair = PVariable();
+const p_nearby_item_unit = PVariable();
 
 const MAX_NPC_UNITS = 30;
 const npc_x = EUDArray(MAX_NPC_UNITS);
@@ -842,10 +846,6 @@ function CheckForUtilityTrigger(playerID, unit: CUnit, item_id) {
         if (is_player && p_order_input[playerID] == ORDER_PATROL) utility_was_triggered = 1;
     }
     return utility_was_triggered;
-}
-
-function CheckForConsumableTrigger(playerID, itemID) {
-
 }
 
 function AttachWeaponToUnit(unit_ptr, item_id) {
@@ -2367,14 +2367,13 @@ function UpdateCraftingMenu(playerID) {
     // get input
     if (keypress_1[playerID]) {
         ResetAuxiliaryArray();
-        var have_ingredients = 0;
-        have_ingredients, aux_array[0], aux_array[1], aux_array[2], aux_array[3] = PlayerHasCraftingIngredients(playerID, CONSUMABLE_BANDAGE, U_CONSUMABLE);
-        if (have_ingredients) {
+        aux_array[0], aux_array[1], aux_array[2], aux_array[3], aux_array[4] = PlayerHasCraftingIngredients(playerID, CONSUMABLE_BANDAGE, U_CONSUMABLE);
+        if (aux_array[0] > 0) {
             p_material_fiber_amount[playerID] -= 2;
             setloc(L_MAIN, p_x[playerID], p_y[playerID]);
             CreateItemUnit(U_CONSUMABLE, CONSUMABLE_BANDAGE, L_MAIN, 0, 1);
         } else {
-            for (var i = 0; i < 4; i++) {
+            for (var i = 1; i < 5; i++) {
                 if (aux_array[i] > 0) screen.printf("\x13\x04Insufficient {:s}", GetStringMaterialName(aux_array[i]));
             }
         }
@@ -3456,6 +3455,31 @@ function afterTriggerExec() {
                         RedeemMaterial(playerID, MATERIAL_PLANT_FIBER);
                         setloc(L_MAIN, harvest_x[i], harvest_y[i]);
                         CreateUnitDeathAtLocation(89, $P7, L_MAIN);
+                    }
+                }
+                // check for nearby item units
+                if (p_nearby_item_unit[playerID] == 0) {
+                    CenterLoc(L_3X3, p_x[playerID], p_y[playerID]);
+                    if (
+                        Bring($P8, AtLeast, 1, U_WEAPON, L_3X3) ||
+                        Bring($P8, AtLeast, 1, U_ARMOR, L_3X3) ||
+                        Bring($P8, AtLeast, 1, U_LIFEPICKUP, L_3X3) ||
+                        Bring($P8, AtLeast, 1, U_UTILITY, L_3X3) ||
+                        Bring($P8, AtLeast, 1, U_CONSUMABLE, L_3X3)
+                    ) {
+                        p_nearby_item_unit[playerID] = 1;
+                        DisplayText("\x13\x03<Attack> \x04to Interact.");
+                    }
+                } else if (p_nearby_item_unit[playerID] > 0) {
+                    CenterLoc(L_3X3, p_x[playerID], p_y[playerID]);
+                    if (
+                        Bring($P8, Exactly, 0, U_WEAPON, L_3X3) &&
+                        Bring($P8, Exactly, 0, U_ARMOR, L_3X3) &&
+                        Bring($P8, Exactly, 0, U_LIFEPICKUP, L_3X3) &&
+                        Bring($P8, Exactly, 0, U_UTILITY, L_3X3) &&
+                        Bring($P8, Exactly, 0, U_CONSUMABLE, L_3X3)
+                    ) {
+                        p_nearby_item_unit[playerID] = 0;
                     }
                 }
             }
