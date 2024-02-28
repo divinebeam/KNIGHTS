@@ -86,6 +86,7 @@ const IMAGE_GREEN_FLAME1 = 436;
 const IMAGE_GREEN_FLAME2 = 437;
 const IMAGE_GREEN_FLAME3 = 438;
 const IMAGE_GREEN_FLAME4 = 439;
+const IMAGE_ORANGE_FLAME_SMALL0 = 452;
 
 const MAX_PLAYERS = 6;
 const FULL_DAY_LENGTH = 8640;
@@ -2280,6 +2281,7 @@ function UpdateBrightness(playerID) {
     var target_brightness = BRIGHTNESS_DEFAULT;
     if (time_state == 1) target_brightness = BRIGHTNESS_NIGHT;
     if (p_indoors[playerID]) target_brightness -= 6;
+    if (utility_id[playerID] == UTILITY_TORCH && target_brightness < BRIGHTNESS_DEFAULT) target_brightness = BRIGHTNESS_DEFAULT;
     if (p_brightness[playerID] < target_brightness) p_brightness[playerID] += 1;
     else if (p_brightness[playerID] > target_brightness) p_brightness[playerID] -= 1;
     if (IsUserCP()) SetMemoryEPD(EPD(0x657A9C), SetTo, p_brightness[playerID]);
@@ -2290,6 +2292,7 @@ function UpdateSightRange(playerID) {
     if (time_state == 1) target_value = PLAYER_DEFAULT_SIGHT - 4;
     if (p_indoors[playerID] && time_state == 0) target_value = 2;
     else if (p_indoors[playerID]) target_value = 1;
+    if (utility_id[playerID] == UTILITY_TORCH && target_value < PLAYER_DEFAULT_SIGHT - 4) target_value = PLAYER_DEFAULT_SIGHT - 4;
     if (GetAreaAtPos(p_x[playerID], p_y[playerID]) == AREA_CETUS_LAIR) target_value = PLAYER_DEFAULT_SIGHT;
     bwrite(0x65FD00 + 13624 + U_HERO[playerID] * 1, target_value);
 }
@@ -3328,7 +3331,7 @@ function onPluginStart() {
                 p_attributepoints[playerID] = 20;
                 EquipItem(ARMOR_SHATTERED_KNIGHTS, U_ARMOR, playerID);
                 EquipItem(WEAPON_SHORTSWORD, U_WEAPON, playerID);
-                EquipItem(UTILITY_DASH, U_UTILITY, playerID);
+                EquipItem(UTILITY_TORCH, U_UTILITY, playerID);
                 SetMaxHP(playerID, 140 * 256);
                 GetVision($P7);
                 // EquipBeltSlot(CONSUMABLE_BANDAGE, playerID, 0, 3);
@@ -3683,7 +3686,28 @@ function afterTriggerExec() {
                             RemoveUnitAt(1, target.unitID, L_MAIN, $P8);
                         }
                     }
-                    if (target_is_valid) DamageUnit(playerID, target, p_damage[playerID], ACTIVE_UNITS_MAX + 1);
+                    if (target_is_valid) {
+                        DamageUnit(playerID, target, p_damage[playerID], ACTIVE_UNITS_MAX + 1);
+                        if (utility_id[playerID] == UTILITY_TORCH && Random(0, 1) == 0) { // torch damage
+                            col_posx, col_posy = p_x[playerID], p_y[playerID];
+                            col_enemies = 1;
+                            col_shape = 1;
+                            col_shape_size = 128;
+                            col_max_results = 4;
+                            const result = CheckCollision(playerID);
+                            if (result) {
+                                for (var i = 0; i < col_max_results; i++) {
+                                    if (col_results_unit[i] > 0) {
+                                        const target = CUnit(col_results_unit[i]);
+                                        setloc(L_MAIN, target.posX, target.posY);
+                                        CreateImageSpriteAtLocation($P7, L_MAIN, IMAGE_ORANGE_FLAME_SMALL0, 0, ISCRIPT_NORMAL);
+                                        DamageUnit(playerID, target, 8, ACTIVE_UNITS_MAX + 1);
+                                    }
+                                }
+                            }
+                            ResetCheckCollision();
+                        }
+                    }
                 }
             }
 
