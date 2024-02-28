@@ -124,6 +124,7 @@ const WEAPON_LIGHTNINGBLAST = 8;
 const WEAPON_BLADESTORM = 9;
 const WEAPON_ANCIENT_TOME_OF_STARFALL = 10;
 const WEAPON_CRIMSON_LONG_SWORD = 11;
+const WEAPON_CRIMSON_GREAT_BOW = 12;
 
 const UTILITY_DASH = 1;
 const UTILITY_TORCH = 2;
@@ -396,6 +397,14 @@ function PlayArrow() {
     else if (sound == 4) PlayWAV("staredit/wav/arrow4.ogg");
 }
 
+function GetRandomSoundArrow() : TrgString {
+    const sound = Random(1, 4);
+    if (sound == 1) return $T("staredit/wav/arrow1.ogg");
+    else if (sound == 2) return $T("staredit/wav/arrow2.ogg");
+    else if (sound == 3) return $T("staredit/wav/arrow3.ogg");
+    else if (sound == 4) return $T("staredit/wav/arrow4.ogg");
+}
+
 function GetStringItemName(item_id, unitID) {
     if (unitID == U_WEAPON) {
         switch(item_id) {
@@ -411,6 +420,7 @@ function GetStringItemName(item_id, unitID) {
             case WEAPON_LIGHTNINGBLAST: return Db("Tome Of Lightning Blast");
             case WEAPON_BLADESTORM: return Db("Tome Of Blade Storm");
             case WEAPON_CRIMSON_LONG_SWORD: return Db("Crimson Long Sword");
+            case WEAPON_CRIMSON_GREAT_BOW: return Db("Crimson Great Bow");
 	    }
     } else if (unitID == U_ARMOR) {
         switch(item_id) {
@@ -448,6 +458,7 @@ function GetStringItemDescription(item_id, unitID) {
             case WEAPON_LIGHTNINGBLAST: return Db("Call upon sparks of energy to destroy foes.");
             case WEAPON_BLADESTORM: return Db("A deadly art intended for close combat.");
             case WEAPON_CRIMSON_LONG_SWORD: return Db("Corrupted and demonic ancient blade.");
+            case WEAPON_CRIMSON_GREAT_BOW: return Db("Corrupted and demonic ancient bow.");
 	    }
     } else if (unitID == U_ARMOR) {
         switch(item_id) {
@@ -737,6 +748,7 @@ function GetWeaponCooldown(item_id, playerID) {
     else if (item_id == WEAPON_BLADESTORM) return 48;
     else if (item_id == WEAPON_ANCIENT_TOME_OF_STARFALL) return 24;
     else if (item_id == WEAPON_CRIMSON_LONG_SWORD) return 156;
+    else if (item_id == WEAPON_CRIMSON_GREAT_BOW) return 48; // 120
 }
 
 function GetWeaponDamage(itemID, state, playerID) { // in the future could make unit an argument so that can have different damage based on unitid
@@ -830,6 +842,10 @@ function CheckForWeaponTrigger(playerID, unit: CUnit, item_id) {
         else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.orderID != 3) weapon_was_triggered = 1;
     }
     else if (item_id == WEAPON_CRIMSON_LONG_SWORD) {
+        if (player_attack_clicked) weapon_was_triggered = 1;
+        else if (playerID == $P7 && unit.unitID == U_LOST_KNIGHT && unit.orderID != 3) weapon_was_triggered = 1;
+    }
+    else if (item_id == WEAPON_CRIMSON_GREAT_BOW) {
         if (player_attack_clicked) weapon_was_triggered = 1;
         else if (playerID == $P7 && unit.unitID == U_LOST_KNIGHT && unit.orderID != 3) weapon_was_triggered = 1;
     }
@@ -2086,7 +2102,7 @@ function UpdateProjectileCollisions() {
                 ResetProjectile(i);
             }
             // LIGHTNING BLAST
-            if (pro_weapon_id[i] == WEAPON_LIGHTNINGBLAST) {
+            else if (pro_weapon_id[i] == WEAPON_LIGHTNINGBLAST) {
                 const damage = GetWeaponDamage(WEAPON_LIGHTNINGBLAST, 1, pro_owner[i]);
                 const target_state = DamageUnit(pro_owner[i], pro_collision_unit[i], damage, ACTIVE_UNITS_MAX + 1);
                 setloc(L_MAIN, pro_collision_pos_x[i], pro_collision_pos_y[i]);
@@ -2100,12 +2116,26 @@ function UpdateProjectileCollisions() {
                 ResetProjectile(i);
             }
             // CRIMSON LONG SWORD
-            if (pro_weapon_id[i] == WEAPON_CRIMSON_LONG_SWORD) {
+            else if (pro_weapon_id[i] == WEAPON_CRIMSON_LONG_SWORD) {
                 const target_state = DamageUnit(pro_owner[i], pro_collision_unit[i], 1, ACTIVE_UNITS_MAX + 1);
                 pro_collide_enemies[i] = 0;
                 pro_collision_pos_x[i] = 0;
                 pro_collision_pos_y[i] = 0;
                 pro_collision_unit[i] = 0;
+            }
+            // CRIMSON GREAT BOW
+            else if (pro_weapon_id[i] == WEAPON_CRIMSON_GREAT_BOW) {
+                const damage = 50;
+                const target_state = DamageUnit(pro_owner[i], pro_collision_unit[i], damage, ACTIVE_UNITS_MAX + 1);
+                setloc(L_MAIN, pro_collision_pos_x[i], pro_collision_pos_y[i]);
+                if (target_state) {
+                    CreateUnitDeathAtLocation(U_SCOURGE, $P8, L_MAIN);
+                    PlayWAVCP("staredit/wav/hitmarker.ogg", pro_owner[i]);
+                } else if (target_state == 0) {
+                    CreateImageSpriteAtLocation($P8, L_MAIN, IMAGE_ZERG_AIR_DEATH_SMALL, 0, ISCRIPT_NORMAL);
+                    PlayWAVCP("staredit/wav/hitmarker.ogg", pro_owner[i]);
+                }
+                ResetProjectile(i);
             }
         }
     }
@@ -2493,7 +2523,7 @@ function UpdateWeaponState(playerID) {
             }
 
             // LONG SWORD
-            if (weapon_state[i] > 0 && weapon_id[i] == WEAPON_LONGSWORD) {
+            else if (weapon_state[i] > 0 && weapon_id[i] == WEAPON_LONGSWORD) {
                 if (weapon_state[i] == 1) {
                     const damage = GetWeaponDamage(weapon_id[i], weapon_state[i], playerID);
                     weapon_x[i], weapon_y[i] = MovePosTowards(unit_x, unit_y, unit_angle, 32);
@@ -2525,7 +2555,7 @@ function UpdateWeaponState(playerID) {
             }
 
             // GREAT SWORD
-            if (weapon_state[i] > 0 && weapon_id[i] == WEAPON_GREATSWORD) {
+            else if (weapon_state[i] > 0 && weapon_id[i] == WEAPON_GREATSWORD) {
                 if (weapon_state[i] == 1) {
                     const damage = GetWeaponDamage(weapon_id[i], weapon_state[i], playerID);
                     weapon_x[i], weapon_y[i] = MovePosTowards(unit_x, unit_y, unit_angle, 48);
@@ -2583,7 +2613,7 @@ function UpdateWeaponState(playerID) {
             }
 
             // SHORT BOW
-            if (weapon_state[i] > 0 && weapon_id[i] == WEAPON_SHORTBOW) {
+            else if (weapon_state[i] > 0 && weapon_id[i] == WEAPON_SHORTBOW) {
                 if (weapon_state[i] == 1) {
                     CenterLoc(L_4X4, unit_x, unit_y);
                     if (EnemiesAtLoc(L_4X4)) weapon_state[i] = 0;
@@ -2643,7 +2673,7 @@ function UpdateWeaponState(playerID) {
             }
 
             // FIRE BALL
-            if (weapon_state[i] > 0 && weapon_id[i] == WEAPON_FIREBALL) {
+            else if (weapon_state[i] > 0 && weapon_id[i] == WEAPON_FIREBALL) {
                 const life_cost = GetWeaponLifeCost(weapon_id[i], playerID);
                 if (weapon_state[i] == 1 && unit.hp > life_cost) {
                     DoMagicLifeDrainCost(playerID, unit, life_cost);
@@ -2680,7 +2710,7 @@ function UpdateWeaponState(playerID) {
             }
 
             // LIGHTNING BLAST
-            if (weapon_state[i] > 0 && weapon_id[i] == WEAPON_LIGHTNINGBLAST) {
+            else if (weapon_state[i] > 0 && weapon_id[i] == WEAPON_LIGHTNINGBLAST) {
                 const life_cost = GetWeaponLifeCost(weapon_id[i], playerID);
                 if (weapon_state[i] == 1 && unit.hp > life_cost) {
                     DoMagicLifeDrainCost(playerID, unit, life_cost);
@@ -2749,7 +2779,7 @@ function UpdateWeaponState(playerID) {
             }
 
             // ANCIENT TOME OF STAR FALL
-            if (weapon_state[i] > 0 && weapon_id[i] == WEAPON_ANCIENT_TOME_OF_STARFALL) {
+            else if (weapon_state[i] > 0 && weapon_id[i] == WEAPON_ANCIENT_TOME_OF_STARFALL) {
                 const life_cost = GetWeaponLifeCost(weapon_id[i], playerID);
                 if (weapon_state[i] == 1 && unit.hp > life_cost) {
                     DoMagicLifeDrainCost(playerID, unit, life_cost);
@@ -2800,7 +2830,7 @@ function UpdateWeaponState(playerID) {
             }
 
             // CRIMSON LONG SWORD
-            if (weapon_state[i] > 0 && weapon_id[i] == WEAPON_CRIMSON_LONG_SWORD) {
+            else if (weapon_state[i] > 0 && weapon_id[i] == WEAPON_CRIMSON_LONG_SWORD) {
                 if (weapon_state[i] == 1) weapon_x[i], weapon_y[i] = unit_x, unit_y;
                 // warn
                 if (weapon_state[i] > 0 && weapon_state[i] < 12) {
@@ -2871,6 +2901,73 @@ function UpdateWeaponState(playerID) {
                 // end
                 if (weapon_state[i] > 0) weapon_state[i]++;
                 if (weapon_state[i] >= 24) weapon_state[i] = 0;
+            }
+
+            // CRIMSON GREAT BOW
+            else if (weapon_state[i] > 0 && weapon_id[i] == WEAPON_CRIMSON_GREAT_BOW) {
+                if (weapon_state[i] == 1) {
+                    weapon_angle[i] = GetAngle(unit_x, unit_y, unit_order_x, unit_order_y);
+                    const start_angle = AddAngles(weapon_angle[i], 180);
+                    const velocity = 16;
+                    queue_pro_posx, queue_pro_posy = MovePosTowards(unit_x, unit_y, start_angle, 128);
+                    queue_pro_maxtime = 16;
+                    queue_pro_target_cunit = unit_ptr;
+                    queue_pro_velocity = velocity;
+                    queue_pro_effect2 = IMAGE_GREEN_FLAME0;
+                    queue_pro_effect2_drawfunc = 17;
+                    queue_pro_effect2_iscript = ISCRIPT_NORMAL;
+                    CreateProjectile();
+                    queue_pro_posx, queue_pro_posy = MovePosTowards(unit_x, unit_y, AddAngles(start_angle, 50), 128);
+                    queue_pro_maxtime = 16;
+                    queue_pro_target_cunit = unit_ptr;
+                    queue_pro_velocity = velocity;
+                    queue_pro_effect2 = IMAGE_GREEN_FLAME0;
+                    queue_pro_effect2_drawfunc = 17;
+                    queue_pro_effect2_iscript = ISCRIPT_NORMAL;
+                    CreateProjectile();
+                    queue_pro_posx, queue_pro_posy = MovePosTowards(unit_x, unit_y, AddAngles(start_angle, -50), 128);
+                    queue_pro_maxtime = 16;
+                    queue_pro_target_cunit = unit_ptr;
+                    queue_pro_velocity = velocity;
+                    queue_pro_effect2 = IMAGE_GREEN_FLAME0;
+                    queue_pro_effect2_drawfunc = 17;
+                    queue_pro_effect2_iscript = ISCRIPT_NORMAL;
+                    CreateProjectile();
+                }
+                if (weapon_state[i] == 20 || weapon_state[i] == 32 || weapon_state[i] == 44) {
+                    queue_pro_owner = playerID;
+                    queue_pro_posx, queue_pro_posy = unit_x, unit_y;
+                    queue_pro_maxtime = 24;
+                    queue_pro_angle = weapon_angle[i];
+                    queue_pro_velocity = 48;
+                    queue_pro_effect0_type = 0;
+                    queue_pro_effect0 = 0;
+                    queue_pro_effect0_start = 0;
+                    queue_pro_effect0_drawfunc = 0;
+                    queue_pro_effect0_iscript = 0;
+                    queue_pro_effect1_type = 0;
+                    queue_pro_effect1 = 0;
+                    queue_pro_effect1_start = 0;
+                    queue_pro_effect1_drawfunc = 0;
+                    queue_pro_effect1_iscript = 0;
+                    queue_pro_effect2_type = 0;
+                    queue_pro_effect2 = IMAGE_NUKE_DEATH;
+                    queue_pro_effect2_start = 0;
+                    queue_pro_effect2_drawfunc = 0;
+                    queue_pro_effect2_iscript = ISCRIPT_NORMAL;
+                    queue_pro_weapon_id = weapon_id[i];
+                    queue_pro_collide_enemies = 1;
+                    queue_pro_collide_allies = 0;
+                    queue_pro_collide_terrain = 0;
+                    queue_pro_collide_shape = 0;
+                    queue_pro_collide_size = 60;
+                    CreateProjectile();
+                    const sound_string = GetRandomSoundArrow();
+                    PlayWavAtPos(sound_string, unit_x, unit_y, 512);
+                }
+                // end
+                if (weapon_state[i] > 0) weapon_state[i]++;
+                if (weapon_state[i] >= 45) weapon_state[i] = 0;
             }
         }
     }
@@ -3014,7 +3111,7 @@ function LevelUp(playerID, unit: CUnit) {
     p_exp_goal[playerID] = 300 + 150 * p_level_current[playerID];
     SetLevelString(playerID);
     screen.printf("LEVEL UP - Level {}", p_level_current[playerID]);
-    PlayWAV("staredit/wav/levelup.ogg");
+    PlayWAV("staredit/wav/level_up.ogg");
     setloc(L_MAIN, p_x[playerID], p_y[playerID]);
     CreateUnitDeathAtLocation($U("Protoss Observer"), $P8, L_MAIN);
     for (var i = 0; i < 8; i++) {
@@ -3330,7 +3427,7 @@ function onPluginStart() {
             if (debug_enabled) {
                 p_attributepoints[playerID] = 20;
                 EquipItem(ARMOR_SHATTERED_KNIGHTS, U_ARMOR, playerID);
-                EquipItem(WEAPON_SHORTSWORD, U_WEAPON, playerID);
+                EquipItem(WEAPON_CRIMSON_GREAT_BOW, U_WEAPON, playerID);
                 EquipItem(UTILITY_TORCH, U_UTILITY, playerID);
                 SetMaxHP(playerID, 140 * 256);
                 GetVision($P7);
@@ -3881,7 +3978,7 @@ function afterTriggerExec() {
                     PlaySong(0);
                 }
                 else if (time_state == 1) {
-                    PlayWAV("staredit/wav/night_ambience.ogg");
+                    PlayWAV("staredit/wav/night_ambience_crickets.ogg");
                     PlayWAV("staredit/wav/night.ogg");
                 }
             }
