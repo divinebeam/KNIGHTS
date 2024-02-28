@@ -1848,6 +1848,7 @@ const pro_posx = EUDArray(PROJECTILE_POOL);
 const pro_posy = EUDArray(PROJECTILE_POOL);
 const pro_time = EUDArray(PROJECTILE_POOL);
 const pro_maxtime = EUDArray(PROJECTILE_POOL);
+const pro_updates_per_frame = EUDArray(PROJECTILE_POOL);
 const pro_angle = EUDArray(PROJECTILE_POOL);
 const pro_velocity = EUDArray(PROJECTILE_POOL);
 const pro_angular_velocity = EUDArray(PROJECTILE_POOL);
@@ -1889,6 +1890,7 @@ function ResetProjectile(i) {
     pro_owner[i] = 0;
     pro_time[i] = 0;
     pro_maxtime[i] = 0;
+    pro_updates_per_frame[i] = 0;
     pro_posx[i] = 0;
     pro_posy[i] = 0;
     pro_angle[i] = 0;
@@ -1935,6 +1937,7 @@ var queue_pro_posx = 0;
 var queue_pro_posy = 0;
 var queue_pro_time = 0;
 var queue_pro_maxtime = 0;
+var queue_pro_updates_per_frame = 0;
 var queue_pro_angle = 0;
 var queue_pro_velocity = 0;
 var queue_pro_angular_velocity = 0;
@@ -1971,6 +1974,7 @@ function ResetProjectileQueue() {
     queue_pro_posy = 0;
     queue_pro_time = 0;
     queue_pro_maxtime = 0;
+    queue_pro_updates_per_frame = 0;
     queue_pro_angle = 0;
     queue_pro_velocity = 0;
     queue_pro_angular_velocity = 0;
@@ -2011,6 +2015,8 @@ function CreateProjectile() {
             pro_owner[i] = queue_pro_owner;
             pro_time[i] = 1;
             pro_maxtime[i] = queue_pro_maxtime + 2;
+            if (queue_pro_updates_per_frame == 0) pro_updates_per_frame[i] = 1;
+            else pro_updates_per_frame[i] = queue_pro_updates_per_frame;
             pro_posx[i] = queue_pro_posx;
             pro_posy[i] = queue_pro_posy;
             pro_angle[i] = queue_pro_angle;
@@ -2057,59 +2063,61 @@ function UpdateProjectiles() {
     for (var i = 0; i < PROJECTILE_POOL; i++) {
         if (pro_time[i] > 0) {
             pro_time[i] += 1;
-            if (pro_time[i] >= pro_anglemod0_start[i] && pro_time[i] < pro_anglemod1_start[i]) pro_angle[i] = AddAngles(pro_angle[i], pro_anglemod0[i]);
-            else if (pro_time[i] >= pro_anglemod1_start[i] && pro_time[i] < pro_anglemod2_start[i]) pro_angle[i] = AddAngles(pro_angle[i], pro_anglemod1[i]);
-            else if (pro_time[i] >= pro_anglemod2_start[i]) pro_angle[i] = AddAngles(pro_angle[i], pro_anglemod2[i]);
-            pro_angle[i] = AddAngles(pro_angle[i], pro_angular_velocity[i]);
-            // TARGET CUNIT
-            if (pro_target_cunit[i] > 0) {
-                const target_unit = CUnit(pro_target_cunit[i]);
-                pro_angle[i] = GetAngle(pro_posx[i], pro_posy[i], target_unit.posX, target_unit.posY);
-            }
-
-            const new_posx, new_posy = MovePosTowards(pro_posx[i], pro_posy[i], pro_angle[i], pro_velocity[i]);
-            pro_posx[i] = new_posx;
-            pro_posy[i] = new_posy;
-
-            // CHECK COLLISION
-            if (pro_collide_enemies[i] || pro_collide_allies[i] || pro_collide_terrain[i]) {
-                col_posx = pro_posx[i];
-                col_posy = pro_posy[i];
-                col_enemies = pro_collide_enemies[i];
-                col_allies = pro_collide_allies[i];
-                col_pathable = pro_collide_terrain[i];
-                col_shape = pro_collide_shape[i];
-                col_shape_size = pro_collide_size[i];
-                col_max_results = 1;
-                const had_collision = CheckCollision(pro_owner[i]);
-                if (had_collision) {
-                    pro_collision_pos_x[i], pro_collision_pos_y[i] = pro_posx[i], pro_posy[i];
-                    pro_collision_unit[i] = col_results_unit[0];
+            for (var updates = 0; updates < pro_updates_per_frame[i]; updates++) {
+                if (pro_time[i] >= pro_anglemod0_start[i] && pro_time[i] < pro_anglemod1_start[i]) pro_angle[i] = AddAngles(pro_angle[i], pro_anglemod0[i]);
+                else if (pro_time[i] >= pro_anglemod1_start[i] && pro_time[i] < pro_anglemod2_start[i]) pro_angle[i] = AddAngles(pro_angle[i], pro_anglemod1[i]);
+                else if (pro_time[i] >= pro_anglemod2_start[i]) pro_angle[i] = AddAngles(pro_angle[i], pro_anglemod2[i]);
+                pro_angle[i] = AddAngles(pro_angle[i], pro_angular_velocity[i]);
+                // TARGET CUNIT
+                if (pro_target_cunit[i] > 0) {
+                    const target_unit = CUnit(pro_target_cunit[i]);
+                    pro_angle[i] = GetAngle(pro_posx[i], pro_posy[i], target_unit.posX, target_unit.posY);
                 }
-                ResetCheckCollision();
-            }
 
-            pro_orbit[i] = AddAngles(pro_orbit[i], pro_orbit_velocity[i]);
-            const offsetx, offsety = MovePosTowards(new_posx, new_posy, pro_orbit[i], pro_orbit_dist[i]);
-            setloc(L_MAIN, offsetx, offsety);
-            // IMAGES
-            if (PosIsOnMap(offsetx, offsety) ) {
-                if (pro_effect0[i] > 0 && pro_time[i] >= pro_effect0_start[i] && pro_time[i] < pro_effect1_start[i]) {
-                    // time for effect 0
-                    if (pro_effect0_type[i] == 0) CreateImageSpriteAtLocation($P8, L_MAIN, pro_effect0[i], pro_effect0_drawfunc[i], pro_effect0_iscript[i]);
-                    else CreateUnitDeathAtLocation(pro_effect0[i], $P8, L_MAIN);
-                } else if (pro_effect1[i] > 0 && pro_time[i] >= pro_effect1_start[i] && pro_time[i] < pro_effect2_start[i]) {
-                    // time for effect 1
-                    if (pro_effect1_type[i] == 0) CreateImageSpriteAtLocation($P8, L_MAIN, pro_effect1[i], pro_effect1_drawfunc[i], pro_effect1_iscript[i]);
-                    else CreateUnitDeathAtLocation(pro_effect1[i], $P8, L_MAIN);
-                } else if (pro_effect2[i] > 0 && pro_time[i] >= pro_effect2_start[i]) {
-                    // time for effect 2
-                    if (pro_effect2_type[i] == 0) CreateImageSpriteAtLocation($P8, L_MAIN, pro_effect2[i], pro_effect2_drawfunc[i], pro_effect2_iscript[i]);
-                    else CreateUnitDeathAtLocation(pro_effect2[i], $P8, L_MAIN);
+                const new_posx, new_posy = MovePosTowards(pro_posx[i], pro_posy[i], pro_angle[i], pro_velocity[i]);
+                pro_posx[i] = new_posx;
+                pro_posy[i] = new_posy;
+
+                // CHECK COLLISION
+                if (pro_collide_enemies[i] || pro_collide_allies[i] || pro_collide_terrain[i]) {
+                    col_posx = pro_posx[i];
+                    col_posy = pro_posy[i];
+                    col_enemies = pro_collide_enemies[i];
+                    col_allies = pro_collide_allies[i];
+                    col_pathable = pro_collide_terrain[i];
+                    col_shape = pro_collide_shape[i];
+                    col_shape_size = pro_collide_size[i];
+                    col_max_results = 1;
+                    const had_collision = CheckCollision(pro_owner[i]);
+                    if (had_collision) {
+                        pro_collision_pos_x[i], pro_collision_pos_y[i] = pro_posx[i], pro_posy[i];
+                        pro_collision_unit[i] = col_results_unit[0];
+                    }
+                    ResetCheckCollision();
                 }
-            }
-            if (pro_time[i] >= pro_maxtime[i]) {
-                ResetProjectile(i);
+
+                pro_orbit[i] = AddAngles(pro_orbit[i], pro_orbit_velocity[i]);
+                const offsetx, offsety = MovePosTowards(new_posx, new_posy, pro_orbit[i], pro_orbit_dist[i]);
+                setloc(L_MAIN, offsetx, offsety);
+                // IMAGES
+                if (PosIsOnMap(offsetx, offsety) ) {
+                    if (pro_effect0[i] > 0 && pro_time[i] >= pro_effect0_start[i] && pro_time[i] < pro_effect1_start[i]) {
+                        // time for effect 0
+                        if (pro_effect0_type[i] == 0) CreateImageSpriteAtLocation($P8, L_MAIN, pro_effect0[i], pro_effect0_drawfunc[i], pro_effect0_iscript[i]);
+                        else CreateUnitDeathAtLocation(pro_effect0[i], $P8, L_MAIN);
+                    } else if (pro_effect1[i] > 0 && pro_time[i] >= pro_effect1_start[i] && pro_time[i] < pro_effect2_start[i]) {
+                        // time for effect 1
+                        if (pro_effect1_type[i] == 0) CreateImageSpriteAtLocation($P8, L_MAIN, pro_effect1[i], pro_effect1_drawfunc[i], pro_effect1_iscript[i]);
+                        else CreateUnitDeathAtLocation(pro_effect1[i], $P8, L_MAIN);
+                    } else if (pro_effect2[i] > 0 && pro_time[i] >= pro_effect2_start[i]) {
+                        // time for effect 2
+                        if (pro_effect2_type[i] == 0) CreateImageSpriteAtLocation($P8, L_MAIN, pro_effect2[i], pro_effect2_drawfunc[i], pro_effect2_iscript[i]);
+                        else CreateUnitDeathAtLocation(pro_effect2[i], $P8, L_MAIN);
+                    }
+                }
+                if (pro_time[i] >= pro_maxtime[i]) {
+                    ResetProjectile(i);
+                }
             }
         }
     }
@@ -2118,6 +2126,7 @@ function UpdateProjectiles() {
 function UpdateProjectileCollisions() {
     for (var i = 0; i < PROJECTILE_POOL; i++) {
         if (pro_collision_pos_x[i] > 0) {
+            const x, y = pro_collision_pos_x[i], pro_collision_pos_y[i];
             // SHORT BOW
             if (pro_weapon_id[i] == WEAPON_SHORTBOW) {
                 const damage = GetWeaponDamage(WEAPON_SHORTBOW, 0, pro_owner[i]);
@@ -2158,13 +2167,18 @@ function UpdateProjectileCollisions() {
             else if (pro_weapon_id[i] == WEAPON_CRIMSON_GREAT_BOW) {
                 const damage = 50;
                 const target_state = DamageUnit(pro_owner[i], pro_collision_unit[i], damage, ACTIVE_UNITS_MAX + 1);
-                setloc(L_MAIN, pro_collision_pos_x[i], pro_collision_pos_y[i]);
-                if (target_state) {
-                    CreateUnitDeathAtLocation(U_SCOURGE, $P8, L_MAIN);
-                    PlayWAVCP("staredit/wav/hitmarker.ogg", pro_owner[i]);
-                } else if (target_state == 0) {
-                    CreateImageSpriteAtLocation($P8, L_MAIN, IMAGE_ZERG_AIR_DEATH_SMALL, 0, ISCRIPT_NORMAL);
-                    PlayWAVCP("staredit/wav/hitmarker.ogg", pro_owner[i]);
+                setloc(L_MAIN, x, y);
+                PlayWAVCP("staredit/wav/hitmarker.ogg", pro_owner[i]);
+                for (var i = 0; i < 3; i++) {
+                    queue_pro_posx, queue_pro_posy = x, y;
+                    queue_pro_maxtime = 8;
+                    queue_pro_updates_per_frame = 2;
+                    queue_pro_angle = (i + 1) * 120;
+                    queue_pro_velocity = 8;
+                    queue_pro_angular_velocity = Random(-10, 10);
+                    queue_pro_effect2 = IMAGE_NUKE_DOT;
+                    queue_pro_effect2_iscript = ISCRIPT_NORMAL;
+                    CreateProjectile();
                 }
                 ResetProjectile(i);
             }
@@ -2950,7 +2964,7 @@ function UpdateWeaponState(playerID) {
                     queue_pro_velocity = velocity;
                     queue_pro_effect2 = IMAGE_GREEN_FLAME0;
                     queue_pro_effect2_drawfunc = 17;
-                    queue_pro_effect2_iscript = ISCRIPT_NORMAL;
+                    queue_pro_effect2_iscript = ISCRIPT_FAST;
                     CreateProjectile();
                     queue_pro_posx, queue_pro_posy = MovePosTowards(unit_x, unit_y, AddAngles(start_angle, 50), 128);
                     queue_pro_maxtime = 16;
@@ -2958,7 +2972,7 @@ function UpdateWeaponState(playerID) {
                     queue_pro_velocity = velocity;
                     queue_pro_effect2 = IMAGE_GREEN_FLAME0;
                     queue_pro_effect2_drawfunc = 17;
-                    queue_pro_effect2_iscript = ISCRIPT_NORMAL;
+                    queue_pro_effect2_iscript = ISCRIPT_FAST;
                     CreateProjectile();
                     queue_pro_posx, queue_pro_posy = MovePosTowards(unit_x, unit_y, AddAngles(start_angle, -50), 128);
                     queue_pro_maxtime = 16;
@@ -2966,7 +2980,7 @@ function UpdateWeaponState(playerID) {
                     queue_pro_velocity = velocity;
                     queue_pro_effect2 = IMAGE_GREEN_FLAME0;
                     queue_pro_effect2_drawfunc = 17;
-                    queue_pro_effect2_iscript = ISCRIPT_NORMAL;
+                    queue_pro_effect2_iscript = ISCRIPT_FAST;
                     CreateProjectile();
                     PlayWavAtPos("staredit/wav/bow_charge.ogg", unit_x, unit_y, 256);
                 }
@@ -2975,20 +2989,16 @@ function UpdateWeaponState(playerID) {
                     queue_pro_posx, queue_pro_posy = unit_x, unit_y;
                     queue_pro_maxtime = 24;
                     queue_pro_angle = weapon_angle[i];
-                    queue_pro_velocity = 48;
-                    // queue_pro_effect0_type = 0;
-                    // queue_pro_effect0 = 0;
-                    // queue_pro_effect0_start = 0;
-                    // queue_pro_effect0_drawfunc = 0;
-                    // queue_pro_effect0_iscript = 0;
-                    queue_pro_effect1 = IMAGE_NUKE_DEATH;
-                    queue_pro_effect1_start = 2;
+                    queue_pro_velocity = 16;
+                    queue_pro_updates_per_frame = 3;
+                    queue_pro_effect1 = IMAGE_ZERG_AIR_DEATH_SMALL;
+                    queue_pro_effect1_start = 0;
                     queue_pro_effect1_drawfunc = 0;
-                    queue_pro_effect1_iscript = ISCRIPT_NORMAL;
+                    queue_pro_effect1_iscript = ISCRIPT_FAST;
                     queue_pro_effect2 = IMAGE_NUKE_DEATH;
-                    queue_pro_effect2_start = 3;
+                    queue_pro_effect2_start = 1;
                     queue_pro_effect2_drawfunc = 17;
-                    queue_pro_effect2_iscript = ISCRIPT_NORMAL;
+                    queue_pro_effect2_iscript = ISCRIPT_FAST;
                     queue_pro_weapon_id = weapon_id[i];
                     queue_pro_collide_enemies = 1;
                     queue_pro_collide_allies = 0;
@@ -2997,7 +3007,8 @@ function UpdateWeaponState(playerID) {
                     queue_pro_collide_size = 60;
                     CreateProjectile();
                     const sound_string = GetRandomSoundArrow();
-                    PlayWavAtPos(sound_string, unit_x, unit_y, 512);
+                    PlayWavAtPos(sound_string, unit_x, unit_y, 320);
+                    PlayWavAtPos("staredit/wav/large_arrow.ogg", unit_x, unit_y, 320);
                 }
                 // end
                 if (weapon_state[i] > 0) weapon_state[i]++;
