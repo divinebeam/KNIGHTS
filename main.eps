@@ -40,6 +40,9 @@ const U_PATHABLE = 0;
 const U_LIFEPICKUP = 106;
 const U_HARVEST_MARKER = 107; // P9 = GARTLE, P10 = HOOD, P11 = TARGUS
 const U_TORCH = 27; // 27
+const U_IRON_ORE = 176;
+const U_MITHRIL_ORE = 177;
+const U_ADAMANT_ORE = 178;
 
 const NPC_GUARDIAN_ANGEL = 1;
 const NPC_CETUS = 2;
@@ -60,6 +63,7 @@ const IMAGE_EXPL_BLUE_SMALL = 213;
 const IMAGE_SCOURGE_ATTACK = 4;
 const IMAGE_LONGBOLT_TRAIL = 422;
 const IMAGE_FRAG_GRENADE_HIT = 440;
+const IMAGE_GRENADE_SMOKE = 441;
 const IMAGE_LIGHTNING_STORM = 525;
 const IMAGE_LIGHTNING0 = 550;
 const IMAGE_LIGHTNING1 = 551;
@@ -274,6 +278,7 @@ const p_belt_unlocked = EUDArray(PLAYER_MAX_BELT_SLOTS * 6);
 const p_belt_amount_max = PVariable();
 const p_entered_lair = PVariable();
 const p_nearby_item_unit = PVariable();
+const p_is_harvesting = PVariable(); // stops weapons from casting while the player is mining
 
 const MAX_NPC_UNITS = 30;
 const npc_x = EUDArray(MAX_NPC_UNITS);
@@ -627,6 +632,17 @@ function SetupSystemUnits() {
     cunit_checkterrain.orderID = 116;
 }
 
+function SetupGeneralUnits() {
+    foreach(unit : EUDLoopCUnit()) {
+        if (unit.unitID == U_IRON_ORE) {
+            setloc(L_MAIN, unit.posX, unit.posY);
+            RemoveUnitAt(1, U_IRON_ORE, L_MAIN, $P9);
+            CreateUnit(1, U_IRON_ORE, L_MAIN, $P8);
+            GiveUnits(1, U_IRON_ORE, $P8, L_MAIN, $P12);
+        }
+    }
+}
+
 function SetupWorldInteractions() {
     world_interaction_x[0], world_interaction_y[0] = 3160, 1840; world_interaction_size[0] = 128; // field puzzle
     world_interaction_x[1], world_interaction_y[1] = 3176, 2800; world_interaction_size[1] = 128;
@@ -917,6 +933,12 @@ function CenterLocHero(location, playerID) {
 function HeroIsAt(location, playerID) {
     if (Bring(playerID, AtLeast, 1, U_HERO[playerID], location)) return 1;
     return 0;
+}
+
+function StopHero(playerID) {
+    CenterLocHero(L_MAIN, playerID);
+    MoveUnit(1, U_HERO[playerID], playerID, L_ANYWHERE, L_MAIN);
+    Order(U_HERO[playerID], playerID, L_ANYWHERE, Move, L_MAIN);
 }
 
 function EnemiesAtLoc(location) {
@@ -1283,6 +1305,15 @@ function RedeemMaterial(playerID, materialID) {
     } else if (materialID == MATERIAL_WEEPING_HOOD) {
         p_material_hood_amount[playerID] += amount_gained;
         amount_total = p_material_hood_amount[playerID];
+    } else if (materialID == MATERIAL_IRON_ORE) {
+        p_material_iron_amount[playerID] += amount_gained;
+        amount_total = p_material_iron_amount[playerID];
+    } else if (materialID == MATERIAL_MITHRIL_ORE) {
+        p_material_mithril_amount[playerID] += amount_gained;
+        amount_total = p_material_mithril_amount[playerID];
+    } else if (materialID == MATERIAL_ADAMANTIUM_ORE) {
+        p_material_adamant_amount[playerID] += amount_gained;
+        amount_total = p_material_adamant_amount[playerID];
     }
     screen.printf("\x12\x04+{} {:s} \x04(Carrying {})\x09\x09", amount_gained, GetStringMaterialName(materialID), amount_total);
 }
@@ -2465,7 +2496,10 @@ function UpdateWeaponState(playerID) {
             var unit_order_y = 0;
             var unit_angle = 0;
             var display_damage = 0;
-            if (i >= 0 && i <= 5) {unit_ptr = p_cunit[i]; is_player = 1;} // set unit to players unit if its a player
+            if (i < 6) {
+                unit_ptr = p_cunit[i]; // set unit to players unit if its a player
+                is_player = 1; 
+            }
             const unit = CUnit(unit_ptr);
             if (is_player) {
                 unit_just_attacked = p_just_attacked[i];
@@ -2489,6 +2523,7 @@ function UpdateWeaponState(playerID) {
             // TRIGGER
             if (weapon_cooldown[i] > 0) weapon_cooldown[i]--;
             var weapon_triggered = CheckForWeaponTrigger(playerID, unit, weapon_id[i]);
+            if (is_player && p_is_harvesting[playerID] > 0) weapon_triggered = 0;
             if (weapon_triggered && weapon_cooldown[i] == 0) {
                 weapon_cooldown[i] = GetWeaponCooldown(weapon_id[i], playerID);
                 weapon_state[i] = 1;
@@ -2933,6 +2968,7 @@ function UpdateWeaponState(playerID) {
                     queue_pro_effect2_drawfunc = 17;
                     queue_pro_effect2_iscript = ISCRIPT_NORMAL;
                     CreateProjectile();
+                    PlayWavAtPos("staredit/wav/bow_charge.ogg", unit_x, unit_y, 256);
                 }
                 if (weapon_state[i] == 20 || weapon_state[i] == 32 || weapon_state[i] == 44) {
                     queue_pro_owner = playerID;
@@ -2940,20 +2976,18 @@ function UpdateWeaponState(playerID) {
                     queue_pro_maxtime = 24;
                     queue_pro_angle = weapon_angle[i];
                     queue_pro_velocity = 48;
-                    queue_pro_effect0_type = 0;
-                    queue_pro_effect0 = 0;
-                    queue_pro_effect0_start = 0;
-                    queue_pro_effect0_drawfunc = 0;
-                    queue_pro_effect0_iscript = 0;
-                    queue_pro_effect1_type = 0;
-                    queue_pro_effect1 = 0;
-                    queue_pro_effect1_start = 0;
+                    // queue_pro_effect0_type = 0;
+                    // queue_pro_effect0 = 0;
+                    // queue_pro_effect0_start = 0;
+                    // queue_pro_effect0_drawfunc = 0;
+                    // queue_pro_effect0_iscript = 0;
+                    queue_pro_effect1 = IMAGE_NUKE_DEATH;
+                    queue_pro_effect1_start = 2;
                     queue_pro_effect1_drawfunc = 0;
-                    queue_pro_effect1_iscript = 0;
-                    queue_pro_effect2_type = 0;
+                    queue_pro_effect1_iscript = ISCRIPT_NORMAL;
                     queue_pro_effect2 = IMAGE_NUKE_DEATH;
-                    queue_pro_effect2_start = 0;
-                    queue_pro_effect2_drawfunc = 0;
+                    queue_pro_effect2_start = 3;
+                    queue_pro_effect2_drawfunc = 17;
                     queue_pro_effect2_iscript = ISCRIPT_NORMAL;
                     queue_pro_weapon_id = weapon_id[i];
                     queue_pro_collide_enemies = 1;
@@ -3252,7 +3286,7 @@ function UpdateNPCs() {
                     if (npc_state0[i] == 1 && npc_state1[i] >= 150) npc_state0[i] = 2;
                     else if (npc_state0[i] == 2 && npc_state1[i] <= 50) {
                         npc_state0[i] = 1;
-                        PlayWavAtPos("staredit/wav/angel0.ogg", npc_x[i], npc_y[i], 512);
+                        PlayWavAtPos("staredit/wav/angel.ogg", npc_x[i], npc_y[i], 512);
                     }
                 }
                 if (npc_state3[i] > 0) npc_state3[i]--;
@@ -3412,6 +3446,7 @@ function UpdateNPCs() {
 function onPluginStart() {
     randomize();
     SpawnInitialItemUnits();
+    SetupGeneralUnits();
     StoreHarvestPositions();
     StoreSpawnPositions();
     SetupSystemUnits();
@@ -3480,6 +3515,7 @@ function afterTriggerExec() {
             p_just_attacked[playerID] = 0;
             p_order_input[playerID] = 0;
             if (m_disable_delay[playerID] > 0) m_disable_delay[playerID]--;
+            if (p_is_harvesting[playerID] > 0) p_is_harvesting[playerID]--;
             var unit_is_indoors = 0;
             var unit_took_health_damage = 0;
             if (p_interaction_prompt_delay[playerID] > 0) p_interaction_prompt_delay[playerID]--;
@@ -3760,9 +3796,7 @@ function afterTriggerExec() {
                     var target_is_valid = 1;
                     // LOOTING
                     if (IsUnitItem(target.unitID)) {
-                        unit.orderID = 3;
-                        CenterLocHero(L_MAIN, playerID);
-                        Order(U_HERO[playerID], playerID, L_ANYWHERE, Move, L_MAIN);
+                        StopHero(playerID);
                         p_just_attacked[playerID] = 0;
                         CenterLocHero(L_16X16, playerID);
                         ModifyUnitHitPoints(All, target.unitID, $P8, L_16X16, 100);
@@ -3781,6 +3815,28 @@ function afterTriggerExec() {
                         if (target.shield == 0) { // remove the unit if the loot status returns 0
                             setloc(L_MAIN, target.posX, target.posY);
                             RemoveUnitAt(1, target.unitID, L_MAIN, $P8);
+                        }
+                    } else if (target.unitID == U_IRON_ORE || target.unitID == U_MITHRIL_ORE || target.unitID == U_ADAMANT_ORE) {
+                        p_is_harvesting[playerID] = 48;
+                        p_just_attacked[playerID] = 0;
+                        const damage = p_damage[playerID] * 256;
+                        setloc(L_MAIN, target.posX, target.posY);
+                        if (target.resourceAmount > 1) {
+                            CreateImageSpriteAtLocation($P8, L_MAIN, IMAGE_GRENADE_SMOKE, 0, ISCRIPT_NORMAL);
+                            PlayWAV("staredit/wav/mining.ogg");
+                            if (target.hp <= damage) {
+                                target_is_valid = 0;
+                                ModifyUnitResourceAmount(1, $P12, L_MAIN, 1);
+                                ModifyUnitHitPoints(All, target.unitID, $P12, L_MAIN, 100);
+                                StopHero(playerID);
+                                if (target.unitID == U_IRON_ORE) RedeemMaterial(playerID, MATERIAL_IRON_ORE);
+                                else if (target.unitID == U_MITHRIL_ORE) RedeemMaterial(playerID, MATERIAL_MITHRIL_ORE);
+                                else if (target.unitID == U_ADAMANT_ORE) RedeemMaterial(playerID, MATERIAL_ADAMANTIUM_ORE);
+                            }
+                        } else if (target.resourceAmount == 1) {
+                            target_is_valid = 0;
+                            ModifyUnitHitPoints(All, target.unitID, $P12, L_MAIN, 100);
+                            StopHero(playerID);
                         }
                     }
                     if (target_is_valid) {
