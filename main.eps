@@ -10,6 +10,7 @@ const L_3X3 = $L("3x3");
 const L_4X4 = $L("4x4");
 const L_10X10 = $L("10x10");
 const L_16X16 = $L("16x16");
+const L_20X20 = $L("20x20");
 const L_PLAYER = [4, 5, 6, 7, 8, 9];
 const L_MOUSE = [16, 17, 18, 19, 20, 21];
 const L_CHECK = $L("check");
@@ -44,12 +45,15 @@ const U_TORCH = 27; // 27
 const U_IRON_ORE = 176;
 const U_MITHRIL_ORE = 177;
 const U_ADAMANT_ORE = 178;
+const U_DRAG = 11;
 
 const NPC_GUARDIAN_ANGEL = 1;
 const NPC_CETUS = 2;
 const NPC_ALDUS = 3;
 
 const NPC_ALDUS_SPAWNX, NPC_ALDUS_SPAWNY  = 384, 2016;
+const NPC_CETUS_SPAWN_TIME = 8640;
+const NPC_ALDUS_SPAWN_TIME = 8640;
 
 const ORDER_HOLD = 107;
 const ORDER_PATROL = 152;
@@ -283,6 +287,7 @@ const p_belt_amount_max = PVariable();
 const p_entered_lair = PVariable();
 const p_nearby_item_unit = PVariable();
 const p_is_harvesting = PVariable(); // stops weapons from casting while the player is mining
+const p_drag_unit_ptr = PVariable();
 
 const MAX_NPC_UNITS = 30;
 const npc_x = EUDArray(MAX_NPC_UNITS);
@@ -296,6 +301,8 @@ const npc_state1 = EUDArray(MAX_NPC_UNITS);
 const npc_state3 = EUDArray(MAX_NPC_UNITS);
 const npc_order_timer = EUDArray(MAX_NPC_UNITS);
 var npc_exists = 0;
+var npc_cetus_spawn_timer = 0;
+var npc_aldus_spawn_timer = 0;
 
 const MAX_WEAPON_OBJECTS = 6 + 30;
 const weapon_cunit = EUDArray(MAX_WEAPON_OBJECTS);
@@ -1493,6 +1500,17 @@ function CalculateMaxShield(playerID) {
     p_shield_max[playerID] = 0;
     if (p_armor[playerID] == ARMOR_SHATTERED_KNIGHTS) p_shield_max[playerID] += 100 * 256;
 }
+
+function StopDraggingItem(playerID) {
+    if (p_drag_unit_ptr[playerID] > 0) {
+        const unit = CUnit(p_drag_unit_ptr[playerID]);
+        const item_name = GetStringItemName(unit.energy, unit.unitID);
+        screen.printf("\x13\x06Stopped Dragging \x1F{:s}", item_name);
+        p_drag_unit_ptr[playerID] = 0;
+        RemoveUnit(U_DRAG, playerID);
+        PlayWAV("staredit/wav/drop_item.ogg");
+    }
+}
 // @bm EquipItem
 function EquipItem(item_id, unitType, playerID) {
     if (unitType == U_WEAPON) {
@@ -1736,10 +1754,15 @@ function SpawnUnitsAtChunk(chunkX, chunkY) {
             if (monster_spawn_type[i] > 0) {
                 const area = GetAreaAtPos(monster_spawn_x[i], monster_spawn_y[i]);
                 // skip spawning for some exceptions
-                if (area == AREA_CETUS_LAIR && monster_spawn_type[i] == U_LOST_KNIGHT && (npc_exists & (1 << NPC_CETUS))) continue;
+                if (
+                    (area == AREA_CETUS_LAIR && monster_spawn_type[i] == U_LOST_KNIGHT && (npc_exists & (1 << NPC_CETUS))) ||
+                    (area == AREA_CETUS_LAIR && monster_spawn_type[i] == U_LOST_KNIGHT && npc_cetus_spawn_timer > 0)
+                ) {
+                    continue;
+                }
                 setloc(L_MAIN, monster_spawn_x[i], monster_spawn_y[i]);
                 const new_unit = CreateCUnit(monster_spawn_type[i], $P7, L_MAIN);
-                new_unit.unknown0x26 = 0; // set unit physics flag to 0
+                // new_unit.unknown0x26 = 0; // set unit physics flag to 0
                 if (new_unit.unitID == U_GUARDIAN_ANGEL) {
                     MakeUnitNPC(new_unit, NPC_GUARDIAN_ANGEL);
                     AttachWeaponToUnit(new_unit, WEAPON_ANCIENT_TOME_OF_STARFALL);
@@ -3166,14 +3189,12 @@ function UpdateUtilityState(playerID) {
                     utility_state[i] = 0;
                 }
             } else if (utility_id[i] == UTILITY_TORCH && playerID < 6) {
-                if (Command(playerID, Exactly, 0, U_TORCH)) {
-                    CreateUnit(1, U_TORCH, L_MAIN, playerID);
+                if (utility_state[i] == 0) {
+                    utility_state[i] = 3;
+                    setloc(L_MAIN, unit_x, unit_y - 24);
+                    CreateImageSpriteAtLocation($P8, L_MAIN, IMAGE_ORANGE_FLAME_SMALL0, 6, 65);
                 }
-                CenterLoc(L_MAIN, unit_x, unit_y - 24);
-                MoveUnit(1, U_TORCH, playerID, L_ANYWHERE, L_MAIN);
-            }
-            if (utility_id[i] != UTILITY_TORCH && Command(playerID, AtLeast, 1, U_TORCH)) {
-                RemoveUnit(U_TORCH, playerID);
+                utility_state[i]--;
             }
         }
     }
@@ -3264,6 +3285,8 @@ function ResetNPCIndex(index) {
 // @bm UpdateNPCs
 function UpdateNPCs() {
     npc_exists = 0;
+    if (npc_cetus_spawn_timer > 0) npc_cetus_spawn_timer--;
+    if (npc_aldus_spawn_timer > 0) npc_aldus_spawn_timer--;
     for (var i = 0; i < MAX_NPC_UNITS; i++) {
         if (npc_id[i] > 0) {
             const unit = CUnit(npc_cunit[i]);
@@ -3484,6 +3507,7 @@ function UpdateNPCs() {
                         setloc(L_MAIN, npc_x[i], npc_y[i]);
                         CreateItemUnit(U_WEAPON, WEAPON_CRIMSON_LONG_SWORD, L_MAIN, 1, 1);
                         ResetNPCIndex(i);
+                        npc_cetus_spawn_timer = NPC_CETUS_SPAWN_TIME;
                     }
                 }
                 // show hp to players
@@ -3508,21 +3532,87 @@ function UpdateNPCs() {
                     CreateImageSpriteAtLocation($P7, L_MAIN, IMAGE_HALLUC_DEATH1, 17, ISCRIPT_FAST);
                     CreateImageSpriteAtLocation($P7, L_0X0, IMAGE_HALLUC_DEATH1, 17, ISCRIPT_FAST);
                     npc_x[i], npc_y[i] = unit.posX, unit.posY;
-                    setloc(L_0X0, lair_x, lair_y);
-                    Order(U_LOST_KNIGHT, $P7, L_16X16, Patrol, L_0X0);
+                    setloc(L_MAIN, npc_x[i], npc_y[i]);
+                    for (var p = 0; p < 6; p++) {
+                        if (aux_array[p] > 0) {setloc(L_0X0, p_x[p], p_y[p]); break;}
+                    }
+                    Order(U_LOST_KNIGHT, $P7, L_MAIN, Patrol, L_0X0);
                 }
                 // npc_state0 - combat loop
                 if (PlayersAtArea(AREA_ALDUS_LAIR) && state0 == 0) {
                     npc_state0[i] = 1;
                     PlayWavAtArea("staredit/wav/boss_incoming.ogg", AREA_ALDUS_LAIR);
-                    CenterLoc(L_16X16, lair_x, lair_y);
-                    RemoveUnitAt(All, U_ANANSI, L_16X16, $P7);
-                    RemoveUnitAt(All, U_CHIMERA, L_16X16, $P7);
-                    setloc(L_MAIN, lair_x, lair_y);
-                    Order(U_LOST_KNIGHT, $P7, L_16X16, Patrol, L_MAIN);
+                    CenterLoc(L_20X20, lair_x, lair_y);
+                    RemoveUnitAt(All, U_ANANSI, L_20X20, $P7);
+                    RemoveUnitAt(All, U_CHIMERA, L_20X20, $P7);
+                    RemoveUnitAt(All, U_HILL_SPINT, L_20X20, $P7);
+                    setloc(L_MAIN, unit_x, unit_y);
+                    for (var p = 0; p < 6; p++) {
+                        if (aux_array[p] > 0) {setloc(L_0X0, p_x[p], p_y[p]); break;}
+                    }
+                    Order(U_LOST_KNIGHT, $P7, L_MAIN, Patrol, L_0X0);
                 } else if (!PlayersAtArea(AREA_ALDUS_LAIR) && state0 > 0) {
                     npc_state0[i] = 0;
                     unit.hp = 600 * 256;
+                }
+                if (npc_state0[i] > 0 && unit_is_alive) {
+                    if ((state0 <= 120 && state0 % 24 == 0) || (state0 >= 288 && state0 <= 408 && state0 % 24 == 0)) {
+                        PlayWavAtPos("staredit/wav/boss_charge.ogg", npc_x[i], npc_y[i], 960);
+                    }
+                    if (state0 <= 144 && state0 % 2 == 0) { // charge up first summon (0 - 6 seconds)
+                        queue_pro_posx, queue_pro_posy = MovePosTowards(npc_x[i], npc_y[i], Random(0, 359), 320);
+                        queue_pro_maxtime = 12;
+                        queue_pro_velocity = 20;
+                        queue_pro_effect2 = IMAGE_PHOTON_BLASTERS;
+                        queue_pro_effect2_drawfunc = 17;
+                        queue_pro_effect2_iscript = ISCRIPT_FAST;
+                        queue_pro_target_cunit = npc_cunit[i];
+                        CreateProjectile();
+                    } else if (state0 == 145) { // do first summon (on 6 seconds)
+                        DrawCircle(lair_x, lair_y, 448, 12, IMAGE_ZERG_AIR_DEATH_LARGE, 0, ISCRIPT_FAST);
+                        setloc(L_MAIN, lair_x, lair_y);
+                        CenterLoc(L_16X16, lair_x, lair_y);
+                        CreateUnitCircle(U_CHIMERA, $P7, L_MAIN, 448, 10);
+                        Order(U_CHIMERA, $P7, L_16X16, Patrol, L_16X16);
+                        PlayWavAtPos("sound\Bullet\ZQuHit02.wav", npc_x[i], npc_y[i], 960);
+                    } else if (state0 >= 288 && state0 <= 432 && state0 % 2 == 0) { // charge up second summon (12 - 18 seconds)
+                        queue_pro_posx, queue_pro_posy = MovePosTowards(npc_x[i], npc_y[i], Random(0, 359), 320);
+                        queue_pro_maxtime = 12;
+                        queue_pro_velocity = 20;
+                        queue_pro_effect2 = IMAGE_PHOTON_BLASTERS;
+                        queue_pro_effect2_drawfunc = 17;
+                        queue_pro_effect2_iscript = ISCRIPT_FAST;
+                        queue_pro_target_cunit = npc_cunit[i];
+                        CreateProjectile();
+                    } else if (state0 == 433) { // do second summon (on 18 seconds)
+                        DrawCircle(lair_x, lair_y, 448, 12, IMAGE_ZERG_AIR_DEATH_LARGE, 0, ISCRIPT_FAST);
+                        setloc(L_MAIN, lair_x, lair_y);
+                        CenterLoc(L_16X16, lair_x, lair_y);
+                        CreateUnitCircle(U_HILL_SPINT, $P7, L_MAIN, 448, 5);
+                        Order(U_CHIMERA, $P7, L_16X16, Patrol, L_16X16);
+                        PlayWavAtPos("sound\Bullet\ZQuHit02.wav", npc_x[i], npc_y[i], 960);
+                    } else if (state0 >= 576 && state0 % 12 == 0) { // consume chimeras in the lair after 24 seconds
+                        CenterLoc(L_16X16, unit_x, unit_y);
+                        if (Bring($P7, AtLeast, 1, U_HILL_SPINT, L_16X16)) {
+                            HealUnit(npc_cunit[i], 25 * 256, 600 * 256);
+                            PlayWavAtPos("sound\Bullet\ZHyFir00.wav", lair_x, lair_y, 960);
+                            MoveLocation(L_MAIN, U_HILL_SPINT, $P7, L_16X16);
+                            KillUnitAt(1, U_HILL_SPINT, L_MAIN, $P7);
+                            queue_pro_posx, queue_pro_posy = GetLocationPoint(L_MAIN);
+                            queue_pro_maxtime = 16;
+                            queue_pro_velocity = 12;
+                            queue_pro_effect1 = IMAGE_SPORES_OVERLAY;
+                            queue_pro_effect1_iscript = ISCRIPT_FAST;
+                            queue_pro_effect1_drawfunc = 6;
+                            queue_pro_effect2_start = 7;
+                            queue_pro_effect2 = IMAGE_SPORES_OVERLAY;
+                            queue_pro_effect2_iscript = ISCRIPT_FAST;
+                            queue_pro_target_cunit = npc_cunit[i];
+                            CreateProjectile();
+                        }
+                    }
+                    npc_state0[i]++;
+                    if (npc_state0[i] >= 720) npc_state0[i] = 1;
                 }
                 // death
                 if (!unit_is_alive && npc_state1[i] == 0) npc_state1[i] = 1;
@@ -3575,6 +3665,7 @@ function UpdateNPCs() {
                         setloc(L_MAIN, unit_x, unit_y);
                         CreateItemUnit(U_WEAPON, WEAPON_CRIMSON_GREAT_BOW, L_MAIN, 1, 1);
                         ResetNPCIndex(i);
+                        npc_aldus_spawn_timer = NPC_ALDUS_SPAWN_TIME;
                     }
                 }
                 // show hp to players
@@ -3670,10 +3761,14 @@ function afterTriggerExec() {
             if (p_is_harvesting[playerID] > 0) p_is_harvesting[playerID]--;
             var unit_is_indoors = 0;
             var unit_took_health_damage = 0;
+            var unit_angle = 0;
+            var unit_x, unit_y = p_x[playerID], p_y[playerID];
             if (p_interaction_prompt_delay[playerID] > 0) p_interaction_prompt_delay[playerID]--;
             if (IsAlive(playerID)) {
                 p_x[playerID], p_y[playerID] = unit.posX, unit.posY;
+                unit_x, unit_y = p_x[playerID], p_y[playerID];
                 p_angle[playerID] = SCDirectionToDeg(unit.currentDirection1);
+                unit_angle = p_angle[playerID];
                 p_orderx[playerID], p_ordery[playerID] = unit.orderTargetX, unit.orderTargetY;
                 if (active_units_update == 0) FillActiveNearbyUnits(playerID, p_x[playerID], p_y[playerID]);
                 if (unit.orderID == ORDER_HOLD || unit.orderID == ORDER_PATROL) {
@@ -3874,7 +3969,7 @@ function afterTriggerExec() {
                 UpdateCraftingMenu(playerID);
             }
 
-            // HEALTH
+            // @bm LIFE
             if (IsAlive(playerID)) {
                 const regen_amount = GetHealthRegen(playerID);
                 HealPlayer(playerID, unit, regen_amount);
@@ -3893,6 +3988,7 @@ function afterTriggerExec() {
                     p_life[playerID] = unit.hp;
                     // const recovered_whole, recovered_frac = GetWholeAndFraction((amount_recovered * 10000) / 256);
                     // screen.printf("{} health LOST! Recovered {}.{} from toughness.", health_lost / 256, recovered_whole, recovered_frac);
+                    StopDraggingItem(playerID);
                 }
             }
 
@@ -3938,12 +4034,14 @@ function afterTriggerExec() {
                         CreateImageSpriteAtLocation($P8, L_MAIN, 107, 16, ISCRIPT_NORMAL);
                     }
                     p_shield[playerID] = unit.shield;
+                    StopDraggingItem(playerID);
                 }
             }
 
             // @bm UNIT ATTACK
             if (IsAlive(playerID)) {
                 if (unit.groundWeaponCooldown == 26) {
+                    StopDraggingItem(playerID);
                     p_just_attacked[playerID] = 1;
                     unit.groundWeaponCooldown -= GetAttackSpeed(playerID);
                     const target = unit.orderTargetUnit;
@@ -4019,7 +4117,7 @@ function afterTriggerExec() {
                 }
             }
 
-            // LOOT MENU
+            // @bm LOOT MENU
             if (p_current_item_unit[playerID] > 0) {
                 const item_unit = CUnit(p_current_item_unit[playerID]);
                 const item_id = item_unit.energy;
@@ -4098,6 +4196,7 @@ function afterTriggerExec() {
                             setloc(L_MAIN, p_x[playerID], p_y[playerID]);
                             CreateItemUnit(item_unit_type, target_slot_id, L_MAIN, target_slot, target_slot_amount);
                             screen.printf("\x13\x06Dropped \x1F{:s} \x04x{}", GetStringItemName(target_slot_id, item_unit_type), target_slot_amount);
+                            PlayWAV("staredit/wav/drop_item.ogg");
                         }
                         var current_slot_number, current_item_id, current_amount, amount_equipped = 0, 0, 0, 0;
                         if (action_equipped_specific_belt > 0) current_slot_number, current_item_id, current_amount, amount_equipped = EquipBeltSlot(item_id, playerID, action_equipped_specific_belt - 1, item_amount);
@@ -4111,8 +4210,30 @@ function afterTriggerExec() {
                         p_current_item_unit[playerID] = 0;
                         ClearTextLines(0, 4);
                         screen.printf("\x13\x04Equipped \x1F{:s} \x04x{} to \x07BELT SLOT {}", item_name, amount_equipped, current_slot_number);
+                    } else if (action_dragged) {
+                        p_drag_unit_ptr[playerID] = p_current_item_unit[playerID];
+                        p_current_item_unit[playerID] = 0;
+                        ClearTextLines(0, 4);
+                        screen.printf("\x13\x04Dragging \x1F{:s} \x04- Press \x03-<G>- \x04to Stop.", item_name);
+                        keypress_g[playerID] = 0;
                     }
                 }
+            }
+
+            // DRAG UNIT
+            if (p_drag_unit_ptr[playerID] > 0) {
+                if (keypress_g[playerID]) StopDraggingItem(playerID);
+                const move_x, move_y = MovePosTowards(unit_x, unit_y, AddAngles(unit_angle, 180), 40);
+                setloc(L_MAIN, move_x, move_y);
+                if (Command(playerID, Exactly, 0, U_DRAG)) {
+                    CreateUnit(1, U_DRAG, L_MAIN, playerID);
+                } else if (Bring(playerID, Exactly, 0, U_DRAG, L_MAIN)) {
+                    Order(U_DRAG, playerID, L_ANYWHERE, Move, L_MAIN);
+                }
+                const drag_unit = CUnit(p_drag_unit_ptr[playerID]);
+                MoveLocation(L_MAIN, U_DRAG, playerID, L_ANYWHERE);
+                setloc(L_0X0, drag_unit.posX, drag_unit.posY);
+                MoveUnit(1, drag_unit.unitID, $P8, L_0X0, L_MAIN);
             }
 
             // CONSUMABLES
@@ -4250,7 +4371,7 @@ function afterTriggerExec() {
         if (playerID == $P7) {
             UpdateWeaponState(playerID);
             // spawn aldus
-            if (PlayersAtArea(AREA_ALDUS_LAIR) && !(npc_exists & (1 << NPC_ALDUS))) {
+            if (PlayersAtArea(AREA_ALDUS_LAIR) && !(npc_exists & (1 << NPC_ALDUS)) && npc_aldus_spawn_timer == 0) {
                 var condition_met = 1;
                 debug_values[0] = 1;
                 for (var p = 0; p < 6; p++) {

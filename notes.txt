@@ -10,20 +10,15 @@ CURRENTLY
 
 
 TODO
+	drag
 	hints at the beginning when you die
 	PROJECTILE SYSTEM: trail images, orbiting opposing image, acceleration, orbit images, projectile target, projectile turn amount towards target etc.
-	computers should anticipate players movement with aoe or aim skills, like maybe should make a prediction of where the player is going to be.
 	display stats on upgrade icons on unit
-	if you have no armor then you shouldnt dodge, same with if you have full shields
 	remove players flag from unit items if they leave the game.
-	maybe all the systems would be better off updating after the player cycle instead of before.
 	maybe in the future have to guarantee that check terrain collider unit cannot unburrow
-	could make the multiple queue values of projectiles into arrays
 	in the future I could make it so that projectile timed properties could be set to some huge time so that the first ones can be used with no problem
 	in the future make it so that damage at position can have multiple shapes
 	make it so that units can have "hit by weapon" flags to keep things from doing double damage.
-	need to implement heals of some sort
-	harvesting plants?
 	make it so that when the day resets, enemies cant spawn right on top of you and fuck you up.
 	show cooldowns
 	refactor looted flags since farty showed me a better way to do it.
@@ -33,6 +28,7 @@ TODO
 	refactor in main player loop to get PVariable array values once and then use const or var throughout the loop.
 	mission objectives should have some controls
 	refactor to get all data from an array at the beginning of the loop, instead of keeping accessing the data over and over.
+	refactor to make it so projectiles can have preset configurations so I dont have to repeat code for configurations of the same type.
 
 	VERSION 0.1 CHECK LIST
 			[x] SHORT SWORD		Recover armor when you get a kill
@@ -64,10 +60,7 @@ BUGS
 	unit gets stuck when swapping items
 	players damage is displayed on other players units
 	players damage is displayed on lost knight?
-	2 strength regen but not 1
-	couldnt leave lair after cetus displayed
 	cetus spawned immediately after we killed him
-	desync when picking up life anointment
 
 	
 IDEAS
