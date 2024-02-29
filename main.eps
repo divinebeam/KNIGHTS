@@ -26,6 +26,7 @@ const U_TWISTED_KNIGHT = 51;
 const U_LOST_KNIGHT = 74;
 const U_ANANSI = 40;
 const U_ANY = 229;
+const U_MEN = 230;
 const U_KAKARU = 94;
 const U_SCOURGE = 47;
 const U_WEAPON = 129;
@@ -46,6 +47,9 @@ const U_ADAMANT_ORE = 178;
 
 const NPC_GUARDIAN_ANGEL = 1;
 const NPC_CETUS = 2;
+const NPC_ALDUS = 3;
+
+const NPC_ALDUS_SPAWNX, NPC_ALDUS_SPAWNY  = 384, 2016;
 
 const ORDER_HOLD = 107;
 const ORDER_PATROL = 152;
@@ -291,7 +295,7 @@ const npc_state0 = EUDArray(MAX_NPC_UNITS);
 const npc_state1 = EUDArray(MAX_NPC_UNITS);
 const npc_state3 = EUDArray(MAX_NPC_UNITS);
 const npc_order_timer = EUDArray(MAX_NPC_UNITS);
-var npc_cetus_exists = 0;
+var npc_exists = 0;
 
 const MAX_WEAPON_OBJECTS = 6 + 30;
 const weapon_cunit = EUDArray(MAX_WEAPON_OBJECTS);
@@ -753,18 +757,34 @@ function GetHealthRegen(playerID) { // 2 per frame = 0.1875 per second
 }
 // @bm GetWeaponCooldown
 function GetWeaponCooldown(item_id, playerID) {
-    if (item_id == WEAPON_SHORTSWORD) return 96;
-    else if (item_id == WEAPON_LONGSWORD) return 156;
-    else if (item_id == WEAPON_GREATSWORD) return 204;
-    else if (item_id == WEAPON_SHORTBOW) return 36;
-    else if (item_id == WEAPON_LONGBOW) return 48;
-    else if (item_id == WEAPON_GREATBOW) return 96;
-    else if (item_id == WEAPON_FIREBALL) return 48;
-    else if (item_id == WEAPON_LIGHTNINGBLAST) return 120;
-    else if (item_id == WEAPON_BLADESTORM) return 48;
-    else if (item_id == WEAPON_ANCIENT_TOME_OF_STARFALL) return 24;
-    else if (item_id == WEAPON_CRIMSON_LONG_SWORD) return 156;
-    else if (item_id == WEAPON_CRIMSON_GREAT_BOW) return 48; // 120
+    if (playerID < 6) {
+        if (item_id == WEAPON_SHORTSWORD) return 96;
+        else if (item_id == WEAPON_LONGSWORD) return 156;
+        else if (item_id == WEAPON_GREATSWORD) return 204;
+        else if (item_id == WEAPON_SHORTBOW) return 36;
+        else if (item_id == WEAPON_LONGBOW) return 48;
+        else if (item_id == WEAPON_GREATBOW) return 96;
+        else if (item_id == WEAPON_FIREBALL) return 48;
+        else if (item_id == WEAPON_LIGHTNINGBLAST) return 120;
+        else if (item_id == WEAPON_BLADESTORM) return 48;
+        else if (item_id == WEAPON_ANCIENT_TOME_OF_STARFALL) return 24;
+        else if (item_id == WEAPON_CRIMSON_LONG_SWORD) return 156;
+        else if (item_id == WEAPON_CRIMSON_GREAT_BOW) return 120;
+    } else {
+        if (item_id == WEAPON_SHORTSWORD) return 96;
+        else if (item_id == WEAPON_LONGSWORD) return 156;
+        else if (item_id == WEAPON_GREATSWORD) return 204;
+        else if (item_id == WEAPON_SHORTBOW) return 36;
+        else if (item_id == WEAPON_LONGBOW) return 48;
+        else if (item_id == WEAPON_GREATBOW) return 96;
+        else if (item_id == WEAPON_FIREBALL) return 48;
+        else if (item_id == WEAPON_LIGHTNINGBLAST) return 120;
+        else if (item_id == WEAPON_BLADESTORM) return 48;
+        else if (item_id == WEAPON_ANCIENT_TOME_OF_STARFALL) return 24;
+        else if (item_id == WEAPON_CRIMSON_LONG_SWORD) return 156;
+        else if (item_id == WEAPON_CRIMSON_GREAT_BOW) return 192;
+    }
+
 }
 
 function GetWeaponDamage(itemID, state, playerID) { // in the future could make unit an argument so that can have different damage based on unitid
@@ -782,6 +802,7 @@ function GetWeaponDamage(itemID, state, playerID) { // in the future could make 
         else if (itemID == WEAPON_LIGHTNINGBLAST && state == 1) damage = 4 + (2 * p_resilience[playerID]);
         else if (itemID == WEAPON_BLADESTORM) damage = 4 + (2 * p_resilience[playerID]);
         else if (itemID == WEAPON_CRIMSON_LONG_SWORD) damage = 30 + p_strength[playerID];
+        else if (itemID == WEAPON_CRIMSON_GREAT_BOW) damage = 25 + p_dexterity[playerID];
     } else if (playerID == $P7) {
         if (itemID == WEAPON_SHORTSWORD) damage = 30;
         else if (itemID == WEAPON_SHORTBOW) damage = 50;
@@ -794,6 +815,7 @@ function GetWeaponDamage(itemID, state, playerID) { // in the future could make 
         else if (itemID == WEAPON_LIGHTNINGBLAST) damage = 50;
         else if (itemID == WEAPON_BLADESTORM) damage = 50;
         else if (itemID == WEAPON_CRIMSON_LONG_SWORD) damage = 50;
+        else if (itemID == WEAPON_CRIMSON_GREAT_BOW) damage = 70;
     }
     return damage;
 }
@@ -954,23 +976,26 @@ function PosIsWithinRect(positionx, positiony, left, right, top, bottom) {
 const AREA_GATE_MOUNTAIN = 1;
 const AREA_FIELD = 2;
 const AREA_CETUS_LAIR = 3;
+const AREA_ALDUS_LAIR = 4;
 function GetAreaAtPos(positionx, positiony) {
     if (PosIsWithinRect(positionx, positiony, 540, 2970, 0, 896)) return AREA_GATE_MOUNTAIN;
     if (PosIsWithinRect(positionx, positiony, 1664, 1920, 897, 1024)) return AREA_GATE_MOUNTAIN;
     if (PosIsWithinRect(positionx, positiony, 1620, 3740, 1632, 3040)) return AREA_FIELD;
     if (PosIsWithinRect(positionx, positiony, 64, 770, 1250, 1860)) return AREA_CETUS_LAIR;
+    if (PosIsWithinRect(positionx, positiony, 64, 831, 1920, 2624)) return AREA_ALDUS_LAIR;
+    if (PosIsWithinRect(positionx, positiony, 832, 1088, 2080, 2624)) return AREA_ALDUS_LAIR;
     return 0;
 }
 
-const players_at_area = EUDArray(6);
 function PlayersAtArea(areaID) {
+    ResetAuxiliaryArray();
     var condition_met = 0;
     foreach(player : EUDLoopPlayer()) {
         if (GetAreaAtPos(p_x[player], p_y[player]) == areaID) {
             condition_met = 1;
-            players_at_area[player] = 1;
+            aux_array[player] = 1;
         } else {
-            players_at_area[player] = 0;
+            aux_array[player] = 0;
         }
     }
     return condition_met;
@@ -1005,6 +1030,7 @@ function CreateCUnit(unitType, playerID, location) : CUnit {
         RemoveUnitAt(All, unitType, L_UNITBUFFER, playerID);
         return 0;
     }
+    newUnit.unknown0x26 = 0;
 	return newUnit;
 }
 
@@ -1222,10 +1248,21 @@ function TeleportHeroPos(playerID, positionx, positiony) {
 }
 
 function PlayWavAtPos(sound_path_string: TrgString, positionx, positiony, max_distance) {
-    for (var i = 0; i < 6; i++) {
+    for (var i = 0; i < 6; i++) { // TODO REFACTOR SO THAT IT USES FOREACH PLAYER LOOP
         if (IsAlive(i) && GetDistance(p_x[i], p_y[i], positionx, positiony) <= max_distance) {
             const old_cp = getcurpl();
             setcurpl(i);
+            PlayWAV(sound_path_string);
+            setcurpl(old_cp);
+        }
+    }
+}
+
+function PlayWavAtArea(sound_path_string: TrgString, areaID) {
+    foreach(p : EUDLoopPlayer()) {
+        if (IsAlive(p) && GetAreaAtPos(p_x[p], p_y[p]) == areaID) {
+            const old_cp = getcurpl();
+            setcurpl(p);
             PlayWAV(sound_path_string);
             setcurpl(old_cp);
         }
@@ -1699,7 +1736,7 @@ function SpawnUnitsAtChunk(chunkX, chunkY) {
             if (monster_spawn_type[i] > 0) {
                 const area = GetAreaAtPos(monster_spawn_x[i], monster_spawn_y[i]);
                 // skip spawning for some exceptions
-                if (area == AREA_CETUS_LAIR && monster_spawn_type[i] == U_LOST_KNIGHT && npc_cetus_exists) continue;
+                if (area == AREA_CETUS_LAIR && monster_spawn_type[i] == U_LOST_KNIGHT && (npc_exists & (1 << NPC_CETUS))) continue;
                 setloc(L_MAIN, monster_spawn_x[i], monster_spawn_y[i]);
                 const new_unit = CreateCUnit(monster_spawn_type[i], $P7, L_MAIN);
                 new_unit.unknown0x26 = 0; // set unit physics flag to 0
@@ -1839,6 +1876,103 @@ function CheckCollision(playerID) {
         } else col_results_terrain = 0;
     }
     return result_exists;
+}
+
+const UNIT_PHYSICS_POOL = 50;
+const uphys_time = EUDArray(UNIT_PHYSICS_POOL);
+const uphys_cunit = EUDArray(UNIT_PHYSICS_POOL);
+const uphys_posx = EUDArray(UNIT_PHYSICS_POOL);
+const uphys_posy = EUDArray(UNIT_PHYSICS_POOL);
+const uphys_angle = EUDArray(UNIT_PHYSICS_POOL);
+const uphys_velocity = EUDArray(UNIT_PHYSICS_POOL);
+const uphys_dampening = EUDArray(UNIT_PHYSICS_POOL);
+const uphys_dampening_start = EUDArray(UNIT_PHYSICS_POOL);
+function ResetUnitPhysics(i) {
+    const unit = CUnit(uphys_cunit[i]);
+    unit.unknown0x26 = 0;
+    uphys_time[i] = 0;
+    uphys_cunit[i] = 0;
+    uphys_posx[i] = 0;
+    uphys_posy[i] = 0;
+    uphys_angle[i] = 0;
+    uphys_velocity[i] = 0;
+    uphys_dampening[i] = 0;
+    uphys_dampening_start[i] = 0;
+}
+
+var queue_uphys_time = 0;
+var queue_uphys_cunit = 0;
+var queue_uphys_posx = 0;
+var queue_uphys_posy = 0;
+var queue_uphys_angle = 0;
+var queue_uphys_velocity = 0;
+var queue_uphys_dampening = 0;
+var queue_uphys_dampening_start = 0;
+function ResetUnitPhysicsQueue() {
+    queue_uphys_time = 0;
+    queue_uphys_cunit = 0;
+    queue_uphys_posx = 0;
+    queue_uphys_posy = 0;
+    queue_uphys_angle = 0;
+    queue_uphys_velocity = 0;
+    queue_uphys_dampening = 0;
+    queue_uphys_dampening_start = 0;
+}
+// @bm CreateUnitPhysics
+function CreateUnitPhysics() {
+    const unit = CUnit(queue_uphys_cunit);
+    if (unit.unknown0x26 > 0) return;
+    for (var i = 0; i < UNIT_PHYSICS_POOL; i++) {
+        if (uphys_time[i] == 0) {
+            unit.unknown0x26 = 1;
+            uphys_time[i] = 1;
+            uphys_cunit[i] = queue_uphys_cunit;
+            uphys_posx[i] = queue_uphys_posx;
+            uphys_posy[i] = queue_uphys_posy;
+            uphys_angle[i] = queue_uphys_angle;
+            uphys_velocity[i] = queue_uphys_velocity;
+            uphys_dampening[i] = queue_uphys_dampening;
+            uphys_dampening_start[i] = queue_uphys_dampening_start + 1;
+            ResetUnitPhysicsQueue();
+            break;
+        }
+    }
+}
+
+function UpdateUnitPhysics() {
+    for (var i = 0; i < UNIT_PHYSICS_POOL; i++) {
+        if (uphys_time[i] > 0) {
+            const unit = CUnit(uphys_cunit[i]);
+            if (unit.orderID == 0 || unit.hp == 0 || uphys_cunit[i] == 0) { // delete the index if the unit doesnt exist
+                ResetUnitPhysics(i);
+                continue;
+            }
+            // check collision
+            col_posx, col_posy = MovePosTowards(unit.posX, unit.posY, uphys_angle[i], uphys_velocity[i]);
+            col_terrain = 1;
+            col_shape_size = 32;
+            const collision_happened = CheckCollision(0);
+            if (collision_happened) {
+                ResetUnitPhysics(i);
+                continue;
+            }
+            if (uphys_time[i] >= uphys_dampening_start[i]) { // process dampening
+                if (uphys_velocity[i] <= uphys_dampening[i]) uphys_velocity[i] = 0;
+                else if (uphys_velocity[i] > 0) uphys_velocity[i] -= uphys_dampening[i];
+                if (uphys_velocity[i] == 0) {
+                    ResetUnitPhysics(i);
+                    continue;
+                }
+            }
+            setloc(L_MAIN, unit.posX, unit.posY);
+            setloc(L_0X0, col_posx, col_posy);
+            uphys_posx[i], uphys_posy[i] = col_posx, col_posy;
+            MoveUnit(1, unit.unitID, unit.playerID, L_MAIN, L_0X0);
+            ResetCheckCollision();
+            uphys_time[i]++;
+            if (uphys_time[i] >= 48) ResetUnitPhysics(i);
+        }
+    }
 }
 
 // @bm PROJECTILE FUNCTIONS
@@ -2127,6 +2261,7 @@ function UpdateProjectileCollisions() {
     for (var i = 0; i < PROJECTILE_POOL; i++) {
         if (pro_collision_pos_x[i] > 0) {
             const x, y = pro_collision_pos_x[i], pro_collision_pos_y[i];
+            const collision_unit = CUnit(pro_collision_unit[i]);
             // SHORT BOW
             if (pro_weapon_id[i] == WEAPON_SHORTBOW) {
                 const damage = GetWeaponDamage(WEAPON_SHORTBOW, 0, pro_owner[i]);
@@ -2165,7 +2300,7 @@ function UpdateProjectileCollisions() {
             }
             // CRIMSON GREAT BOW
             else if (pro_weapon_id[i] == WEAPON_CRIMSON_GREAT_BOW) {
-                const damage = 50;
+                const damage = GetWeaponDamage(WEAPON_CRIMSON_GREAT_BOW, 0, pro_owner[i]);
                 const target_state = DamageUnit(pro_owner[i], pro_collision_unit[i], damage, ACTIVE_UNITS_MAX + 1);
                 setloc(L_MAIN, x, y);
                 PlayWAVCP("staredit/wav/hitmarker.ogg", pro_owner[i]);
@@ -2180,105 +2315,17 @@ function UpdateProjectileCollisions() {
                     queue_pro_effect2_iscript = ISCRIPT_NORMAL;
                     CreateProjectile();
                 }
+                if (target_state > 0) {
+                    queue_uphys_cunit = collision_unit;
+                    queue_uphys_posx, queue_uphys_posy = collision_unit.posX, collision_unit.posY;
+                    queue_uphys_angle = pro_angle[i];
+                    queue_uphys_velocity = 25;
+                    queue_uphys_dampening = 4;
+                    queue_uphys_dampening_start = 1;
+                    CreateUnitPhysics();
+                }
                 ResetProjectile(i);
             }
-        }
-    }
-}
-
-const UNIT_PHYSICS_POOL = 50;
-const uphys_time = EUDArray(UNIT_PHYSICS_POOL);
-const uphys_cunit = EUDArray(UNIT_PHYSICS_POOL);
-const uphys_posx = EUDArray(UNIT_PHYSICS_POOL);
-const uphys_posy = EUDArray(UNIT_PHYSICS_POOL);
-const uphys_angle = EUDArray(UNIT_PHYSICS_POOL);
-const uphys_velocity = EUDArray(UNIT_PHYSICS_POOL);
-const uphys_dampening = EUDArray(UNIT_PHYSICS_POOL);
-const uphys_dampening_start = EUDArray(UNIT_PHYSICS_POOL);
-function ResetUnitPhysics(i) {
-    const unit = CUnit(uphys_cunit[i]);
-    unit.unknown0x26 = 0;
-    uphys_time[i] = 0;
-    uphys_cunit[i] = 0;
-    uphys_posx[i] = 0;
-    uphys_posy[i] = 0;
-    uphys_angle[i] = 0;
-    uphys_velocity[i] = 0;
-    uphys_dampening[i] = 0;
-    uphys_dampening_start[i] = 0;
-}
-
-var queue_uphys_time = 0;
-var queue_uphys_cunit = 0;
-var queue_uphys_posx = 0;
-var queue_uphys_posy = 0;
-var queue_uphys_angle = 0;
-var queue_uphys_velocity = 0;
-var queue_uphys_dampening = 0;
-var queue_uphys_dampening_start = 0;
-function ResetUnitPhysicsQueue() {
-    queue_uphys_time = 0;
-    queue_uphys_cunit = 0;
-    queue_uphys_posx = 0;
-    queue_uphys_posy = 0;
-    queue_uphys_angle = 0;
-    queue_uphys_velocity = 0;
-    queue_uphys_dampening = 0;
-    queue_uphys_dampening_start = 0;
-}
-// @bm CreateUnitPhysics
-function CreateUnitPhysics() {
-    const unit = CUnit(queue_uphys_cunit);
-    if (unit.unknown0x26 > 0) return;
-    for (var i = 0; i < UNIT_PHYSICS_POOL; i++) {
-        if (uphys_time[i] == 0) {
-            unit.unknown0x26 = 1;
-            uphys_time[i] = 1;
-            uphys_cunit[i] = queue_uphys_cunit;
-            uphys_posx[i] = queue_uphys_posx;
-            uphys_posy[i] = queue_uphys_posy;
-            uphys_angle[i] = queue_uphys_angle;
-            uphys_velocity[i] = queue_uphys_velocity;
-            uphys_dampening[i] = queue_uphys_dampening;
-            uphys_dampening_start[i] = queue_uphys_dampening_start + 1;
-            ResetUnitPhysicsQueue();
-            break;
-        }
-    }
-}
-
-function UpdateUnitPhysics() {
-    for (var i = 0; i < UNIT_PHYSICS_POOL; i++) {
-        if (uphys_time[i] > 0) {
-            const unit = CUnit(uphys_cunit[i]);
-            if (unit.orderID == 0 || unit.hp == 0 || uphys_cunit[i] == 0) { // delete the index if the unit doesnt exist
-                ResetUnitPhysics(i);
-                continue;
-            }
-            // check collision
-            col_posx, col_posy = MovePosTowards(unit.posX, unit.posY, uphys_angle[i], uphys_velocity[i]);
-            col_terrain = 1;
-            col_shape_size = 32;
-            const collision_happened = CheckCollision(0);
-            if (collision_happened) {
-                ResetUnitPhysics(i);
-                continue;
-            }
-            if (uphys_time[i] >= uphys_dampening_start[i]) { // process dampening
-                if (uphys_velocity[i] <= uphys_dampening[i]) uphys_velocity[i] = 0;
-                else if (uphys_velocity[i] > 0) uphys_velocity[i] -= uphys_dampening[i];
-                if (uphys_velocity[i] == 0) {
-                    ResetUnitPhysics(i);
-                    continue;
-                }
-            }
-            setloc(L_MAIN, unit.posX, unit.posY);
-            setloc(L_0X0, col_posx, col_posy);
-            uphys_posx[i], uphys_posy[i] = col_posx, col_posy;
-            MoveUnit(1, unit.unitID, unit.playerID, L_MAIN, L_0X0);
-            ResetCheckCollision();
-            uphys_time[i]++;
-            if (uphys_time[i] >= 48) ResetUnitPhysics(i);
         }
     }
 }
@@ -2985,15 +3032,20 @@ function UpdateWeaponState(playerID) {
                     PlayWavAtPos("staredit/wav/bow_charge.ogg", unit_x, unit_y, 256);
                 }
                 if (weapon_state[i] == 20 || weapon_state[i] == 32 || weapon_state[i] == 44) {
+                    if (!is_player) {
+                        weapon_angle[i] = GetAngle(unit_x, unit_y, unit_order_x, unit_order_y);
+                        queue_pro_updates_per_frame = 2;
+                        queue_pro_collide_size = 40;
+                    } else {
+                        queue_pro_updates_per_frame = 3;
+                        queue_pro_collide_size = 60;
+                    }
                     queue_pro_owner = playerID;
                     queue_pro_posx, queue_pro_posy = unit_x, unit_y;
-                    queue_pro_maxtime = 24;
+                    queue_pro_maxtime = 20;
                     queue_pro_angle = weapon_angle[i];
                     queue_pro_velocity = 16;
-                    queue_pro_updates_per_frame = 3;
                     queue_pro_effect1 = IMAGE_ZERG_AIR_DEATH_SMALL;
-                    queue_pro_effect1_start = 0;
-                    queue_pro_effect1_drawfunc = 0;
                     queue_pro_effect1_iscript = ISCRIPT_FAST;
                     queue_pro_effect2 = IMAGE_NUKE_DEATH;
                     queue_pro_effect2_start = 1;
@@ -3001,10 +3053,6 @@ function UpdateWeaponState(playerID) {
                     queue_pro_effect2_iscript = ISCRIPT_FAST;
                     queue_pro_weapon_id = weapon_id[i];
                     queue_pro_collide_enemies = 1;
-                    queue_pro_collide_allies = 0;
-                    queue_pro_collide_terrain = 0;
-                    queue_pro_collide_shape = 0;
-                    queue_pro_collide_size = 60;
                     CreateProjectile();
                     const sound_string = GetRandomSoundArrow();
                     PlayWavAtPos(sound_string, unit_x, unit_y, 320);
@@ -3215,11 +3263,14 @@ function ResetNPCIndex(index) {
 }
 // @bm UpdateNPCs
 function UpdateNPCs() {
-    npc_cetus_exists = 0;
+    npc_exists = 0;
     for (var i = 0; i < MAX_NPC_UNITS; i++) {
         if (npc_id[i] > 0) {
             const unit = CUnit(npc_cunit[i]);
             var unit_is_alive = 1;
+            const unit_x, unit_y = npc_x[i], npc_y[i];
+            const state0 = npc_state0[i];
+            const state1 = npc_state1[i];
             if (unit.orderID == 0 || unit.hp == 0) unit_is_alive = 0;
             if (unit_is_alive) npc_x[i], npc_y[i] = unit.posX, unit.posY;
             if (npc_id[i] == NPC_GUARDIAN_ANGEL) {
@@ -3233,11 +3284,11 @@ function UpdateNPCs() {
                 if (npc_order_timer[i] == 0) {
                     npc_order_timer[i] = 12;
                     if (GetAreaAtPos(npc_home_x[i], npc_home_y[i]) == AREA_GATE_MOUNTAIN) {
-                        const players_on_mountain = PlayersAtArea(AREA_GATE_MOUNTAIN);
+                        const players_on_mountain = PlayersAtArea(AREA_GATE_MOUNTAIN); // TODO REFACTOR THIS.
                         if (players_on_mountain) {
                             unit.setloc(L_MAIN);
                             foreach(p : EUDLoopPlayer()) {
-                                if (players_at_area[p]) {
+                                if (aux_array[p]) {
                                     setloc(L_0X0, p_x[p], p_y[p]);
                                     Order(U_GUARDIAN_ANGEL, $P7, L_MAIN, Patrol, L_0X0);
                                     break;
@@ -3302,7 +3353,7 @@ function UpdateNPCs() {
                 }
                 if (npc_state3[i] > 0) npc_state3[i]--;
             } else if (npc_id[i] == NPC_CETUS) {
-                npc_cetus_exists = 1;
+                npc_exists |= 1 << NPC_CETUS;
                 const lair_x, lair_y = 384, 1568;
                 if (GetAreaAtPos(npc_x[i], npc_y[i]) != AREA_CETUS_LAIR) { // keep cetus in his lair
                     setloc(L_MAIN, npc_x[i], npc_y[i]);
@@ -3416,7 +3467,6 @@ function UpdateNPCs() {
                         setloc(L_MAIN, npc_x[i], npc_y[i]);
                         CreateImageSpriteAtLocation($P7, L_MAIN, IMAGE_ZERG_AIR_DEATH_LARGE, 0, ISCRIPT_NORMAL);
                     }
-                    // if (npc_state1[i] == 72) PlayWavAtPos("staredit/wav/boss_destroyed.ogg", npc_x[i], npc_y[i], 960);
                     npc_state1[i]++;
                     if (npc_state1[i] >= 216) {
                         for (var j = 0; j < 8; j++) {
@@ -3448,6 +3498,97 @@ function UpdateNPCs() {
                     }
                     setcurpl(old_cp);
                 }
+            } else if (npc_id[i] == NPC_ALDUS) {
+                npc_exists |= 1 << NPC_ALDUS;
+                const lair_x, lair_y = 640, 2302;
+                if (GetAreaAtPos(unit_x, unit_y) != AREA_ALDUS_LAIR) {
+                    setloc(L_MAIN, unit_x, unit_y);
+                    setloc(L_0X0, NPC_ALDUS_SPAWNX, NPC_ALDUS_SPAWNY);
+                    MoveUnit(1, U_LOST_KNIGHT, $P7, L_MAIN, L_0X0);
+                    CreateImageSpriteAtLocation($P7, L_MAIN, IMAGE_HALLUC_DEATH1, 17, ISCRIPT_FAST);
+                    CreateImageSpriteAtLocation($P7, L_0X0, IMAGE_HALLUC_DEATH1, 17, ISCRIPT_FAST);
+                    npc_x[i], npc_y[i] = unit.posX, unit.posY;
+                    setloc(L_0X0, lair_x, lair_y);
+                    Order(U_LOST_KNIGHT, $P7, L_16X16, Patrol, L_0X0);
+                }
+                // npc_state0 - combat loop
+                if (PlayersAtArea(AREA_ALDUS_LAIR) && state0 == 0) {
+                    npc_state0[i] = 1;
+                    PlayWavAtArea("staredit/wav/boss_incoming.ogg", AREA_ALDUS_LAIR);
+                    CenterLoc(L_16X16, lair_x, lair_y);
+                    RemoveUnitAt(All, U_ANANSI, L_16X16, $P7);
+                    RemoveUnitAt(All, U_CHIMERA, L_16X16, $P7);
+                    setloc(L_MAIN, lair_x, lair_y);
+                    Order(U_LOST_KNIGHT, $P7, L_16X16, Patrol, L_MAIN);
+                } else if (!PlayersAtArea(AREA_ALDUS_LAIR) && state0 > 0) {
+                    npc_state0[i] = 0;
+                    unit.hp = 600 * 256;
+                }
+                // death
+                if (!unit_is_alive && npc_state1[i] == 0) npc_state1[i] = 1;
+                if (npc_state1[i] > 0) {
+                    if (npc_state1[i] == 1) {
+                        for (var j = 0; j < 8; j++) {
+                            queue_pro_posx, queue_pro_posy = unit_x, unit_y;
+                            queue_pro_maxtime = 8;
+                            queue_pro_angle = (j + 1) * 45;
+                            queue_pro_velocity = 40;
+                            queue_pro_angular_velocity = Random(-10, 10);
+                            queue_pro_effect2 = 103;
+                            queue_pro_effect2_type = 1;
+                            CreateProjectile();
+                        }
+                        setloc(L_MAIN, unit_x, unit_y);
+                        CreateUnitDeathAtLocation(U_KAKARU, $P8, L_MAIN);
+                    } else if (state1 == 24) {
+                        PlayWavAtPos("staredit/wav/boss_death0.ogg", unit_x, unit_y, 960);
+                    } else if (state1 > 48 && state1 % 4 == 0) {
+                        queue_pro_posx, queue_pro_posy = unit_x, unit_y;
+                        queue_pro_maxtime = 12;
+                        queue_pro_angle = Random(0, 359);
+                        queue_pro_velocity = 25;
+                        queue_pro_angular_velocity = Random(-10, 10);
+                        queue_pro_effect2 = IMAGE_ZERG_AIR_DEATH_SMALL;
+                        queue_pro_effect2_iscript = ISCRIPT_NORMAL;
+                        if (state1 % 12 == 0) {
+                            queue_pro_effect2_drawfunc = 17;
+                        }
+                        CreateProjectile();
+                        PlayWavAtPos("sound\Zerg\Guardian\ZGuDth00.WAV", unit_x, unit_y, 960);
+                        setloc(L_MAIN, unit_x, unit_y);
+                        CreateImageSpriteAtLocation($P7, L_MAIN, IMAGE_ZERG_AIR_DEATH_LARGE, 0, ISCRIPT_NORMAL);
+                    }
+                    npc_state1[i]++;
+                    if (npc_state1[i] >= 216) {
+                        for (var j = 0; j < 8; j++) {
+                            queue_pro_posx, queue_pro_posy = unit_x, unit_y;
+                            queue_pro_maxtime = 12;
+                            queue_pro_angle = (j + 1) * 45;
+                            queue_pro_velocity = 25;
+                            queue_pro_angular_velocity = Random(-10, 10);
+                            queue_pro_effect2 = IMAGE_ZERG_AIR_DEATH_SMALL;
+                            queue_pro_effect2_iscript = ISCRIPT_NORMAL;
+                            queue_pro_effect2_drawfunc = 17;
+                            CreateProjectile();
+                        }
+                        PlayWavAtPos("staredit/wav/boss_destroyed.ogg", unit_x, unit_y, 960);
+                        setloc(L_MAIN, unit_x, unit_y);
+                        CreateItemUnit(U_WEAPON, WEAPON_CRIMSON_GREAT_BOW, L_MAIN, 1, 1);
+                        ResetNPCIndex(i);
+                    }
+                }
+                // show hp to players
+                if (unit_is_alive) {
+                    const old_cp = getcurpl();
+                    foreach(player : EUDLoopPlayer()) {
+                        setcurpl(player);
+                        if (GetAreaAtPos(p_x[player], p_y[player]) == AREA_ALDUS_LAIR) {
+                            const life_percent = GetPercentage(unit.hp / 256, 600);
+                            screen.printfAt(0, "\x13\x08LOST KNIGHT ALDUS \x02- \x07{}%", life_percent);
+                        }
+                    }
+                    setcurpl(old_cp);
+                }
             }
         }
     }
@@ -3473,7 +3614,7 @@ function onPluginStart() {
             if (debug_enabled) {
                 p_attributepoints[playerID] = 20;
                 EquipItem(ARMOR_SHATTERED_KNIGHTS, U_ARMOR, playerID);
-                EquipItem(WEAPON_CRIMSON_GREAT_BOW, U_WEAPON, playerID);
+                EquipItem(WEAPON_SHORTSWORD, U_WEAPON, playerID);
                 EquipItem(UTILITY_TORCH, U_UTILITY, playerID);
                 SetMaxHP(playerID, 140 * 256);
                 GetVision($P7);
@@ -3566,8 +3707,11 @@ function afterTriggerExec() {
                 unit.orderTimer = 0;
                 unit.orderQueueTimer = 0;
                 if (GetAreaAtPos(p_x[playerID], p_y[playerID]) == AREA_CETUS_LAIR) {
-                    if (p_entered_lair[playerID] == 0 && npc_cetus_exists) p_entered_lair[playerID] = AREA_CETUS_LAIR;
-                    else if (p_entered_lair[playerID] > 0 && !npc_cetus_exists) p_entered_lair[playerID] = 0;
+                    if (p_entered_lair[playerID] == 0 && (npc_exists & (1 << NPC_CETUS))) p_entered_lair[playerID] = AREA_CETUS_LAIR;
+                    else if (p_entered_lair[playerID] > 0 && !(npc_exists & (1 << NPC_CETUS))) p_entered_lair[playerID] = 0;
+                } else if (GetAreaAtPos(p_x[playerID], p_y[playerID]) == AREA_ALDUS_LAIR) {
+                    if (p_entered_lair[playerID] == 0 && (npc_exists & (1 << NPC_ALDUS))) p_entered_lair[playerID] = AREA_ALDUS_LAIR;
+                    else if (p_entered_lair[playerID] > 0 && !(npc_exists & (1 << NPC_ALDUS))) p_entered_lair[playerID] = 0;
                 }
             }
             if (unit_is_moving && IsAlive(playerID)) {
@@ -4105,6 +4249,26 @@ function afterTriggerExec() {
         // PLAYER 7 - MONSTERS
         if (playerID == $P7) {
             UpdateWeaponState(playerID);
+            // spawn aldus
+            if (PlayersAtArea(AREA_ALDUS_LAIR) && !(npc_exists & (1 << NPC_ALDUS))) {
+                var condition_met = 1;
+                debug_values[0] = 1;
+                for (var p = 0; p < 6; p++) {
+                    if (aux_array[p] > 0) {
+                        CenterLoc(L_16X16, p_x[p], p_y[p]);
+                        if (Bring($P7, AtLeast, 1, U_MEN, L_16X16)) {
+                            condition_met = 0;
+                            break;
+                        }
+                    }
+                }
+                if (condition_met) {
+                    setloc(L_MAIN, NPC_ALDUS_SPAWNX, NPC_ALDUS_SPAWNY);
+                    const new_unit = CreateCUnit(U_LOST_KNIGHT, $P7, L_MAIN);
+                    MakeUnitNPC(new_unit, NPC_ALDUS);
+                    AttachWeaponToUnit(new_unit, WEAPON_CRIMSON_GREAT_BOW);
+                }
+            }
         }
     EUDEndPlayerLoop();
 
