@@ -20,7 +20,6 @@ TODO
 	make it so that units can have "hit by weapon" flags to keep things from doing double damage.
 	make it so that when the day resets, enemies cant spawn right on top of you and fuck you up.
 	show cooldowns
-	refactor looted flags since farty showed me a better way to do it.
 	for dropping item units should make a "dropped item buffer" where items can exist and are constantly spammed to drop and only drop once they can.
 	in the future belt system could remember your preference of where to put items by not deleting depleted item ids from the slots, could use that info to direct the auto equip.
 	refactor to check PVariable values as little as possible. Do not abuse array[index] as much as possible.
@@ -41,7 +40,7 @@ TODO
 			[-] BLADE STORM
 			[x] STAR FALL
 			[X] cetus boss fight
-			[-] aldus boss fight
+			[x] aldus boss fight
 			[-] breven boss fight
 			[X] find life anointment 1 - field puzzle
 			[X] find life anointment 2 - hidden in aldus cave
@@ -59,7 +58,7 @@ BUGS
 	unit gets stuck when swapping items
 	players damage is displayed on other players units
 	players damage is displayed on lost knight?
-	cetus spawned immediately after we killed him
+	??? cetus spawned immediately after we killed him
 	??? equipping to available belt slot for P6 makes all map triggers stop
 	??? belt slot keyboard input doesnt work for players other than player 1
 	still getting desync when getting life anointment

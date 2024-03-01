@@ -46,6 +46,7 @@ const U_IRON_ORE = 176;
 const U_MITHRIL_ORE = 177;
 const U_ADAMANT_ORE = 178;
 const U_DRAG = 11;
+const U_BOMB = 216;
 
 const NPC_GUARDIAN_ANGEL = 1;
 const NPC_CETUS = 2;
@@ -68,6 +69,7 @@ const IMAGE_ZERG_AIR_DEATH_LARGE = 58;
 const IMAGE_PLAGUE_CLOUD = 387;
 const IMAGE_HALLUC_DEATH1 = 557;
 const IMAGE_EXPL_BLUE_SMALL = 213;
+const IMAGE_EXPL_ORANGE_MEDIUM = 333;
 const IMAGE_SCOURGE_ATTACK = 4;
 const IMAGE_LONGBOLT_TRAIL = 422;
 const IMAGE_FRAG_GRENADE_HIT = 440;
@@ -504,7 +506,7 @@ function GetStringMaterialName(materialID) {
         case MATERIAL_GARTLE_LEAVES: return Db("\x18Gartle Leaves");
         case MATERIAL_TARGUS_ROOT: return Db("\x19Targus Root");
         case MATERIAL_WEEPING_HOOD: return Db("\x10Weeping Hood");
-        case MATERIAL_IRON_ORE: return Db("\x10Iron Ore");
+        case MATERIAL_IRON_ORE: return Db("\x1EIron Ore");
         case MATERIAL_MITHRIL_ORE: return Db("\x10Mithril Ore");
         case MATERIAL_ADAMANTIUM_ORE: return Db("\x10Adamantium Ore");
         case MATERIAL_GOLD_ORE: return Db("\x10Gold Ore");
@@ -1055,11 +1057,17 @@ function CreateCUnit(unitType, playerID, location) : CUnit {
 }
 
 function CreateItemUnit(unitType, item_id, location, acquisition_state, amount) {
-    const new_unit = CUnit(CreateCUnit(unitType, $P8, location));
+    const new_unit = CreateCUnit(unitType, $P8, location);
     if (item_id > 0) new_unit.energy = item_id;
     if (acquisition_state > 0) new_unit.shield = GetSumOfActivePlayerBits();
     else new_unit.shield = 1000;
     new_unit.unknown0x86 = amount;
+}
+
+function CreateBombUnit(playerID, location) {
+    const new_unit = CreateCUnit(U_BOMB, playerID, location);
+    new_unit.energy = 60;
+    // play sound nearby
 }
 
 function CreateUnitCircle(unitType, playerID, location, diameter, amount) {
@@ -2532,6 +2540,33 @@ function UpdateCraftingMenu(playerID) {
                 if (aux_array[i] > 0) screen.printf("\x13\x04Insufficient {:s}", GetStringMaterialName(aux_array[i]));
             }
         }
+    } else if (keypress_2[playerID]) {
+        ResetAuxiliaryArray();
+        aux_array[0], aux_array[1], aux_array[2], aux_array[3], aux_array[4] = PlayerHasCraftingIngredients(playerID, CONSUMABLE_ELIXER_OF_LIFE, U_CONSUMABLE);
+        if (aux_array[0] > 0) {
+            p_material_fiber_amount[playerID] -= 1;
+            p_material_gartle_amount[playerID] -= 2;
+            setloc(L_MAIN, p_x[playerID], p_y[playerID]);
+            CreateItemUnit(U_CONSUMABLE, CONSUMABLE_ELIXER_OF_LIFE, L_MAIN, 0, 1);
+        } else {
+            for (var i = 1; i < 5; i++) {
+                if (aux_array[i] > 0) screen.printf("\x13\x04Insufficient {:s}", GetStringMaterialName(aux_array[i]));
+            }
+        }
+    } else if (keypress_3[playerID]) {
+        ResetAuxiliaryArray();
+        aux_array[0], aux_array[1], aux_array[2], aux_array[3], aux_array[4] = PlayerHasCraftingIngredients(playerID, CONSUMABLE_FUSE_BOMB, U_CONSUMABLE);
+        if (aux_array[0] > 0) {
+            p_material_fiber_amount[playerID] -= 2;
+            p_material_iron_amount[playerID] -= 1;
+            p_material_targus_amount[playerID] -= 1;
+            setloc(L_MAIN, p_x[playerID], p_y[playerID]);
+            CreateItemUnit(U_CONSUMABLE, CONSUMABLE_FUSE_BOMB, L_MAIN, 0, 1);
+        } else {
+            for (var i = 1; i < 5; i++) {
+                if (aux_array[i] > 0) screen.printf("\x13\x04Insufficient {:s}", GetStringMaterialName(aux_array[i]));
+            }
+        }
     }
     // check for ingredients
     // display missing ingredients
@@ -3265,6 +3300,20 @@ function FillActiveNearbyUnits(playerID, positionx, positiony) {
     }
 }
 
+function UpdateBombStates() {
+    if (Command(AllPlayers, AtLeast, 1, U_BOMB)) {
+        foreach(unit : EUDLoopCUnit()) {
+            if (unit.unitID == U_BOMB) {
+                if (unit.energy == 0) {
+                    setloc(L_MAIN, unit.posX, unit.posY);
+                    CreateImageSpriteAtLocation($P8, L_MAIN, IMAGE_EXPL_ORANGE_MEDIUM, 0, ISCRIPT_NORMAL);
+                    unit.remove();
+                } else if (unit.energy > 0) unit.energy--;
+            }
+        }
+    }
+}
+
 function ResetNPCIndex(index) {
     npc_x[index] = 0;
     npc_y[index] = 0;
@@ -3704,6 +3753,10 @@ function onPluginStart() {
                 EquipItem(UTILITY_TORCH, U_UTILITY, playerID);
                 SetMaxHP(playerID, 140 * 256);
                 GetVision($P7);
+                p_material_iron_amount[playerID] = 50;
+                p_material_fiber_amount[playerID] = 50;
+                p_material_targus_amount[playerID] = 50;
+                p_material_gartle_amount[playerID] = 50;
                 // EquipBeltSlot(CONSUMABLE_BANDAGE, playerID, 0, 3);
                 // EquipBeltSlot(CONSUMABLE_BANDAGE, playerID, 1, 3);
                 // EquipBeltSlot(CONSUMABLE_BANDAGE, playerID, 2, 3);
@@ -3867,7 +3920,7 @@ function afterTriggerExec() {
                     }
                 }
                 // check for nearby item units
-                if (p_nearby_item_unit[playerID] == 0) {
+                if (p_nearby_item_unit[playerID] == 0 && p_drag_unit_ptr[playerID] == 0) {
                     CenterLoc(L_3X3, p_x[playerID], p_y[playerID]);
                     if (
                         Bring($P8, AtLeast, 1, U_WEAPON, L_3X3) ||
@@ -4244,13 +4297,18 @@ function afterTriggerExec() {
                 const check_to = check_from + PLAYER_MAX_BELT_SLOTS;
                 for (var i = check_from; i < check_to; i++) {
                     if (keypress_belt[i] && p_belt_equipped[i] > 0) {
-                        screen.printf("{}", i);
                         var was_used = 0;
                         if (p_belt_equipped[i] == CONSUMABLE_BANDAGE && p_cons_bandage_state[playerID] == 0 && p_belt_amount[i] > 0) {
                             p_cons_bandage_state[playerID] = 1;
                             was_used = 1;
-                        } else if (p_belt_amount[i] == 0) {
-                            // display text about the item being depleted.
+                        } else if (p_belt_equipped[i] == CONSUMABLE_ELIXER_OF_LIFE && p_cons_bandage_state[playerID] == 0 && p_belt_amount[i] > 0) {
+                            p_cons_bandage_state[playerID] = 1;
+                            was_used = 1;
+                        } else if (p_belt_equipped[i] == CONSUMABLE_FUSE_BOMB && p_belt_amount[i] > 0) {
+                            // create bomb
+                            setloc(L_MAIN, unit_x, unit_y);
+                            CreateBombUnit(playerID, L_MAIN);
+                            was_used = 1;
                         }
                         if (was_used && p_belt_amount[i] > 0) {
                             p_belt_amount[i]--;
@@ -4405,6 +4463,7 @@ function afterTriggerExec() {
         }
     EUDEndPlayerLoop();
 
+    UpdateBombStates();
     UpdateNPCs();
     UpdateUnitPhysics();
 
