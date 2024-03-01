@@ -10,7 +10,6 @@ CURRENTLY
 
 
 TODO
-	drag
 	hints at the beginning when you die
 	PROJECTILE SYSTEM: trail images, orbiting opposing image, acceleration, orbit images, projectile target, projectile turn amount towards target etc.
 	display stats on upgrade icons on unit
@@ -61,6 +60,9 @@ BUGS
 	players damage is displayed on other players units
 	players damage is displayed on lost knight?
 	cetus spawned immediately after we killed him
+	??? equipping to available belt slot for P6 makes all map triggers stop
+	??? belt slot keyboard input doesnt work for players other than player 1
+	still getting desync when getting life anointment
 
 	
 IDEAS

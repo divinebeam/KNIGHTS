@@ -282,7 +282,7 @@ const p_material_divinity_amount = PVariable();
 const p_cons_bandage_state = PVariable();
 const p_belt_equipped = EUDArray(PLAYER_MAX_BELT_SLOTS * 6);
 const p_belt_amount = EUDArray(PLAYER_MAX_BELT_SLOTS * 6);
-const p_belt_unlocked = EUDArray(PLAYER_MAX_BELT_SLOTS * 6);
+const p_belt_unlocked = EUDArray(PLAYER_MAX_BELT_SLOTS * 6); // TODO REFACTOR THIS SO ITS NOT A HUGE ARRAY
 const p_belt_amount_max = PVariable();
 const p_entered_lair = PVariable();
 const p_nearby_item_unit = PVariable();
@@ -394,7 +394,7 @@ function isAlly(p: TrgPlayer, tgp: TrgPlayer) {
 }
 
 function PlaySong(id) {
-    if (id == 0) PlayWAV("staredit/wav/song0.ogg");
+    if (id == 0) PlayWAV("staredit/wav/a_new_world.ogg");
 }
 
 function PlaySword() {
@@ -583,6 +583,10 @@ function BeltIsFull(playerID) {
     return 1;
 }
 
+function BeltSlotIsUnlocked(playerID, slotID) {
+
+}
+
 function GetBeltSlotItemID(playerID, slotID) {
     const index = (playerID * PLAYER_MAX_BELT_SLOTS) + slotID;
     return p_belt_equipped[index];
@@ -593,11 +597,20 @@ function GetBeltSlotAmount(playerID, slotID) { // slotID should be 0 - 8
     return p_belt_amount[index];
 }
 
-function GetInputBeltKeypress(playerID) {
+function GetBeltNumberPressed(playerID) {
     const check_from = playerID * PLAYER_MAX_BELT_SLOTS;
     const check_to = check_from + PLAYER_MAX_BELT_SLOTS;
+    var value = 0;
+    var key_was_pressed = 0;
     for (var i = check_from; i < check_to; i++) {
-        if (keypress_belt[i] > 0) return i + 1;
+        if (keypress_belt[i] > 0) {
+            value = i;
+            key_was_pressed = 1;
+        }
+    }
+    if (key_was_pressed) {
+        if (playerID > 0) value -= check_from;
+        return value + 1;
     }
     return 0;
 }
@@ -1530,18 +1543,18 @@ function SetBeltSlot(itemID, playerID, beltSlot, amount) {
 }
 
 function EquipBeltSlot(itemID, playerID, beltSlot, amount) {
-    const slot = (playerID * PLAYER_MAX_BELT_SLOTS) + beltSlot;
+    const actual_slot_index = (playerID * PLAYER_MAX_BELT_SLOTS) + beltSlot;
     var new_amount = amount;
-    var previous_item_id = p_belt_equipped[slot];
-    var previous_amount = p_belt_amount[slot];
+    var previous_item_id = p_belt_equipped[actual_slot_index];
+    var previous_amount = p_belt_amount[actual_slot_index];
     if (previous_item_id == itemID && previous_amount < p_belt_amount_max[playerID]) {
         if (previous_amount + new_amount > p_belt_amount_max[playerID]) { // if the new stack exceeds belt max
             const amount_equipped = p_belt_amount_max[playerID] - previous_amount;
-            SetBeltSlot(itemID, playerID, slot, p_belt_amount_max[playerID]);
+            SetBeltSlot(itemID, playerID, beltSlot, p_belt_amount_max[playerID]);
             previous_amount = (previous_amount + new_amount) - p_belt_amount_max[playerID];
             new_amount = amount_equipped;
         } else { // if the stack is less or equal to belt max
-            SetBeltSlot(itemID, playerID, slot, previous_amount + new_amount);
+            SetBeltSlot(itemID, playerID, beltSlot, previous_amount + new_amount);
             previous_amount, previous_item_id = 0, 0;
         }
     } else {
@@ -1550,7 +1563,7 @@ function EquipBeltSlot(itemID, playerID, beltSlot, amount) {
             new_amount = p_belt_amount_max[playerID];
             previous_item_id = itemID;
         }
-        SetBeltSlot(itemID, playerID, slot, new_amount);
+        SetBeltSlot(itemID, playerID, beltSlot, new_amount);
     }
     return beltSlot + 1, previous_item_id, previous_amount, new_amount;
 }
@@ -1577,11 +1590,11 @@ function EquipBeltAvailable(itemID, playerID, amount) {
     if (stacked) {
         if (chosen_amount + new_amount > p_belt_amount_max[playerID]) { // if the new stack exceeds belt max
             const amount_equipped = p_belt_amount_max[playerID] - chosen_amount;
-            SetBeltSlot(itemID, playerID, chosen_slot, p_belt_amount_max[playerID]);
+            SetBeltSlot(itemID, playerID, slot_number - 1, p_belt_amount_max[playerID]);
             chosen_amount = (chosen_amount + new_amount) - p_belt_amount_max[playerID];
             new_amount = amount_equipped;
         } else { // if the stack is less or equal to belt max
-            SetBeltSlot(itemID, playerID, chosen_slot, chosen_amount + new_amount);
+            SetBeltSlot(itemID, playerID, slot_number - 1, chosen_amount + new_amount);
             chosen_amount, chosen_equipped = 0, 0;
         }
     } else {
@@ -1590,7 +1603,7 @@ function EquipBeltAvailable(itemID, playerID, amount) {
             new_amount = p_belt_amount_max[playerID];
             chosen_equipped = itemID;
         }
-        SetBeltSlot(itemID, playerID, chosen_slot, new_amount);
+        SetBeltSlot(itemID, playerID, slot_number - 1, new_amount);
     }
     return slot_number, chosen_equipped, chosen_amount, new_amount;
     // slot number is the actual number key on the keyboard of the slot that the item was sent to.
@@ -3715,8 +3728,9 @@ function onPluginStart() {
                 // EquipBeltSlot(CONSUMABLE_BANDAGE, playerID, 3, 3);
                 // EquipBeltSlot(CONSUMABLE_BANDAGE, playerID, 4, 3);
                 // EquipBeltSlot(CONSUMABLE_BANDAGE, playerID, 5, 3);
+            } else {
+                PlaySong(0);
             }
-            PlaySong(0);
         }
     EUDEndPlayerLoop();
 }
@@ -3881,7 +3895,10 @@ function afterTriggerExec() {
                         Bring($P8, AtLeast, 1, U_CONSUMABLE, L_3X3)
                     ) {
                         p_nearby_item_unit[playerID] = 1;
-                        DisplayText("\x13\x03<Attack> \x04to Interact.");
+                        if (p_interaction_prompt_delay[playerID] == 0) {
+                            p_interaction_prompt_delay[playerID] = 72;
+                            DisplayText("\x13\x03<Attack> \x04to Interact.");
+                        }
                     }
                 } else if (p_nearby_item_unit[playerID] > 0) {
                     CenterLoc(L_3X3, p_x[playerID], p_y[playerID]);
@@ -4157,13 +4174,16 @@ function afterTriggerExec() {
                             if (keypress_f[playerID]) action_equipped_available_belt = 1;
                             screen.printfAt(2 + i, "\x09\x09\x09\x09\x09\x09\x09\x09\x03-<F>- \x04to Equip to first Available Slot.");
                         } else if (aux_array[i] == 3) { // equip to specific belt slot
-                            const input = GetInputBeltKeypress(playerID);
+                            const input = GetBeltNumberPressed(playerID);
                             if (input > 0) action_equipped_specific_belt = input;
                             screen.printfAt(2 + i, "\x09\x09\x09\x09\x09\x09\x09\x09\x03-<1 - 9>- \x04to Equip to Specific Slot.");
                         } else if (aux_array[i] == 4) { // drag
                             if (keypress_g[playerID]) action_dragged = 1;
                             screen.printfAt(2 + i, "\x09\x09\x09\x09\x09\x09\x09\x09\x03-<G>- \x04to Drag.");
                         }
+                    }
+                    if (action_equipped_specific_belt) { // stop from equipping a belt slot that is not unlocked
+
                     }
                     if (action_equipped || action_equipped_available_belt || action_equipped_specific_belt) {
                         item_unit.shield = ModifyItemLootedStatus(playerID, item_looted_status);
@@ -4199,7 +4219,7 @@ function afterTriggerExec() {
                             PlayWAV("staredit/wav/drop_item.ogg");
                         }
                         var current_slot_number, current_item_id, current_amount, amount_equipped = 0, 0, 0, 0;
-                        if (action_equipped_specific_belt > 0) current_slot_number, current_item_id, current_amount, amount_equipped = EquipBeltSlot(item_id, playerID, action_equipped_specific_belt - 1, item_amount);
+                        if (action_equipped_specific_belt > 0) current_slot_number, current_item_id, current_amount, amount_equipped = EquipBeltSlot(item_id, playerID, target_slot, item_amount);
                         else current_slot_number, current_item_id, current_amount, amount_equipped = EquipBeltAvailable(item_id, playerID, item_amount);
                         PlayWAV("staredit/wav/equip_weapon.ogg");
                         if (current_item_id > 0 && current_amount > 0) {
@@ -4236,12 +4256,13 @@ function afterTriggerExec() {
                 MoveUnit(1, drag_unit.unitID, $P8, L_0X0, L_MAIN);
             }
 
-            // CONSUMABLES
+            // @bm CONSUMABLES
             if (IsAlive(playerID) && !MenuIsOpen(playerID)) {
                 const check_from = playerID * PLAYER_MAX_BELT_SLOTS;
                 const check_to = check_from + PLAYER_MAX_BELT_SLOTS;
                 for (var i = check_from; i < check_to; i++) {
                     if (keypress_belt[i] && p_belt_equipped[i] > 0) {
+                        screen.printf("{}", i);
                         var was_used = 0;
                         if (p_belt_equipped[i] == CONSUMABLE_BANDAGE && p_cons_bandage_state[playerID] == 0 && p_belt_amount[i] > 0) {
                             p_cons_bandage_state[playerID] = 1;
@@ -4361,8 +4382,18 @@ function afterTriggerExec() {
                 if (p_on_sigil[playerID]) {
                     HealPlayer(playerID, unit, 256);
                 }
-                debug_values[6] = p_x[playerID];
-                debug_values[7] = p_y[playerID];
+                // const check_from = playerID * PLAYER_MAX_BELT_SLOTS;
+                // const check_to = check_from + PLAYER_MAX_BELT_SLOTS;
+                // debug_values[0] = keypress_belt[check_from + 0];
+                // debug_values[1] = keypress_belt[check_from + 1];
+                // debug_values[2] = keypress_belt[check_from + 2];
+                // debug_values[3] = keypress_belt[check_from + 3];
+                // debug_values[4] = keypress_belt[check_from + 4];
+                // debug_values[5] = keypress_belt[check_from + 5];
+                // debug_values[6] = keypress_belt[check_from + 6];
+                // debug_values[7] = keypress_belt[check_from + 7];
+                // debug_values[6] = p_x[playerID];
+                // debug_values[7] = p_y[playerID];
                 eprintf("{} | {} | {} | {} | {} | {} | {} | {}", debug_values[0], debug_values[1], debug_values[2], debug_values[3], debug_values[4], debug_values[5], debug_values[6], debug_values[7]);
             }
         }
@@ -4373,7 +4404,6 @@ function afterTriggerExec() {
             // spawn aldus
             if (PlayersAtArea(AREA_ALDUS_LAIR) && !(npc_exists & (1 << NPC_ALDUS)) && npc_aldus_spawn_timer == 0) {
                 var condition_met = 1;
-                debug_values[0] = 1;
                 for (var p = 0; p < 6; p++) {
                     if (aux_array[p] > 0) {
                         CenterLoc(L_16X16, p_x[p], p_y[p]);
