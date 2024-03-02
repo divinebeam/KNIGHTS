@@ -1064,12 +1064,6 @@ function CreateItemUnit(unitType, item_id, location, acquisition_state, amount) 
     new_unit.unknown0x86 = amount;
 }
 
-function CreateBombUnit(playerID, location) {
-    const new_unit = CreateCUnit(U_BOMB, playerID, location);
-    new_unit.energy = 60;
-    // play sound nearby
-}
-
 function CreateUnitCircle(unitType, playerID, location, diameter, amount) {
     const locx, locy = GetLocationPoint(location);
     var angle_increment = (3600000 / amount) / 10000;
@@ -3300,14 +3294,39 @@ function FillActiveNearbyUnits(playerID, positionx, positiony) {
     }
 }
 
+function CreateBombUnit(playerID, location) {
+    const new_unit = CreateCUnit(U_BOMB, playerID, location);
+    new_unit.energy = 60;
+    PlayWavAtPos("staredit/wav/bomb_fuse.ogg", new_unit.posX, new_unit.posY, 384);
+}
+
 function UpdateBombStates() {
     if (Command(AllPlayers, AtLeast, 1, U_BOMB)) {
         foreach(unit : EUDLoopCUnit()) {
             if (unit.unitID == U_BOMB) {
                 if (unit.energy == 0) {
-                    setloc(L_MAIN, unit.posX, unit.posY);
+                    const x, y = unit.posX, unit.posY;
+                    const player = unit.playerID;
+                    setloc(L_MAIN, x, y);
                     CreateImageSpriteAtLocation($P8, L_MAIN, IMAGE_EXPL_ORANGE_MEDIUM, 0, ISCRIPT_NORMAL);
+                    PlayWavAtPos("staredit/wav/bomb_explosion.ogg", x, y, 384);
                     unit.remove();
+                    col_posx, col_posy = x, y;
+                    col_enemies = 1;
+                    col_allies = 1;
+                    col_shape = 1;
+                    col_shape_size = 128;
+                    col_max_results = 8;
+                    const result_exists = CheckCollision(player);
+                    if (result_exists) {
+                        for (var result_i = 0; result_i < col_max_results; result_i++) {
+                            if (col_results_unit[result_i] > 0) {
+                                const target = CUnit(col_results_unit[result_i]);
+                                DamageUnit(player, target, 50, col_results_unit_activei[result_i]);
+                            }
+                        }
+                    }
+                    ResetCheckCollision();
                 } else if (unit.energy > 0) unit.energy--;
             }
         }
@@ -3795,6 +3814,8 @@ function afterTriggerExec() {
         for (var i = 0; i < MAX_HARVEST_POSITIONS; i++) {
             if (harvest_type[i] > 0) harvest_state[i] = GetSumOfActivePlayerBits();
         }
+
+        ModifyUnitResourceAmount(All, $P12, L_ANYWHERE, 1500);
     }
 
     EUDPlayerLoop()();

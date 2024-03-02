@@ -115,6 +115,7 @@ IDEAS
 	what if sometimes caves can be invaded with hordes of creatures all at once
 	what if the end boss is basically the players fighting on top of a hill against endless waves of enemies and when you finally die you ascend
 		maybe theres a kill count and players can compete to get the most kills before dying
+	what if certain things stunted your armor recovery, like hits from players, or explosions
 
 GAMEPLAY
 	players should choose loadout at the beginning of the match
