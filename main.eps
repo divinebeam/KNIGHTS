@@ -51,10 +51,12 @@ const U_BOMB = 216;
 const NPC_GUARDIAN_ANGEL = 1;
 const NPC_CETUS = 2;
 const NPC_ALDUS = 3;
+const NPC_BREVEN = 4;
 
 const NPC_ALDUS_SPAWNX, NPC_ALDUS_SPAWNY  = 384, 2016;
 const NPC_CETUS_SPAWN_TIME = 8640;
 const NPC_ALDUS_SPAWN_TIME = 8640;
+const NPC_BREVEN_SPAWN_TIME = 8640;
 
 const ORDER_HOLD = 107;
 const ORDER_PATROL = 152;
@@ -282,6 +284,7 @@ const p_material_remorse_amount = PVariable();
 const p_material_tranquility_amount = PVariable();
 const p_material_divinity_amount = PVariable();
 const p_cons_bandage_state = PVariable();
+const p_cons_eat_cooldown = PVariable();
 const p_belt_equipped = EUDArray(PLAYER_MAX_BELT_SLOTS * 6);
 const p_belt_amount = EUDArray(PLAYER_MAX_BELT_SLOTS * 6);
 const p_belt_unlocked = EUDArray(PLAYER_MAX_BELT_SLOTS * 6); // TODO REFACTOR THIS SO ITS NOT A HUGE ARRAY
@@ -305,6 +308,7 @@ const npc_order_timer = EUDArray(MAX_NPC_UNITS);
 var npc_exists = 0;
 var npc_cetus_spawn_timer = 0;
 var npc_aldus_spawn_timer = 0;
+var npc_breven_spawn_timer = 0;
 
 const MAX_WEAPON_OBJECTS = 6 + 30;
 const weapon_cunit = EUDArray(MAX_WEAPON_OBJECTS);
@@ -358,7 +362,6 @@ var world_interaction_visual_timer = 0;
 const field_puzzle_state = EUDArray(3);
 const field_puzzle_state_solution = EUDArray(3);
 
-const AUX_ARRAY_SIZE = 20;
 const aux_array = EUDArray(20);
 function ResetAuxiliaryArray() {
     const actions = py_list();
@@ -396,7 +399,7 @@ function isAlly(p: TrgPlayer, tgp: TrgPlayer) {
 }
 
 function PlaySong(id) {
-    if (id == 0) PlayWAV("staredit/wav/a_new_world.ogg");
+    // if (id == 0) PlayWAV("staredit/wav/a_new_world.ogg");
 }
 
 function PlaySword() {
@@ -834,7 +837,7 @@ function GetWeaponDamage(itemID, state, playerID) { // in the future could make 
         else if (itemID == WEAPON_GREATSWORD) damage = 35;
         else if (itemID == WEAPON_LONGBOW) damage = 50;
         else if (itemID == WEAPON_GREATBOW) damage = 50;
-        else if (itemID == WEAPON_LIGHTNINGBLAST) damage = 50;
+        else if (itemID == WEAPON_LIGHTNINGBLAST) damage = 100;
         else if (itemID == WEAPON_BLADESTORM) damage = 50;
         else if (itemID == WEAPON_CRIMSON_LONG_SWORD) damage = 50;
         else if (itemID == WEAPON_CRIMSON_GREAT_BOW) damage = 70;
@@ -894,8 +897,7 @@ function CheckForWeaponTrigger(playerID, unit: CUnit, item_id) {
     }
     else if (item_id == WEAPON_LIGHTNINGBLAST) {
         if (player_attack_clicked) weapon_was_triggered = 1;
-        else if (playerID == $P7 && unit.unitID == U_CHIMERA && unit.orderID != 3) weapon_was_triggered = 1;
-        else if (playerID == $P7 && unit.unitID == U_TWISTED_KNIGHT && unit.orderID != 3) weapon_was_triggered = 1;
+        else if (playerID == $P7 && unit.unitID == U_LOST_KNIGHT && unit.orderID != 3) weapon_was_triggered = 1;
     }
     else if (item_id == WEAPON_BLADESTORM) {
         if (player_attack_clicked) weapon_was_triggered = 1;
@@ -999,6 +1001,7 @@ const AREA_GATE_MOUNTAIN = 1;
 const AREA_FIELD = 2;
 const AREA_CETUS_LAIR = 3;
 const AREA_ALDUS_LAIR = 4;
+const AREA_BREVEN_LAIR = 5;
 function GetAreaAtPos(positionx, positiony) {
     if (PosIsWithinRect(positionx, positiony, 540, 2970, 0, 896)) return AREA_GATE_MOUNTAIN;
     if (PosIsWithinRect(positionx, positiony, 1664, 1920, 897, 1024)) return AREA_GATE_MOUNTAIN;
@@ -1006,6 +1009,8 @@ function GetAreaAtPos(positionx, positiony) {
     if (PosIsWithinRect(positionx, positiony, 64, 770, 1250, 1860)) return AREA_CETUS_LAIR;
     if (PosIsWithinRect(positionx, positiony, 64, 831, 1920, 2624)) return AREA_ALDUS_LAIR;
     if (PosIsWithinRect(positionx, positiony, 832, 1088, 2080, 2624)) return AREA_ALDUS_LAIR;
+    if (PosIsWithinRect(positionx, positiony, 2526, 3264, 3104, 3560)) return AREA_BREVEN_LAIR;
+    if (PosIsWithinRect(positionx, positiony, 2624, 2880, 2960, 3104)) return AREA_BREVEN_LAIR;
     return 0;
 }
 
@@ -1281,7 +1286,7 @@ function PlayWAVCP(sound_path_string: TrgString, playerID) {
     setcurpl(old_cp);
 }
 
-function IsPosIndoors(positionx, positiony) {
+function PosIsIndoors(positionx, positiony) {
     if (PosIsWithinRect(positionx, positiony, 3840, 4390, 1630, 2340)) return 1;
     if (PosIsWithinRect(positionx, positiony, 2870, 3580, 890, 1440)) return 1;
     if (PosIsWithinRect(positionx, positiony, 0, 1280, 1280, 2660)) return 1;
@@ -1289,6 +1294,8 @@ function IsPosIndoors(positionx, positiony) {
     if (PosIsWithinRect(positionx, positiony, 1281, 1632, 2151, 2480)) return 1;
     if (PosIsWithinRect(positionx, positiony, 1632, 1696, 2270, 2370)) return 1;
     if (PosIsWithinRect(positionx, positiony, 3105, 3290, 3160, 3488)) return 1;
+    if (PosIsWithinRect(positionx, positiony, 2526, 3264, 3104, 3560)) return 1; // breven cave
+    if (PosIsWithinRect(positionx, positiony, 2624, 2880, 2976, 3104)) return 1; // breven cave
     return 0;
 }
 
@@ -1753,13 +1760,14 @@ function SpawnUnitsAtChunk(chunkX, chunkY) {
                 // skip spawning for some exceptions
                 if (
                     (area == AREA_CETUS_LAIR && monster_spawn_type[i] == U_LOST_KNIGHT && (npc_exists & (1 << NPC_CETUS))) ||
-                    (area == AREA_CETUS_LAIR && monster_spawn_type[i] == U_LOST_KNIGHT && npc_cetus_spawn_timer > 0)
+                    (area == AREA_CETUS_LAIR && monster_spawn_type[i] == U_LOST_KNIGHT && npc_cetus_spawn_timer > 0) ||
+                    (area == AREA_BREVEN_LAIR && monster_spawn_type[i] == U_LOST_KNIGHT && (npc_exists & (1 << NPC_BREVEN))) ||
+                    (area == AREA_BREVEN_LAIR && monster_spawn_type[i] == U_LOST_KNIGHT && npc_breven_spawn_timer > 0)
                 ) {
                     continue;
                 }
                 setloc(L_MAIN, monster_spawn_x[i], monster_spawn_y[i]);
                 const new_unit = CreateCUnit(monster_spawn_type[i], $P7, L_MAIN);
-                // new_unit.unknown0x26 = 0; // set unit physics flag to 0
                 if (new_unit.unitID == U_GUARDIAN_ANGEL) {
                     MakeUnitNPC(new_unit, NPC_GUARDIAN_ANGEL);
                     AttachWeaponToUnit(new_unit, WEAPON_ANCIENT_TOME_OF_STARFALL);
@@ -1771,6 +1779,9 @@ function SpawnUnitsAtChunk(chunkX, chunkY) {
                     if (area == AREA_CETUS_LAIR) {
                         MakeUnitNPC(new_unit, NPC_CETUS);
                         AttachWeaponToUnit(new_unit, WEAPON_CRIMSON_LONG_SWORD);
+                    } else if (area == AREA_BREVEN_LAIR) {
+                        MakeUnitNPC(new_unit, NPC_BREVEN);
+                        AttachWeaponToUnit(new_unit, WEAPON_LIGHTNINGBLAST);
                     }
                 }
             }
@@ -2534,7 +2545,7 @@ function UpdateCraftingMenu(playerID) {
                 if (aux_array[i] > 0) screen.printf("\x13\x04Insufficient {:s}", GetStringMaterialName(aux_array[i]));
             }
         }
-    } else if (keypress_2[playerID]) {
+    } else if (keypress_2[playerID] && playerID == 1000) {
         ResetAuxiliaryArray();
         aux_array[0], aux_array[1], aux_array[2], aux_array[3], aux_array[4] = PlayerHasCraftingIngredients(playerID, CONSUMABLE_ELIXER_OF_LIFE, U_CONSUMABLE);
         if (aux_array[0] > 0) {
@@ -2603,7 +2614,7 @@ function UpdateWeaponState(playerID) {
             var unit_order_x = 0;
             var unit_order_y = 0;
             var unit_angle = 0;
-            var display_damage = 0;
+            var unit_magic_power = 0;
             if (i < 6) {
                 unit_ptr = p_cunit[i]; // set unit to players unit if its a player
                 is_player = 1; 
@@ -2626,6 +2637,7 @@ function UpdateWeaponState(playerID) {
                 unit_order_x = unit.orderTargetX;
                 unit_order_y = unit.orderTargetY;
                 unit_angle = SCDirectionToDeg(unit.currentDirection1);
+                unit_magic_power = 100;
             }
 
             // TRIGGER
@@ -2645,7 +2657,6 @@ function UpdateWeaponState(playerID) {
                     DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 128, damage, 2, 0);
                     weapon_angle[i] = unit_angle + 60;
                     PlaySword();
-                    display_damage = damage;
                 }
                 if (weapon_state[i] > 0) {
                     queue_pro_posx = unit_x;
@@ -2673,7 +2684,6 @@ function UpdateWeaponState(playerID) {
                     DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 128, damage, 4, 0);
                     weapon_angle[i] = unit_angle + 90;
                     PlaySword();
-                    display_damage = damage;
                 }
                 if (weapon_state[i] > 0) {
                     for (var j = 0; j < 2; j++) {
@@ -2705,7 +2715,6 @@ function UpdateWeaponState(playerID) {
                     DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 176, damage, 8, 0);
                     weapon_angle[i] = AddAngles(unit_angle, 90);
                     PlaySword();
-                    display_damage = damage;
                 }
                 if (weapon_state[i] > 0) {
                     for (var j = 0; j < 2; j++) {
@@ -2768,8 +2777,8 @@ function UpdateWeaponState(playerID) {
                 if (weapon_state[i] > 0 && weapon_state[i] <= 10) {
                     const distance = 66 - (weapon_state[i] * 6);
                     const angle_to_order = GetAngle(unit_x, unit_y, weapon_x[i], weapon_y[i]);
-                    const image0_x, image0_y = MovePosTowards(unit_x, unit_y, angle_to_order + 70, distance);
-                    const image1_x, image1_y = MovePosTowards(unit_x, unit_y, angle_to_order - 70, distance);
+                    const image0_x, image0_y = MovePosTowards(unit_x, unit_y, AddAngles(angle_to_order, 70), distance);
+                    const image1_x, image1_y = MovePosTowards(unit_x, unit_y, AddAngles(angle_to_order, -70), distance);
                     const image2_x, image2_y = MovePosTowards(unit_x, unit_y, angle_to_order, distance);
                     setloc(L_MAIN, image0_x, image0_y);
                     CreateImageSpriteAtLocation($P8, L_MAIN, 233, 16, ISCRIPT_NORMAL);
@@ -2782,33 +2791,21 @@ function UpdateWeaponState(playerID) {
                     const angle_to_order = GetAngle(unit_x, unit_y, weapon_x[i], weapon_y[i]);
                     queue_pro_owner = playerID;
                     queue_pro_weapon_id = weapon_id[i];
-                    queue_pro_posx = unit_x;
-                    queue_pro_posy = unit_y;
-                    queue_pro_maxtime = 24;
+                    queue_pro_posx, queue_pro_posy = unit_x, unit_y;
+                    queue_pro_maxtime = 20;
                     queue_pro_angle = angle_to_order;
-                    queue_pro_velocity = 40;
-                    queue_pro_effect1 = 557;
-                    queue_pro_effect1_start = 3;
-                    queue_pro_effect2 = 441;
-                    queue_pro_effect2_drawfunc = 16;
-                    queue_pro_effect2_start = 4;
+                    queue_pro_updates_per_frame = 2;
+                    queue_pro_velocity = 16;
+                    queue_pro_effect1 = IMAGE_HALLUC_DEATH1;
+                    queue_pro_effect1_start = 1;
+                    queue_pro_effect1_iscript = ISCRIPT_FAST;
+                    queue_pro_effect1_drawfunc = 17;
+                    queue_pro_effect2 = IMAGE_GRENADE_SMOKE;
+                    queue_pro_effect2_iscript = ISCRIPT_FAST;
+                    queue_pro_effect2_start = 2;
                     queue_pro_collide_enemies = 1;
-                    queue_pro_collide_size = 64;
+                    queue_pro_collide_size = 40;
                     CreateProjectile();
-                    for (var j = 0; j < 3; j++) {
-                        queue_pro_posx = unit_x;
-                        queue_pro_posy = unit_y;
-                        queue_pro_maxtime = 6;
-                        queue_pro_angle = angle_to_order;
-                        queue_pro_velocity = 35;
-                        queue_pro_angular_velocity = Random(-20, 20);
-                        queue_pro_effect1 = 422;
-                        queue_pro_effect1_drawfunc = 17;
-                        queue_pro_effect2_start = queue_pro_maxtime;
-                        queue_pro_effect2 = 422; // 495, 544, 963, 512
-                        queue_pro_effect2_drawfunc = 12;
-                        CreateProjectile();
-                    }
                     PlayArrow();
                 }
                 if (weapon_state[i] > 0) weapon_state[i]++;
@@ -2834,8 +2831,10 @@ function UpdateWeaponState(playerID) {
                     queue_pro_velocity = 20;
                     queue_pro_effect1 = 332;
                     queue_pro_effect1_start = 0;
+                    queue_pro_effect1_iscript = ISCRIPT_FAST;
                     queue_pro_effect2 = 333;
                     queue_pro_effect2_start = queue_pro_maxtime;
+                    queue_pro_effect2_iscript = ISCRIPT_FAST;
                     CreateProjectile();
                     PlayWavAtPos("staredit/wav/fireball_incoming.ogg", weapon_x[i], weapon_y[i], 512);
                     DrawCircle(weapon_x[i], weapon_y[i], 128, 24, 448, 0, ISCRIPT_NORMAL);
@@ -2848,13 +2847,18 @@ function UpdateWeaponState(playerID) {
                     setloc(L_MAIN, weapon_x[i], weapon_y[i]);
                     CreateImageSpriteAtLocation($P8, L_MAIN, 429, 0, ISCRIPT_LONGFAST);
                     PlayWavAtPos("staredit/wav/fireball.ogg", weapon_x[i], weapon_y[i], 512);
-                    display_damage = damage;
                 }
             }
 
             // LIGHTNING BLAST
             else if (weapon_state[i] > 0 && weapon_id[i] == WEAPON_LIGHTNINGBLAST) {
-                const life_cost = GetWeaponLifeCost(weapon_id[i], playerID);
+                const life_cost = GetWeaponLifeCost(weapon_id[i], playerID); // TODO MAKE THIS ONLY GET ONCE CAUSE THE LOOP ONLY HAS 1 WEAPON IN IT.
+                var circle_size = 96;
+                var circle_dots = 20;
+                if (!is_player) {
+                    circle_size = 192;
+                    circle_dots = 40;
+                }
                 if (weapon_state[i] == 1 && unit.hp > life_cost) {
                     DoMagicLifeDrainCost(playerID, unit, life_cost);
                 } else if (weapon_state[i] == 1) {
@@ -2863,17 +2867,17 @@ function UpdateWeaponState(playerID) {
                 if (weapon_state[i] == 1) {
                     weapon_angle[i] = GetAngle(unit_x, unit_y, unit_order_x, unit_order_y);
                     weapon_x[i], weapon_y[i] = MovePosTowards(unit_x, unit_y, weapon_angle[i], 32);
-                    DrawCircle(weapon_x[i], weapon_y[i], 96, 20, 435, 16, ISCRIPT_NORMAL);
+                    DrawCircle(weapon_x[i], weapon_y[i], circle_size, circle_dots, 435, 16, ISCRIPT_NORMAL);
                     PlayWavAtPos("sound\Bullet\zdeAtt00.wav", weapon_x[i], weapon_y[i], 512);
                 }
                 if (weapon_state[i] == 20) {
                     const damage = GetWeaponDamage(weapon_id[i], 0, playerID);
-                    DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, 96, damage, 8, 1);
-                    display_damage = damage;
+                    DoDamageAtPos(weapon_x[i], weapon_y[i], playerID, 1, circle_size, damage, 8, 1);
                     setloc(L_MAIN, weapon_x[i], weapon_y[i]);
                     CreateImageSpriteAtLocation($P8, L_MAIN, IMAGE_LIGHTNING_STORM, 0, ISCRIPT_NORMAL);
-                    DrawCircle(weapon_x[i], weapon_y[i], 80, 20, IMAGE_GAUSS_RIFLE_HIT, 16, ISCRIPT_GAUSS_RIFLE_HIT);
-                    const iterations = 1;
+                    DrawCircle(weapon_x[i], weapon_y[i], circle_size - 16, 20, IMAGE_GAUSS_RIFLE_HIT, 16, ISCRIPT_GAUSS_RIFLE_HIT);
+                    var iterations = 1;
+                    if (unit_magic_power > 0) iterations = 4;
                     var current_parameter_set = Random(0, 3);
                     for (var j = 0; j < iterations; j++) {
                         queue_pro_owner = playerID;
@@ -2954,7 +2958,6 @@ function UpdateWeaponState(playerID) {
                     setloc(L_MAIN, weapon_x[i], weapon_y[i]);
                     CreateImageSpriteAtLocation($P8, L_MAIN, 444, 0, ISCRIPT_LONGFAST);
                     PlayWavAtPos("staredit/wav/fireball.ogg", weapon_x[i], weapon_y[i], 512);
-                    display_damage = damage;
                     for (var j = 0; j < 8; j++) {
                         queue_pro_posx = weapon_x[i];
                         queue_pro_posy = weapon_y[i];
@@ -3248,7 +3251,7 @@ function LevelUp(playerID, unit: CUnit) {
     p_exp_current[playerID] = 0;
     p_exp_goal[playerID] = 300 + 150 * p_level_current[playerID];
     SetLevelString(playerID);
-    screen.printf("LEVEL UP - Level {}", p_level_current[playerID]);
+    screen.printf("\x13\x04--+ \x1FLEVEL UP \x04+--\n\x13\x02You are now \x04Level {}", p_level_current[playerID]);
     PlayWAV("staredit/wav/level_up.ogg");
     setloc(L_MAIN, p_x[playerID], p_y[playerID]);
     CreateUnitDeathAtLocation($U("Protoss Observer"), $P8, L_MAIN);
@@ -3257,7 +3260,7 @@ function LevelUp(playerID, unit: CUnit) {
         queue_pro_posy = p_y[playerID];
         queue_pro_maxtime = 8;
         queue_pro_angle = (i + 1) * 45;
-        queue_pro_velocity = 40;
+        queue_pro_velocity = 30;
         queue_pro_angular_velocity = Random(-10, 10);
         queue_pro_effect0 = U_KAKARU;
         queue_pro_effect0_type = 1;
@@ -3350,15 +3353,16 @@ function UpdateNPCs() {
     npc_exists = 0;
     if (npc_cetus_spawn_timer > 0) npc_cetus_spawn_timer--;
     if (npc_aldus_spawn_timer > 0) npc_aldus_spawn_timer--;
+    if (npc_breven_spawn_timer > 0) npc_breven_spawn_timer--;
     for (var i = 0; i < MAX_NPC_UNITS; i++) {
         if (npc_id[i] > 0) {
             const unit = CUnit(npc_cunit[i]);
             var unit_is_alive = 1;
-            const unit_x, unit_y = npc_x[i], npc_y[i];
             const state0 = npc_state0[i];
             const state1 = npc_state1[i];
             if (unit.orderID == 0 || unit.hp == 0) unit_is_alive = 0;
             if (unit_is_alive) npc_x[i], npc_y[i] = unit.posX, unit.posY;
+            const unit_x, unit_y = npc_x[i], npc_y[i];
             if (npc_id[i] == NPC_GUARDIAN_ANGEL) {
                 var unit_angle = SCDirectionToDeg(unit.currentDirection1);
                 // dead
@@ -3743,6 +3747,34 @@ function UpdateNPCs() {
                     }
                     setcurpl(old_cp);
                 }
+            } else if (npc_id[i] == NPC_BREVEN) {
+                npc_exists |= 1 << NPC_BREVEN;
+                const lair_x, lair_y = 2944, 3296;
+                if (GetAreaAtPos(unit_x, unit_y) != AREA_BREVEN_LAIR) {
+                    setloc(L_MAIN, unit_x, unit_y);
+                    setloc(L_0X0, lair_x, lair_y);
+                    MoveUnit(1, U_LOST_KNIGHT, $P7, L_MAIN, L_0X0);
+                    CreateImageSpriteAtLocation($P7, L_MAIN, IMAGE_HALLUC_DEATH1, 17, ISCRIPT_FAST);
+                    CreateImageSpriteAtLocation($P7, L_0X0, IMAGE_HALLUC_DEATH1, 17, ISCRIPT_FAST);
+                    npc_x[i], npc_y[i] = unit.posX, unit.posY;
+                    setloc(L_MAIN, npc_x[i], npc_y[i]);
+                    for (var p = 0; p < 6; p++) {
+                        if (aux_array[p] > 0) {setloc(L_0X0, p_x[p], p_y[p]); break;}
+                    }
+                    if (PlayersAtArea(AREA_BREVEN_LAIR)) Order(U_LOST_KNIGHT, $P7, L_MAIN, Patrol, L_0X0);
+                }
+                // show hp to players
+                if (unit_is_alive) {
+                    const old_cp = getcurpl();
+                    foreach(player : EUDLoopPlayer()) {
+                        setcurpl(player);
+                        if (GetAreaAtPos(p_x[player], p_y[player]) == AREA_BREVEN_LAIR) {
+                            const life_percent = GetPercentage(unit.hp / 256, 600);
+                            screen.printfAt(0, "\x13\x08LOST KNIGHT BREVEN \x02- \x07{}%", life_percent);
+                        }
+                    }
+                    setcurpl(old_cp);
+                }
             }
         }
     }
@@ -3769,7 +3801,7 @@ function onPluginStart() {
                 p_attributepoints[playerID] = 20;
                 EquipItem(ARMOR_SHATTERED_KNIGHTS, U_ARMOR, playerID);
                 EquipItem(WEAPON_SHORTSWORD, U_WEAPON, playerID);
-                EquipItem(UTILITY_TORCH, U_UTILITY, playerID);
+                // EquipItem(UTILITY_TORCH, U_UTILITY, playerID);
                 SetMaxHP(playerID, 140 * 256);
                 GetVision($P7);
                 p_material_iron_amount[playerID] = 50;
@@ -3829,6 +3861,7 @@ function afterTriggerExec() {
             p_order_input[playerID] = 0;
             if (m_disable_delay[playerID] > 0) m_disable_delay[playerID]--;
             if (p_is_harvesting[playerID] > 0) p_is_harvesting[playerID]--;
+            if (p_cons_eat_cooldown[playerID] > 0) p_cons_eat_cooldown[playerID]--;
             var unit_is_indoors = 0;
             var unit_took_health_damage = 0;
             var unit_angle = 0;
@@ -3877,6 +3910,9 @@ function afterTriggerExec() {
                 } else if (GetAreaAtPos(p_x[playerID], p_y[playerID]) == AREA_ALDUS_LAIR) {
                     if (p_entered_lair[playerID] == 0 && (npc_exists & (1 << NPC_ALDUS))) p_entered_lair[playerID] = AREA_ALDUS_LAIR;
                     else if (p_entered_lair[playerID] > 0 && !(npc_exists & (1 << NPC_ALDUS))) p_entered_lair[playerID] = 0;
+                } else if (GetAreaAtPos(p_x[playerID], p_y[playerID]) == AREA_BREVEN_LAIR) {
+                    if (p_entered_lair[playerID] == 0 && (npc_exists & (1 << NPC_BREVEN))) p_entered_lair[playerID] = AREA_BREVEN_LAIR;
+                    else if (p_entered_lair[playerID] > 0 && !(npc_exists & (1 << NPC_BREVEN))) p_entered_lair[playerID] = 0;
                 }
             }
             if (unit_is_moving && IsAlive(playerID)) {
@@ -3886,7 +3922,7 @@ function afterTriggerExec() {
                     p_chunk_y_old[playerID] = y;
                     JustEnteredChunk(x, y);
                 }
-                p_indoors[playerID] = IsPosIndoors(p_x[playerID], p_y[playerID]);
+                p_indoors[playerID] = PosIsIndoors(p_x[playerID], p_y[playerID]);
                 // check for nearby sigils
                 var sigil = MAX_SIGIL_SPAWNS;
                 for (var i = 0; i < MAX_SIGIL_SPAWNS; i++) {
@@ -4098,7 +4134,7 @@ function afterTriggerExec() {
                     HealShieldPlayer(playerID, unit, amount_recovered); // toughness from resilience
                     // const recovered_whole, recovered_frac = GetWholeAndFraction((amount_recovered * 10000) / 256);
                     // screen.printf("\x06{}! \x02+{}.{}", armor_lost / 256, recovered_whole, recovered_frac);
-                    // screen.printf("\x06{}!", (armor_lost - amount_recovered) / 256);
+                    screen.printf("\x06{}!", (armor_lost - amount_recovered) / 256);
                     if (unit_took_health_damage && p_shield[playerID] >= 256) {
                         p_shield_broken[playerID] = 1;
                         // DisplayText("\x13\x06-! ARMOR BROKEN !-");
@@ -4339,8 +4375,9 @@ function afterTriggerExec() {
                     }
                 }
                 // BANDAGE
-                if (p_cons_bandage_state[playerID] == 1) {
+                if (p_cons_bandage_state[playerID] == 1 && p_cons_eat_cooldown[playerID] == 0) {
                     p_cons_bandage_state[playerID] = 0;
+                    p_cons_eat_cooldown[playerID] = 24;
                     DrawCircle(p_x[playerID], p_y[playerID], 72, 16, IMAGE_GREEN_FLAME0, 0, ISCRIPT_NORMAL);
                     p_life_regen_consumables[playerID] += 25 * 256;
                     PlayWavAtPos("sound/Terran/Medic/TMedHeal.wav", p_x[playerID], p_y[playerID], 320);

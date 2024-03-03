@@ -1,7 +1,7 @@
 
 CURRENTLY
 	implementing consumables
-		crafting
+		elixer of life
 	implementing info display on unit icons
 		make it local, display shield stuff, etc.
 	implementing juyet quest
@@ -27,6 +27,8 @@ TODO
 	mission objectives should have some controls
 	refactor to get all data from an array at the beginning of the loop, instead of keeping accessing the data over and over.
 	refactor to make it so projectiles can have preset configurations so I dont have to repeat code for configurations of the same type.
+	"weapon ready" graphic
+
 
 	VERSION 0.1 CHECK LIST
 			[x] SHORT SWORD		Recover armor when you get a kill
