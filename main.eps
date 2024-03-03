@@ -347,7 +347,7 @@ const chunk_buffer = EUDArray(8);
 const active_units = EUDArray(ACTIVE_UNITS_MAX * 6);
 var active_units_update = 0;
 // @bm DEBUG MODE
-const debug_enabled = 1;
+const debug_enabled = 0;
 const debug_values = EUDArray(8);
 var time = 0;
 var total_time = 0;
@@ -781,40 +781,40 @@ function GetHealthRegen(playerID) { // 2 per frame = 0.1875 per second
     return regen;
 }
 // @bm GetWeaponCooldown
-function GetWeaponCooldown(item_id, playerID) {
+function GetWeaponCooldown(itemID, playerID) {
     if (playerID < 6) {
-        if (item_id == WEAPON_SHORTSWORD) return 96;
-        else if (item_id == WEAPON_LONGSWORD) return 156;
-        else if (item_id == WEAPON_GREATSWORD) return 204;
-        else if (item_id == WEAPON_SHORTBOW) return 36;
-        else if (item_id == WEAPON_LONGBOW) return 48;
-        else if (item_id == WEAPON_GREATBOW) return 96;
-        else if (item_id == WEAPON_FIREBALL) return 48;
-        else if (item_id == WEAPON_LIGHTNINGBLAST) return 120;
-        else if (item_id == WEAPON_BLADESTORM) return 48;
-        else if (item_id == WEAPON_ANCIENT_TOME_OF_STARFALL) return 24;
-        else if (item_id == WEAPON_CRIMSON_LONG_SWORD) return 156;
-        else if (item_id == WEAPON_CRIMSON_GREAT_BOW) return 120;
+        if (itemID == WEAPON_SHORTSWORD) return 96;
+        else if (itemID == WEAPON_LONGSWORD) return 156;
+        else if (itemID == WEAPON_GREATSWORD) return 204;
+        else if (itemID == WEAPON_SHORTBOW) return 36;
+        else if (itemID == WEAPON_LONGBOW) return 48;
+        else if (itemID == WEAPON_GREATBOW) return 96;
+        else if (itemID == WEAPON_FIREBALL) return 48;
+        else if (itemID == WEAPON_LIGHTNINGBLAST) return 120;
+        else if (itemID == WEAPON_BLADESTORM) return 48;
+        else if (itemID == WEAPON_ANCIENT_TOME_OF_STARFALL) return 24;
+        else if (itemID == WEAPON_CRIMSON_LONG_SWORD) return 156;
+        else if (itemID == WEAPON_CRIMSON_GREAT_BOW) return 120;
     } else {
-        if (item_id == WEAPON_SHORTSWORD) return 96;
-        else if (item_id == WEAPON_LONGSWORD) return 156;
-        else if (item_id == WEAPON_GREATSWORD) return 204;
-        else if (item_id == WEAPON_SHORTBOW) return 36;
-        else if (item_id == WEAPON_LONGBOW) return 48;
-        else if (item_id == WEAPON_GREATBOW) return 96;
-        else if (item_id == WEAPON_FIREBALL) return 48;
-        else if (item_id == WEAPON_LIGHTNINGBLAST) return 120;
-        else if (item_id == WEAPON_BLADESTORM) return 48;
-        else if (item_id == WEAPON_ANCIENT_TOME_OF_STARFALL) return 24;
-        else if (item_id == WEAPON_CRIMSON_LONG_SWORD) return 156;
-        else if (item_id == WEAPON_CRIMSON_GREAT_BOW) return 192;
+        if (itemID == WEAPON_SHORTSWORD) return 96;
+        else if (itemID == WEAPON_LONGSWORD) return 156;
+        else if (itemID == WEAPON_GREATSWORD) return 204;
+        else if (itemID == WEAPON_SHORTBOW) return 36;
+        else if (itemID == WEAPON_LONGBOW) return 48;
+        else if (itemID == WEAPON_GREATBOW) return 96;
+        else if (itemID == WEAPON_FIREBALL) return 48;
+        else if (itemID == WEAPON_LIGHTNINGBLAST) return 120;
+        else if (itemID == WEAPON_BLADESTORM) return 48;
+        else if (itemID == WEAPON_ANCIENT_TOME_OF_STARFALL) return 24;
+        else if (itemID == WEAPON_CRIMSON_LONG_SWORD) return 156;
+        else if (itemID == WEAPON_CRIMSON_GREAT_BOW) return 192;
     }
 
 }
 
 function GetWeaponDamage(itemID, state, playerID) { // in the future could make unit an argument so that can have different damage based on unitid
     var damage = 0;
-    if (playerID >= 0 && playerID <= 5) {
+    if (playerID < 6) {
         if (itemID == WEAPON_SHORTSWORD) damage = 6 + (1 * p_strength[playerID]);
         else if (itemID == WEAPON_SHORTBOW) damage = 10 + (2 * p_dexterity[playerID]);
         else if (itemID == WEAPON_FIREBALL) damage = 4 + (2 * p_resilience[playerID]);
@@ -823,8 +823,8 @@ function GetWeaponDamage(itemID, state, playerID) { // in the future could make 
         else if (itemID == WEAPON_GREATSWORD) damage = 10 + (2 * p_strength[playerID]);
         else if (itemID == WEAPON_LONGBOW) damage = 10 + (2 * p_dexterity[playerID]);
         else if (itemID == WEAPON_GREATBOW) damage = 10 + (2 * p_dexterity[playerID]);
-        else if (itemID == WEAPON_LIGHTNINGBLAST && state == 0) damage = 8 + (2 * p_resilience[playerID]);
-        else if (itemID == WEAPON_LIGHTNINGBLAST && state == 1) damage = 4 + (2 * p_resilience[playerID]);
+        else if (itemID == WEAPON_LIGHTNINGBLAST && state == 0) damage = 20 + (2 * p_resilience[playerID]);
+        else if (itemID == WEAPON_LIGHTNINGBLAST && state == 1) damage = 15 + (2 * p_resilience[playerID]);
         else if (itemID == WEAPON_BLADESTORM) damage = 4 + (2 * p_resilience[playerID]);
         else if (itemID == WEAPON_CRIMSON_LONG_SWORD) damage = 30 + p_strength[playerID];
         else if (itemID == WEAPON_CRIMSON_GREAT_BOW) damage = 25 + p_dexterity[playerID];
@@ -837,7 +837,8 @@ function GetWeaponDamage(itemID, state, playerID) { // in the future could make 
         else if (itemID == WEAPON_GREATSWORD) damage = 35;
         else if (itemID == WEAPON_LONGBOW) damage = 50;
         else if (itemID == WEAPON_GREATBOW) damage = 50;
-        else if (itemID == WEAPON_LIGHTNINGBLAST) damage = 100;
+        else if (itemID == WEAPON_LIGHTNINGBLAST && state == 0) damage = 80;
+        else if (itemID == WEAPON_LIGHTNINGBLAST && state == 1) damage = 60;
         else if (itemID == WEAPON_BLADESTORM) damage = 50;
         else if (itemID == WEAPON_CRIMSON_LONG_SWORD) damage = 50;
         else if (itemID == WEAPON_CRIMSON_GREAT_BOW) damage = 70;
@@ -1005,12 +1006,11 @@ const AREA_BREVEN_LAIR = 5;
 function GetAreaAtPos(positionx, positiony) {
     if (PosIsWithinRect(positionx, positiony, 540, 2970, 0, 896)) return AREA_GATE_MOUNTAIN;
     if (PosIsWithinRect(positionx, positiony, 1664, 1920, 897, 1024)) return AREA_GATE_MOUNTAIN;
-    if (PosIsWithinRect(positionx, positiony, 1620, 3740, 1632, 3040)) return AREA_FIELD;
     if (PosIsWithinRect(positionx, positiony, 64, 770, 1250, 1860)) return AREA_CETUS_LAIR;
     if (PosIsWithinRect(positionx, positiony, 64, 831, 1920, 2624)) return AREA_ALDUS_LAIR;
     if (PosIsWithinRect(positionx, positiony, 832, 1088, 2080, 2624)) return AREA_ALDUS_LAIR;
-    if (PosIsWithinRect(positionx, positiony, 2526, 3264, 3104, 3560)) return AREA_BREVEN_LAIR;
-    if (PosIsWithinRect(positionx, positiony, 2624, 2880, 2960, 3104)) return AREA_BREVEN_LAIR;
+    if (PosIsWithinRect(positionx, positiony, 2526, 3264, 3072, 3560)) return AREA_BREVEN_LAIR;
+    if (PosIsWithinRect(positionx, positiony, 2624, 2880, 2944, 3071)) return AREA_BREVEN_LAIR;
     return 0;
 }
 
@@ -2545,7 +2545,7 @@ function UpdateCraftingMenu(playerID) {
                 if (aux_array[i] > 0) screen.printf("\x13\x04Insufficient {:s}", GetStringMaterialName(aux_array[i]));
             }
         }
-    } else if (keypress_2[playerID] && playerID == 1000) {
+    } else if (keypress_2[playerID]) {
         ResetAuxiliaryArray();
         aux_array[0], aux_array[1], aux_array[2], aux_array[3], aux_array[4] = PlayerHasCraftingIngredients(playerID, CONSUMABLE_ELIXER_OF_LIFE, U_CONSUMABLE);
         if (aux_array[0] > 0) {
@@ -3763,6 +3763,130 @@ function UpdateNPCs() {
                     }
                     if (PlayersAtArea(AREA_BREVEN_LAIR)) Order(U_LOST_KNIGHT, $P7, L_MAIN, Patrol, L_0X0);
                 }
+                if (PlayersAtArea(AREA_BREVEN_LAIR) && npc_state0[i] == 0) {
+                    npc_state0[i] = 1;
+                    PlayWavAtPos("staredit/wav/boss_incoming.ogg", npc_x[i], npc_y[i], 960);
+                    CenterLoc(L_16X16, lair_x, lair_y);
+                    RemoveUnitAt(All, U_ANANSI, L_16X16, $P7);
+                    RemoveUnitAt(All, U_CHIMERA, L_16X16, $P7);
+                } else if (!PlayersAtArea(AREA_BREVEN_LAIR) && npc_state0[i] > 0) {
+                    npc_state0[i] = 0;
+                    unit.hp = 600 * 256;
+                }
+                // combat loop
+                if (npc_state0[i] > 0 && unit_is_alive) {
+                    if ((state0 <= 120 && state0 % 24 == 0) || (state0 >= 288 && state0 <= 408 && state0 % 24 == 0)) {
+                        PlayWavAtPos("staredit/wav/boss_charge.ogg", unit_x, unit_y, 960);
+                    }
+                    if (state0 <= 144 && state0 % 2 == 0) { // charge up first summon (0 - 6 seconds)
+                        queue_pro_posx, queue_pro_posy = MovePosTowards(unit_x, unit_y, Random(0, 359), 320);
+                        queue_pro_maxtime = 12;
+                        queue_pro_velocity = 20;
+                        queue_pro_effect2 = IMAGE_PHOTON_BLASTERS;
+                        queue_pro_effect2_drawfunc = 17;
+                        queue_pro_effect2_iscript = ISCRIPT_FAST;
+                        queue_pro_target_cunit = npc_cunit[i];
+                        CreateProjectile();
+                    } else if (state0 == 145) { // do first summon (on 6 seconds)
+                        DrawCircle(lair_x, lair_y, 320, 12, IMAGE_ZERG_AIR_DEATH_LARGE, 0, ISCRIPT_FAST);
+                        setloc(L_MAIN, lair_x, lair_y);
+                        CenterLoc(L_16X16, lair_x, lair_y);
+                        CreateUnitCircle(U_ANANSI, $P7, L_MAIN, 320, 12);
+                        Order(U_ANANSI, $P7, L_16X16, Patrol, L_16X16);
+                        PlayWavAtPos("sound\Bullet\ZQuHit02.wav", unit_x, unit_y, 960);
+                    } else if (state0 >= 288 && state0 <= 432 && state0 % 2 == 0) { // charge up second summon (12 - 18 seconds)
+                        queue_pro_posx, queue_pro_posy = MovePosTowards(unit_x, unit_y, Random(0, 359), 320);
+                        queue_pro_maxtime = 12;
+                        queue_pro_velocity = 20;
+                        queue_pro_effect2 = IMAGE_PHOTON_BLASTERS;
+                        queue_pro_effect2_drawfunc = 17;
+                        queue_pro_effect2_iscript = ISCRIPT_FAST;
+                        queue_pro_target_cunit = npc_cunit[i];
+                        CreateProjectile();
+                    } else if (state0 == 433) { // do second summon (on 18 seconds)
+                        DrawCircle(lair_x, lair_y, 320, 12, IMAGE_ZERG_AIR_DEATH_LARGE, 0, ISCRIPT_FAST);
+                        setloc(L_MAIN, lair_x, lair_y);
+                        CenterLoc(L_16X16, lair_x, lair_y);
+                        CreateUnitCircle(U_CHIMERA, $P7, L_MAIN, 320, 10);
+                        Order(U_CHIMERA, $P7, L_16X16, Patrol, L_16X16);
+                        PlayWavAtPos("sound\Bullet\ZQuHit02.wav", unit_x, unit_y, 960);
+                    } else if (state0 >= 576 && state0 % 12 == 0) { // consume chimeras in the lair after 24 seconds
+                        CenterLoc(L_16X16, lair_x, lair_y);
+                        if (Bring($P7, AtLeast, 1, U_CHIMERA, L_16X16)) {
+                            HealUnit(npc_cunit[i], 10 * 256, 600 * 256);
+                            PlayWavAtPos("sound\Bullet\ZHyFir00.wav", lair_x, lair_y, 960);
+                            MoveLocation(L_MAIN, U_CHIMERA, $P7, L_16X16);
+                            KillUnitAt(1, U_CHIMERA, L_MAIN, $P7);
+                            queue_pro_posx, queue_pro_posy = GetLocationPoint(L_MAIN);
+                            queue_pro_maxtime = 16;
+                            queue_pro_velocity = 12;
+                            queue_pro_effect1 = IMAGE_SPORES_OVERLAY;
+                            queue_pro_effect1_iscript = ISCRIPT_FAST;
+                            queue_pro_effect1_drawfunc = 6;
+                            queue_pro_effect2_start = 7;
+                            queue_pro_effect2 = IMAGE_SPORES_OVERLAY;
+                            queue_pro_effect2_iscript = ISCRIPT_FAST;
+                            queue_pro_target_cunit = npc_cunit[i];
+                            CreateProjectile();
+                        }
+                    }
+                    npc_state0[i]++;
+                    if (npc_state0[i] >= 720) npc_state0[i] = 1;
+                }
+                // death
+                if (!unit_is_alive && npc_state1[i] == 0) npc_state1[i] = 1;
+                if (npc_state1[i] > 0) {
+                    if (npc_state1[i] == 1) {
+                        for (var j = 0; j < 8; j++) {
+                            queue_pro_posx, queue_pro_posy = unit_x, unit_y;
+                            queue_pro_maxtime = 8;
+                            queue_pro_angle = (j + 1) * 45;
+                            queue_pro_velocity = 40;
+                            queue_pro_angular_velocity = Random(-10, 10);
+                            queue_pro_effect2 = 103;
+                            queue_pro_effect2_type = 1;
+                            CreateProjectile();
+                        }
+                        setloc(L_MAIN, unit_x, unit_y);
+                        CreateUnitDeathAtLocation(U_KAKARU, $P8, L_MAIN);
+                    } else if (state1 == 24) {
+                        PlayWavAtPos("staredit/wav/boss_death0.ogg", unit_x, unit_y, 960);
+                    } else if (state1 > 48 && state1 % 4 == 0) {
+                        queue_pro_posx, queue_pro_posy = unit_x, unit_y;
+                        queue_pro_maxtime = 12;
+                        queue_pro_angle = Random(0, 359);
+                        queue_pro_velocity = 25;
+                        queue_pro_angular_velocity = Random(-10, 10);
+                        queue_pro_effect2 = IMAGE_ZERG_AIR_DEATH_SMALL;
+                        queue_pro_effect2_iscript = ISCRIPT_NORMAL;
+                        if (state1 % 12 == 0) {
+                            queue_pro_effect2_drawfunc = 17;
+                        }
+                        CreateProjectile();
+                        PlayWavAtPos("sound\Zerg\Guardian\ZGuDth00.WAV", unit_x, unit_y, 960);
+                        setloc(L_MAIN, unit_x, unit_y);
+                        CreateImageSpriteAtLocation($P7, L_MAIN, IMAGE_ZERG_AIR_DEATH_LARGE, 0, ISCRIPT_NORMAL);
+                    }
+                    npc_state1[i]++;
+                    if (npc_state1[i] >= 216) {
+                        for (var j = 0; j < 8; j++) {
+                            queue_pro_posx, queue_pro_posy = unit_x, unit_y;
+                            queue_pro_maxtime = 12;
+                            queue_pro_angle = (j + 1) * 45;
+                            queue_pro_velocity = 25;
+                            queue_pro_angular_velocity = Random(-10, 10);
+                            queue_pro_effect2 = IMAGE_ZERG_AIR_DEATH_SMALL;
+                            queue_pro_effect2_iscript = ISCRIPT_NORMAL;
+                            queue_pro_effect2_drawfunc = 17;
+                            CreateProjectile();
+                        }
+                        PlayWavAtPos("staredit/wav/boss_destroyed.ogg", unit_x, unit_y, 960);
+                        setloc(L_MAIN, unit_x, unit_y);
+                        CreateItemUnit(U_WEAPON, WEAPON_LIGHTNINGBLAST, L_MAIN, 1, 1);
+                        ResetNPCIndex(i);
+                        npc_breven_spawn_timer = NPC_BREVEN_SPAWN_TIME;
+                    }
+                }
                 // show hp to players
                 if (unit_is_alive) {
                     const old_cp = getcurpl();
@@ -3808,8 +3932,8 @@ function onPluginStart() {
                 p_material_fiber_amount[playerID] = 50;
                 p_material_targus_amount[playerID] = 50;
                 p_material_gartle_amount[playerID] = 50;
-                // EquipBeltSlot(CONSUMABLE_BANDAGE, playerID, 0, 3);
-                // EquipBeltSlot(CONSUMABLE_BANDAGE, playerID, 1, 3);
+                EquipBeltSlot(CONSUMABLE_ELIXER_OF_LIFE, playerID, 0, 3);
+                EquipBeltSlot(CONSUMABLE_BANDAGE, playerID, 1, 3);
                 // EquipBeltSlot(CONSUMABLE_BANDAGE, playerID, 2, 3);
                 // EquipBeltSlot(CONSUMABLE_BANDAGE, playerID, 3, 3);
                 // EquipBeltSlot(CONSUMABLE_BANDAGE, playerID, 4, 3);
@@ -4134,7 +4258,7 @@ function afterTriggerExec() {
                     HealShieldPlayer(playerID, unit, amount_recovered); // toughness from resilience
                     // const recovered_whole, recovered_frac = GetWholeAndFraction((amount_recovered * 10000) / 256);
                     // screen.printf("\x06{}! \x02+{}.{}", armor_lost / 256, recovered_whole, recovered_frac);
-                    screen.printf("\x06{}!", (armor_lost - amount_recovered) / 256);
+                    // screen.printf("\x06{}!", (armor_lost - amount_recovered) / 256);
                     if (unit_took_health_damage && p_shield[playerID] >= 256) {
                         p_shield_broken[playerID] = 1;
                         // DisplayText("\x13\x06-! ARMOR BROKEN !-");
@@ -4355,11 +4479,26 @@ function afterTriggerExec() {
                 for (var i = check_from; i < check_to; i++) {
                     if (keypress_belt[i] && p_belt_equipped[i] > 0) {
                         var was_used = 0;
-                        if (p_belt_equipped[i] == CONSUMABLE_BANDAGE && p_cons_bandage_state[playerID] == 0 && p_belt_amount[i] > 0) {
-                            p_cons_bandage_state[playerID] = 1;
+                        if (p_belt_equipped[i] == CONSUMABLE_BANDAGE && p_belt_amount[i] > 0 && p_cons_eat_cooldown[playerID] == 0) {
+                            p_cons_eat_cooldown[playerID] = 24;
+                            p_life_regen_consumables[playerID] += 25 * 256;
+                            PlayWavAtPos("sound/Terran/Medic/TMedHeal.wav", unit_x, unit_y, 320);
+                            queue_pro_posx, queue_pro_posy = unit_x + 4, unit_y - 40;
+                            queue_pro_maxtime = 24;
+                            queue_pro_angle = 0;
+                            queue_pro_velocity = 16;
+                            queue_pro_updates_per_frame = 4;
+                            queue_pro_angular_velocity = 20;
+                            queue_pro_effect2_type = 0;
+                            queue_pro_effect2 = IMAGE_GREEN_FLAME0;
+                            queue_pro_effect2_iscript = ISCRIPT_NORMAL;
+                            CreateProjectile();
                             was_used = 1;
-                        } else if (p_belt_equipped[i] == CONSUMABLE_ELIXER_OF_LIFE && p_cons_bandage_state[playerID] == 0 && p_belt_amount[i] > 0) {
-                            p_cons_bandage_state[playerID] = 1;
+                        } else if (p_belt_equipped[i] == CONSUMABLE_ELIXER_OF_LIFE && p_belt_amount[i] > 0 && p_cons_eat_cooldown[playerID] == 0) {
+                            p_cons_eat_cooldown[playerID] = 24;
+                            HealPlayer(playerID, p_cunit[playerID], 25 * 256);
+                            DrawCircle(p_x[playerID], p_y[playerID], 72, 16, IMAGE_GREEN_FLAME0, 0, ISCRIPT_NORMAL);
+                            PlayWavAtPos("sound/Terran/Medic/TMedHeal.wav", p_x[playerID], p_y[playerID], 320);
                             was_used = 1;
                         } else if (p_belt_equipped[i] == CONSUMABLE_FUSE_BOMB && p_belt_amount[i] > 0) {
                             // create bomb
@@ -4373,14 +4512,6 @@ function afterTriggerExec() {
                             // make this text more specific and maybe confined to 1 line
                         }
                     }
-                }
-                // BANDAGE
-                if (p_cons_bandage_state[playerID] == 1 && p_cons_eat_cooldown[playerID] == 0) {
-                    p_cons_bandage_state[playerID] = 0;
-                    p_cons_eat_cooldown[playerID] = 24;
-                    DrawCircle(p_x[playerID], p_y[playerID], 72, 16, IMAGE_GREEN_FLAME0, 0, ISCRIPT_NORMAL);
-                    p_life_regen_consumables[playerID] += 25 * 256;
-                    PlayWavAtPos("sound/Terran/Medic/TMedHeal.wav", p_x[playerID], p_y[playerID], 320);
                 }
             }
 
@@ -4492,6 +4623,7 @@ function afterTriggerExec() {
                 // debug_values[7] = keypress_belt[check_from + 7];
                 // debug_values[6] = p_x[playerID];
                 // debug_values[7] = p_y[playerID];
+                debug_values[0] = GetAreaAtPos(p_x[playerID], p_y[playerID]);
                 eprintf("{} | {} | {} | {} | {} | {} | {} | {}", debug_values[0], debug_values[1], debug_values[2], debug_values[3], debug_values[4], debug_values[5], debug_values[6], debug_values[7]);
             }
         }
@@ -4570,7 +4702,7 @@ function afterTriggerExec() {
         }
         DisplayTextAll("\x13\x04You feel a strange release of energy.");
         for (var p = 0; p < 6; p++) {
-            if (GetAreaAtPos(p_x[p], p_y[p]) == AREA_FIELD) PlayWAVCP("staredit/wav/solved.ogg", p);
+            PlayWAVCP("staredit/wav/solved.ogg", p);
         }
     }
 
