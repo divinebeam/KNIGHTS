@@ -1,7 +1,5 @@
 
 CURRENTLY
-	implementing consumables
-		elixer of life
 	implementing info display on unit icons
 		make it local, display shield stuff, etc.
 	implementing juyet quest
@@ -53,7 +51,7 @@ TODO
 			[-] north cave
 			[-] east cave
 			[-] breven cave
-			[-] basic consumables
+			[x] basic consumables
 
 
 BUGS

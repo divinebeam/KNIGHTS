@@ -85,7 +85,6 @@ const IMAGE_NUKE_DOT = 233;
 const IMAGE_PHOTON_BLASTERS = 519;
 const IMAGE_PARTICLE_BEAM = 520;
 const IMAGE_SCARAB_MISSILE = 443;
-const IMAGE_ZEALOT_DEATH = 153;
 const IMAGE_BURST_LASER = 447;
 const IMAGE_NEUTRON = 964;
 const IMAGE_GAUSS_RIFLE_HIT = 527;
@@ -347,7 +346,7 @@ const chunk_buffer = EUDArray(8);
 const active_units = EUDArray(ACTIVE_UNITS_MAX * 6);
 var active_units_update = 0;
 // @bm DEBUG MODE
-const debug_enabled = 0;
+const debug_enabled = 1;
 const debug_values = EUDArray(8);
 var time = 0;
 var total_time = 0;
@@ -399,7 +398,7 @@ function isAlly(p: TrgPlayer, tgp: TrgPlayer) {
 }
 
 function PlaySong(id) {
-    // if (id == 0) PlayWAV("staredit/wav/a_new_world.ogg");
+    if (id == 0) PlayWAV("staredit/wav/a_new_world.ogg");
 }
 
 function PlaySword() {
